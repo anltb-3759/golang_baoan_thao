@@ -1,0 +1,12 @@
+{
+  "auth.email_exists": "Email này đã được sử dụng",
+  "auth.invalid_credentials": "Email hoặc mật khẩu không đúng",
+  "auth.user_not_found": "Không tìm thấy người dùng",
+  "auth.password_mismatch": "Mật khẩu không đúng",
+  "auth.invalid_request": "Dữ liệu yêu cầu không hợp lệ",
+  "common.internal_error": "Lỗi hệ thống",
+  "validation.required": "{field} là bắt buộc",
+  "validation.email": "{field} phải là email hợp lệ",
+  "validation.min": "{field} phải có ít nhất {param} ký tự",
+  "validation.invalid": "{field} không hợp lệ"
+}

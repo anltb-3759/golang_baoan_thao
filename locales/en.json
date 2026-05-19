@@ -1,0 +1,12 @@
+{
+  "auth.email_exists": "This email is already used",
+  "auth.invalid_credentials": "Email or password is incorrect",
+  "auth.user_not_found": "User not found",
+  "auth.password_mismatch": "Password is incorrect",
+  "auth.invalid_request": "Invalid request data",
+  "common.internal_error": "Internal server error",
+  "validation.required": "{field} is required",
+  "validation.email": "{field} must be a valid email",
+  "validation.min": "{field} must be at least {param} characters",
+  "validation.invalid": "{field} is invalid"
+}

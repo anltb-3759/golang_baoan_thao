@@ -1,7 +1,6 @@
 package configs
 
 import (
-	"fmt"
 	"net/http"
 
 	"github.com/go-playground/validator/v10"
@@ -13,7 +12,13 @@ type CustomValidator struct {
 
 type ValidatorError struct {
 	Code     int
-	Messages map[string]string
+	Messages []ValidatorMessage
+}
+
+type ValidatorMessage struct {
+	Field  string
+	Key    string
+	Params map[string]string
 }
 
 func (ve *ValidatorError) Error() string {
@@ -23,15 +28,24 @@ func (ve *ValidatorError) Error() string {
 func (cv *CustomValidator) Validate(i interface{}) error {
 	if err := cv.Validator.Struct(i); err != nil {
 		if validationErrors, ok := err.(validator.ValidationErrors); ok {
-			errorMessages := make(map[string]string)
+			errorMessages := make([]ValidatorMessage, 0, len(validationErrors))
 			for _, e := range validationErrors {
 				switch e.Tag() {
 				case "required":
-					errorMessages[e.Field()] = fmt.Sprintf("%s is required", e.Field())
+					errorMessages = append(errorMessages, ValidatorMessage{
+						Field: e.Field(),
+						Key:   "validation.required",
+					})
 				case "min":
-					errorMessages[e.Field()] = fmt.Sprintf("%s must be at least %s characters", e.Field(), e.Param())
+					errorMessages = append(errorMessages, ValidatorMessage{
+						Field: e.Field(),
+						Key:   "validation.min",
+					})
 				default:
-					errorMessages[e.Field()] = fmt.Sprintf("%s is invalid (%s)", e.Field(), e.Tag())
+					errorMessages = append(errorMessages, ValidatorMessage{
+						Field: e.Field(),
+						Key:   "validation.invalid",
+					})
 				}
 			}
 			return &ValidatorError{

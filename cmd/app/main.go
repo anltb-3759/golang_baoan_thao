@@ -9,7 +9,12 @@ import (
 	"time"
 
 	"github.com/awesome-academy/golang_baoan_thao/internal/configs"
+	"github.com/awesome-academy/golang_baoan_thao/internal/docs"
+	"github.com/awesome-academy/golang_baoan_thao/internal/handlers"
 	"github.com/awesome-academy/golang_baoan_thao/internal/middlewares"
+	"github.com/awesome-academy/golang_baoan_thao/internal/repositories"
+	"github.com/awesome-academy/golang_baoan_thao/internal/routes"
+	"github.com/awesome-academy/golang_baoan_thao/internal/services"
 	"github.com/go-playground/validator/v10"
 	"github.com/joho/godotenv"
 	"github.com/labstack/echo/v5"
@@ -27,7 +32,7 @@ func main() {
 	}
 
 	//  Database Connection & Migration
-	configs.InitDB()
+	db := configs.InitDB()
 
 	e := echo.New()
 
@@ -41,6 +46,15 @@ func main() {
 
 	// error handler
 	e.HTTPErrorHandler = configs.CustomHTTPErrorHandler
+
+	userRepo := repositories.NewUserRepo(db)
+	authService := services.NewAuthService(userRepo)
+	authHandler := handlers.NewAuthHandler(authService)
+
+	docs.SetupSwaggerRoutes(e)
+	routes.SetupRoutes(e, &routes.ApiHandler{
+		AuthHandler: authHandler,
+	})
 
 	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer cancel()

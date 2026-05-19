@@ -12,7 +12,7 @@ import (
 func InitDB() *gorm.DB {
 	dsn := os.Getenv("DATABASE_URL")
 	if dsn == "" {
-		dsn = "host=localhost user=postgres password=123456 dbname='Service Management System' port=5432 sslmode=disable"
+		panic("database configuration error: DATABASE_URL is not set")
 	}
 
 	db, err := gorm.Open(postgres.Open(dsn), &gorm.Config{})

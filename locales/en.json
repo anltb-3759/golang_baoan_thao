@@ -8,6 +8,7 @@
   "auth.logout_success": "Logout successfully",
   "auth.invalid_request": "Invalid request data",
   "common.internal_error": "Internal server error",
+  "service.not_found": "Service not found",
   "validation.required": "{field} is required",
   "validation.email": "{field} must be a valid email",
   "validation.min": "{field} must be at least {param} characters",

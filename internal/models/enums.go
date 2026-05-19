@@ -66,3 +66,13 @@ const (
 	ImportExportStatusSuccess    ImportExportStatus = "success"
 	ImportExportStatusFailed     ImportExportStatus = "failed"
 )
+
+type ServiceCategory string
+
+const (
+	ServiceCategoryAdministrative ServiceCategory = "hanh_chinh_cong"
+	ServiceCategoryEducation      ServiceCategory = "giao_duc"
+	ServiceCategoryHealth         ServiceCategory = "y_te"
+	ServiceCategoryConstruction   ServiceCategory = "xay_dung"
+	ServiceCategoryResources      ServiceCategory = "tai_nguyen"
+)

@@ -8,6 +8,7 @@
   "auth.logout_success": "Đăng xuất thành công",
   "auth.invalid_request": "Dữ liệu yêu cầu không hợp lệ",
   "common.internal_error": "Lỗi hệ thống",
+  "service.not_found": "Không tìm thấy dịch vụ công",
   "validation.required": "{field} là bắt buộc",
   "validation.email": "{field} phải là email hợp lệ",
   "validation.min": "{field} phải có ít nhất {param} ký tự",

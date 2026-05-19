@@ -9,6 +9,7 @@ type ServiceType struct {
 	ID                      string          `json:"id" gorm:"type:uuid;default:gen_random_uuid();primaryKey"`
 	Name                    string          `json:"name" gorm:"type:varchar(255);not null;index"`
 	Code                    string          `json:"code" gorm:"type:varchar(100);not null;uniqueIndex"`
+	Category                ServiceCategory `json:"category" gorm:"type:varchar(50);not null;default:'hanh_chinh_cong';index"`
 	Description             string          `json:"description" gorm:"type:text"`
 	RequiredDocuments       string          `json:"required_documents" gorm:"type:text"`
 	FormSchema              json.RawMessage `json:"form_schema" gorm:"type:jsonb;not null"`

@@ -51,9 +51,14 @@ func main() {
 	authService := services.NewAuthService(userRepo)
 	authHandler := handlers.NewAuthHandler(authService)
 
+	serviceCatalogRepo := repositories.NewServiceTypeRepository(db)
+	serviceCatalogSvc := services.NewServiceCatalogService(serviceCatalogRepo)
+	serviceCatalogHandler := handlers.NewServiceCatalogHandler(serviceCatalogSvc)
+
 	docs.SetupSwaggerRoutes(e)
 	routes.SetupRoutes(e, &routes.ApiHandler{
-		AuthHandler: authHandler,
+		AuthHandler:           authHandler,
+		ServiceCatalogHandler: serviceCatalogHandler,
 	})
 
 	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)

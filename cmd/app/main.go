@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/awesome-academy/golang_baoan_thao/internal/configs"
+	"github.com/awesome-academy/golang_baoan_thao/internal/middlewares"
 	"github.com/go-playground/validator/v10"
 	"github.com/joho/godotenv"
 	"github.com/labstack/echo/v5"
@@ -19,6 +20,10 @@ func main() {
 	// Load file .env
 	if err := godotenv.Load(); err != nil {
 		log.Println("No .env file found")
+	}
+
+	if err := configs.LoadI18nMessages("locales"); err != nil {
+		log.Fatalf("failed to load i18n messages: %v", err)
 	}
 
 	//  Database Connection & Migration
@@ -32,6 +37,7 @@ func main() {
 	// middleware
 	configs.CustomLogger(e)
 	e.Use(middleware.Recover())
+	e.Use(middlewares.LocaleMiddleware)
 
 	// error handler
 	e.HTTPErrorHandler = configs.CustomHTTPErrorHandler

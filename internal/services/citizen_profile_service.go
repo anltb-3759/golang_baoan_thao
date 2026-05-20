@@ -7,6 +7,7 @@ import (
 	"github.com/awesome-academy/golang_baoan_thao/internal/dtos"
 	"github.com/awesome-academy/golang_baoan_thao/internal/models"
 	"github.com/awesome-academy/golang_baoan_thao/internal/repositories"
+	"github.com/awesome-academy/golang_baoan_thao/internal/utils"
 )
 
 var ErrProfileNotFound = errors.New("profile.not_found")
@@ -70,26 +71,15 @@ func (s *CitizenProfileService) UpdateProfile(userID string, req *dtos.UpdateCit
 		return nil, ErrProfileNotFound
 	}
 
-	if req.Name != nil {
-		user.Name = *req.Name
-	}
-	if req.Phone != nil {
-		user.Phone = *req.Phone
-	}
-	if req.Address != nil {
-		user.Address = *req.Address
-	}
-	if req.Gender != nil {
-		profile.Gender = *req.Gender
-	}
-	if req.PermanentAddress != nil {
-		profile.PermanentAddress = *req.PermanentAddress
-	}
+	utils.SetIfNotNil(&user.Name,    req.Name)
+	utils.SetIfNotNil(&user.Phone,   req.Phone)
+	utils.SetIfNotNil(&user.Address, req.Address)
+
+	utils.SetIfNotNil(&profile.Gender,                   req.Gender)
+	utils.SetIfNotNil(&profile.PermanentAddress,         req.PermanentAddress)
+	utils.SetIfNotNil(&profile.EmailNotificationEnabled, req.EmailNotificationEnabled)
 	if req.DateOfBirth != nil {
 		profile.DateOfBirth = req.DateOfBirth
-	}
-	if req.EmailNotificationEnabled != nil {
-		profile.EmailNotificationEnabled = *req.EmailNotificationEnabled
 	}
 
 	now := time.Now()

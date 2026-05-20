@@ -44,5 +44,20 @@
   "profile.not_found": "Không tìm thấy thông tin hồ sơ",
   "profile.invalid_request": "Dữ liệu cập nhật không hợp lệ",
   "profile.citizen_id_immutable": "Số CCCD/CMND không thể thay đổi sau khi đã đăng ký",
-  "profile.citizen_id_taken": "Số CCCD/CMND này đã được sử dụng bởi tài khoản khác"
+  "profile.citizen_id_taken": "Số CCCD/CMND này đã được sử dụng bởi tài khoản khác",
+  "application.invalid_request": "Dữ liệu nộp hồ sơ không hợp lệ",
+  "application.service_type_not_found": "Không tìm thấy loại dịch vụ",
+  "application.service_type_inactive": "Dịch vụ này hiện không còn hoạt động",
+  "application.missing_required_field": "Thiếu thông tin bắt buộc trong hồ sơ",
+  "application.attachment_too_large": "Tệp đính kèm vượt quá dung lượng cho phép",
+  "application.attachment_too_many": "Số lượng tệp đính kèm vượt quá giới hạn (tối đa 10 tệp)",
+  "application.attachment_invalid_type": "Định dạng tệp không được hỗ trợ (chỉ chấp nhận PDF, JPG, PNG)",
+  "application.not_found": "Không tìm thấy hồ sơ",
+  "application.submit_success": "Nộp hồ sơ thành công",
+  "notification.received.title": "Tiếp nhận hồ sơ [{code}]",
+  "notification.received.message": "Hồ sơ dịch vụ \"{service}\" của bạn đã được tiếp nhận thành công.",
+  "common.default_citizen_name": "Quý công dân",
+  "common.app_name": "Cổng dịch vụ công",
+  "mail.application_received.subject": "Xác nhận nộp hồ sơ [{code}]",
+  "mail.application_received.body": "Kính gửi {name},\n\nHệ thống đã tiếp nhận hồ sơ của bạn với các thông tin sau:\n\n- Dịch vụ: {service}\n- Mã hồ sơ: {code}\n- Thời gian nộp: {submitted_at}\n\nBạn vui lòng giữ lại mã hồ sơ để tra cứu trạng thái xử lý.\n\nTrân trọng,\n{from_name}"
 }

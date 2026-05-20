@@ -234,9 +234,50 @@ const openAPISpec = `{
       }
     },
     "/api/citizens/me/applications": {
+      "post": {
+        "tags": ["Applications"],
+        "summary": "Submit a new application",
+        "description": "Multipart form-data. Field 'data' (JSON string) + optional 'attachments[]' files (PDF/JPG/PNG, max 10 files, 10 MiB each, 30 MiB total).",
+        "security": [{ "BearerAuth": [] }],
+        "parameters": [
+          { "name": "Accept-Language", "in": "header", "schema": { "type": "string", "enum": ["vi", "en"], "default": "vi" } }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "type": "object",
+                "required": ["data"],
+                "properties": {
+                  "data": {
+                    "type": "string",
+                    "description": "JSON string of SubmitApplicationRequest",
+                    "example": "{\"service_type_id\":\"uuid\",\"submitted_data\":{\"full_name\":\"Nguyen Van A\"}}"
+                  },
+                  "attachments[]": {
+                    "type": "array",
+                    "items": { "type": "string", "format": "binary" },
+                    "description": "Optional file attachments (PDF/JPG/PNG)"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Application submitted successfully",
+            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ApplicationDetailResponse" } } }
+          },
+          "400": { "description": "Missing or invalid 'data' field", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } } } },
+          "401": { "description": "Unauthorized", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } } } },
+          "422": { "description": "Service not found / inactive / missing required field / attachment limit exceeded", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } } } }
+        }
+      },
       "get": {
-        "tags": ["Citizen Profile"],
-        "summary": "List my applications",
+        "tags": ["Applications"],
+        "summary": "List my submitted applications",
         "security": [{ "BearerAuth": [] }],
         "parameters": [
           { "name": "Accept-Language", "in": "header", "schema": { "type": "string", "enum": ["vi", "en"], "default": "vi" } },
@@ -249,6 +290,25 @@ const openAPISpec = `{
             "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ApplicationListResponse" } } }
           },
           "401": { "description": "Unauthorized", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } } } }
+        }
+      }
+    },
+    "/api/citizens/me/applications/{id}": {
+      "get": {
+        "tags": ["Applications"],
+        "summary": "Get a specific application detail",
+        "security": [{ "BearerAuth": [] }],
+        "parameters": [
+          { "name": "Accept-Language", "in": "header", "schema": { "type": "string", "enum": ["vi", "en"], "default": "vi" } },
+          { "name": "id", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } }
+        ],
+        "responses": {
+          "200": {
+            "description": "Application retrieved successfully",
+            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ApplicationDetailResponse" } } }
+          },
+          "401": { "description": "Unauthorized", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } } } },
+          "404": { "description": "Application not found", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } } } }
         }
       }
     },
@@ -502,6 +562,35 @@ const openAPISpec = `{
         "properties": {
           "applications": { "type": "array", "items": { "$ref": "#/components/schemas/ApplicationItem" } },
           "pagination":   { "$ref": "#/components/schemas/Pagination" }
+        }
+      },
+      "ApplicationAttachment": {
+        "type": "object",
+        "properties": {
+          "id":        { "type": "string", "format": "uuid" },
+          "file_name": { "type": "string" },
+          "file_url":  { "type": "string" },
+          "file_type": { "type": "string", "example": "application/pdf" },
+          "file_size": { "type": "integer", "nullable": true }
+        }
+      },
+      "ApplicationDetail": {
+        "type": "object",
+        "properties": {
+          "id":                { "type": "string", "format": "uuid" },
+          "application_code":  { "type": "string", "example": "APP-20260520-ABCDEF" },
+          "service_type_id":   { "type": "string", "format": "uuid" },
+          "service_type_name": { "type": "string" },
+          "status":            { "type": "string", "enum": ["received", "processing", "need_more_info", "approved", "rejected"] },
+          "submitted_data":    { "type": "object", "additionalProperties": true },
+          "submitted_at":      { "type": "string", "format": "date-time" },
+          "attachments":       { "type": "array", "items": { "$ref": "#/components/schemas/ApplicationAttachment" } }
+        }
+      },
+      "ApplicationDetailResponse": {
+        "type": "object",
+        "properties": {
+          "application": { "$ref": "#/components/schemas/ApplicationDetail" }
         }
       },
       "ServiceType": {

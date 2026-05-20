@@ -11,6 +11,8 @@ func LocaleMiddleware(next echo.HandlerFunc) echo.HandlerFunc {
 
 		if cookieLang, err := c.Cookie("lang"); err == nil && cookieLang.Value != "" {
 			locale = configs.NormalizeLocale(cookieLang.Value)
+		} else if header := c.Request().Header.Get("Accept-Language"); header != "" {
+			locale = configs.NormalizeLocale(header)
 		}
 
 		c.Set(configs.LocaleKey, locale)

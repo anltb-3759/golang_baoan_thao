@@ -74,6 +74,21 @@ func LocaleFromContext(c *echo.Context) string {
 	return NormalizeLocale(locale)
 }
 
+func TLang(lang, key string, params map[string]string) string {
+	locale := NormalizeLocale(lang)
+	template, ok := messages[locale][key]
+	if !ok {
+		template, ok = messages[DefaultLocale][key]
+	}
+	if !ok {
+		return key
+	}
+	for name, value := range params {
+		template = strings.ReplaceAll(template, "{"+name+"}", value)
+	}
+	return template
+}
+
 func T(c *echo.Context, key string, params map[string]string) string {
 	locale := LocaleFromContext(c)
 	template, ok := messages[locale][key]

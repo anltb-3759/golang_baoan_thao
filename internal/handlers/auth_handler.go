@@ -56,7 +56,7 @@ func (h *AuthHandler) Register(c *echo.Context) error {
 	}
 
 	return c.JSON(http.StatusCreated, utils.Map{
-		"user:": user,
+		"user": user,
 	})
 }
 

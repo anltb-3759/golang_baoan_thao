@@ -44,5 +44,20 @@
   "profile.not_found": "Profile not found",
   "profile.invalid_request": "Invalid profile update data",
   "profile.citizen_id_immutable": "Citizen ID number cannot be changed once registered",
-  "profile.citizen_id_taken": "This Citizen ID number is already used by another account"
+  "profile.citizen_id_taken": "This Citizen ID number is already used by another account",
+  "application.invalid_request": "Invalid application data",
+  "application.service_type_not_found": "Service type not found",
+  "application.service_type_inactive": "This service is currently inactive",
+  "application.missing_required_field": "Missing required field in application data",
+  "application.attachment_too_large": "Attachment exceeds the allowed size limit",
+  "application.attachment_too_many": "Too many attachments (maximum 10 files)",
+  "application.attachment_invalid_type": "Unsupported file type (only PDF, JPG, PNG are accepted)",
+  "application.not_found": "Application not found",
+  "application.submit_success": "Application submitted successfully",
+  "notification.received.title": "Application Received [{code}]",
+  "notification.received.message": "Your application for service \"{service}\" has been received successfully.",
+  "common.default_citizen_name": "Dear Citizen",
+  "common.app_name": "Public Service Portal",
+  "mail.application_received.subject": "Application Received [{code}]",
+  "mail.application_received.body": "Dear {name},\n\nYour application has been received with the following details:\n\n- Service: {service}\n- Application code: {code}\n- Submitted at: {submitted_at}\n\nPlease keep your application code for status tracking.\n\nBest regards,\n{from_name}"
 }

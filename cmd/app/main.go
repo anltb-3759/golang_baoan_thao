@@ -16,6 +16,7 @@ import (
 	"github.com/awesome-academy/golang_baoan_thao/internal/routes"
 	"github.com/awesome-academy/golang_baoan_thao/internal/services"
 	templates "github.com/awesome-academy/golang_baoan_thao/internal/templates"
+	"github.com/awesome-academy/golang_baoan_thao/internal/utils"
 	"github.com/go-playground/validator/v10"
 	"github.com/joho/godotenv"
 	"github.com/labstack/echo/v5"
@@ -23,7 +24,6 @@ import (
 )
 
 func main() {
-	// Load file .env
 	if err := godotenv.Load(); err != nil {
 		log.Println("No .env file found")
 	}
@@ -32,43 +32,51 @@ func main() {
 		log.Fatalf("failed to load i18n messages: %v", err)
 	}
 
-	//  Database Connection & Migration
 	db := configs.InitDB()
 
 	e := echo.New()
 
-	// Template renderer
 	if r, err := templates.NewRenderer("templates"); err == nil {
 		e.Renderer = r
 	} else {
 		log.Fatalf("failed to initialize templates: %v", err)
 	}
 
-	// Register Validator
 	e.Validator = &configs.CustomValidator{Validator: validator.New()}
 
-	// middleware
 	configs.CustomLogger(e)
 	e.Use(middleware.Recover())
+	e.Use(middleware.BodyLimit(services.MaxTotalAttachmentBytes))
 	e.Use(middlewares.LocaleMiddleware)
 
-	// error handler
 	e.HTTPErrorHandler = configs.CustomHTTPErrorHandler
+
+	uploadDir := utils.EnvOr("UPLOAD_DIR", "./uploads")
+	e.Static("/uploads", uploadDir)
 
 	userRepo := repositories.NewUserRepo(db)
 	citizenProfileRepo := repositories.NewCitizenProfileRepository(db)
 	applicationRepo := repositories.NewApplicationRepository(db)
+	serviceCatalogRepo := repositories.NewServiceTypeRepository(db)
 
+	// Auth
 	authService := services.NewAuthService(db, userRepo, citizenProfileRepo)
 	authHandler := handlers.NewAuthHandler(authService)
 	adminAuthHandler := handlers.NewAdminAuthHandler(authService)
 
-	serviceCatalogRepo := repositories.NewServiceTypeRepository(db)
 	serviceCatalogSvc := services.NewServiceCatalogService(serviceCatalogRepo)
 	serviceCatalogHandler := handlers.NewServiceCatalogHandler(serviceCatalogSvc)
 
 	citizenProfileSvc := services.NewCitizenProfileService(userRepo, citizenProfileRepo, applicationRepo)
 	citizenProfileHandler := handlers.NewCitizenProfileHandler(citizenProfileSvc)
+
+	storage := utils.NewLocalDiskStorage(uploadDir, "/uploads")
+
+	smtpCfg := services.LoadSMTPConfigFromEnv()
+	mailer := services.NewSMTPMailer(smtpCfg)
+
+	applicationSvc := services.NewApplicationService(applicationRepo, serviceCatalogRepo, userRepo, storage, mailer)
+	applicationHandler := handlers.NewApplicationHandler(applicationSvc)
 
 	docs.SetupSwaggerRoutes(e)
 	routes.SetupRoutes(e, &routes.ApiHandler{
@@ -76,6 +84,7 @@ func main() {
 		AdminAuthHandler:      adminAuthHandler,
 		ServiceCatalogHandler: serviceCatalogHandler,
 		CitizenProfileHandler: citizenProfileHandler,
+		ApplicationHandler:    applicationHandler,
 	})
 
 	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
@@ -90,3 +99,4 @@ func main() {
 		e.Logger.Error("failed to start server", "error", err)
 	}
 }
+

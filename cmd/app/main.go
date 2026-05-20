@@ -15,6 +15,7 @@ import (
 	"github.com/awesome-academy/golang_baoan_thao/internal/repositories"
 	"github.com/awesome-academy/golang_baoan_thao/internal/routes"
 	"github.com/awesome-academy/golang_baoan_thao/internal/services"
+	templates "github.com/awesome-academy/golang_baoan_thao/internal/templates"
 	"github.com/go-playground/validator/v10"
 	"github.com/joho/godotenv"
 	"github.com/labstack/echo/v5"
@@ -36,6 +37,13 @@ func main() {
 
 	e := echo.New()
 
+	// Template renderer
+	if r, err := templates.NewRenderer("templates"); err == nil {
+		e.Renderer = r
+	} else {
+		log.Fatalf("failed to initialize templates: %v", err)
+	}
+
 	// Register Validator
 	e.Validator = &configs.CustomValidator{Validator: validator.New()}
 
@@ -50,6 +58,7 @@ func main() {
 	userRepo := repositories.NewUserRepo(db)
 	authService := services.NewAuthService(userRepo)
 	authHandler := handlers.NewAuthHandler(authService)
+	adminAuthHandler := handlers.NewAdminAuthHandler(authService)
 
 	serviceCatalogRepo := repositories.NewServiceTypeRepository(db)
 	serviceCatalogSvc := services.NewServiceCatalogService(serviceCatalogRepo)
@@ -58,6 +67,7 @@ func main() {
 	docs.SetupSwaggerRoutes(e)
 	routes.SetupRoutes(e, &routes.ApiHandler{
 		AuthHandler:           authHandler,
+		AdminAuthHandler:      adminAuthHandler,
 		ServiceCatalogHandler: serviceCatalogHandler,
 	})
 

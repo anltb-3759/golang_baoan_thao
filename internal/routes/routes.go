@@ -8,11 +8,18 @@ import (
 )
 
 type ApiHandler struct {
-	AuthHandler             *handlers.AuthHandler
-	ServiceCatalogHandler   *handlers.ServiceCatalogHandler
+	AuthHandler           *handlers.AuthHandler
+	AdminAuthHandler      *handlers.AdminAuthHandler
+	ServiceCatalogHandler *handlers.ServiceCatalogHandler
 }
 
 func SetupRoutes(e *echo.Echo, handler *ApiHandler) {
+	// Admin web routes (HTML templates)
+	e.GET("/admin/login", handler.AdminAuthHandler.ShowLoginPage)
+	e.POST("/admin/login", handler.AdminAuthHandler.WebLogin)
+	e.GET("/admin/logout", handler.AdminAuthHandler.WebLogout)
+	e.GET("/set-locale", handler.AdminAuthHandler.SetLocale)
+
 	api := e.Group("/api")
 
 	auth := api.Group("/auth")

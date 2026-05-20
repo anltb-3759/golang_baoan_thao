@@ -7,9 +7,13 @@ import (
 
 func LocaleMiddleware(next echo.HandlerFunc) echo.HandlerFunc {
 	return func(c *echo.Context) error {
-		locale := c.Request().Header.Get("Accept-Language")
-		c.Set(configs.LocaleKey, configs.NormalizeLocale(locale))
+		locale := configs.DefaultLocale
 
+		if cookieLang, err := c.Cookie("lang"); err == nil && cookieLang.Value != "" {
+			locale = configs.NormalizeLocale(cookieLang.Value)
+		}
+
+		c.Set(configs.LocaleKey, locale)
 		return next(c)
 	}
 }

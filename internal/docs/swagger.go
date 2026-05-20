@@ -312,7 +312,7 @@ const openAPISpec = `{
       "UserResponse": {
         "type": "object",
         "properties": {
-          "user": {
+          "user:": {
             "$ref": "#/components/schemas/User"
           }
         }
@@ -324,7 +324,8 @@ const openAPISpec = `{
             "$ref": "#/components/schemas/User"
           },
           "token": {
-            "type": "string"
+            "type": "string",
+            "example": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
           }
         }
       },

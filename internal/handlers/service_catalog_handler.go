@@ -7,7 +7,7 @@ import (
 
 	"github.com/awesome-academy/golang_baoan_thao/internal/models"
 	"github.com/awesome-academy/golang_baoan_thao/internal/repositories"
-	"github.com/awesome-academy/golang_baoan_thao/internal/types"
+	"github.com/awesome-academy/golang_baoan_thao/internal/utils"
 	"github.com/labstack/echo/v5"
 	"gorm.io/gorm"
 )
@@ -48,7 +48,7 @@ func (h *ServiceCatalogHandler) ListServices(c *echo.Context) error {
 
 	return c.JSON(http.StatusOK, map[string]any{
 		"data":       result.Items,
-		"pagination": types.Pagination{Page: page, Limit: limit, Total: result.Total},
+		"pagination": utils.Pagination{Page: page, Limit: limit, Total: result.Total},
 	})
 }
 

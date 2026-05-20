@@ -58,7 +58,7 @@ func TestAuthHandlerRegisterReturnsCreatedUser(t *testing.T) {
 			}, nil
 		},
 	})
-	c, rec := newJSONContext(e, http.MethodPost, "/api/auth/register", `{"name":"User","email":"user@example.com","password":"123456"}`)
+	c, rec := newJSONContext(e, http.MethodPost, "/api/auth/register", `{"name":"User","email":"user@example.com","password":"123456","citizen_id_number":"123456789012"}`)
 
 	if err := handler.Register(c); err != nil {
 		t.Fatalf("expected nil error, got %v", err)
@@ -83,7 +83,7 @@ func TestAuthHandlerRegisterMapsEmailExistsError(t *testing.T) {
 			return nil, services.ErrEmailAlreadyExists
 		},
 	})
-	c, _ := newJSONContext(e, http.MethodPost, "/api/auth/register", `{"name":"User","email":"user@example.com","password":"123456"}`)
+	c, _ := newJSONContext(e, http.MethodPost, "/api/auth/register", `{"name":"User","email":"user@example.com","password":"123456","citizen_id_number":"123456789012"}`)
 
 	err := handler.Register(c)
 	assertHTTPError(t, err, http.StatusConflict, "auth.email_exists")
@@ -122,6 +122,114 @@ func TestAuthHandlerLoginReturnsTokenAndRefreshCookie(t *testing.T) {
 	if response["token"] != "access-token" {
 		t.Fatalf("expected access token in response, got %#v", response["token"])
 	}
+}
+
+func TestAuthHandlerRegisterValidateError(t *testing.T) {
+	e := newTestEcho()
+	handler := NewAuthHandler(&fakeAuthService{})
+	// missing required "name" field → validation fails
+	c, _ := newJSONContext(e, http.MethodPost, "/api/auth/register", `{"email":"user@example.com","password":"123456"}`)
+
+	err := handler.Register(c)
+	if err == nil {
+		t.Fatal("expected error, got nil")
+	}
+}
+
+func TestAuthHandlerLoginValidateError(t *testing.T) {
+	e := newTestEcho()
+	handler := NewAuthHandler(&fakeAuthService{})
+	// missing "password" field → validation fails
+	c, _ := newJSONContext(e, http.MethodPost, "/api/auth/login", `{"email":"user@example.com"}`)
+
+	err := handler.Login(c)
+	if err == nil {
+		t.Fatal("expected error, got nil")
+	}
+}
+
+func TestAuthHandlerRegisterBindError(t *testing.T) {
+	e := newTestEcho()
+	handler := NewAuthHandler(&fakeAuthService{})
+	c, _ := newJSONContext(e, http.MethodPost, "/api/auth/register", `{bad json`)
+
+	err := handler.Register(c)
+	assertHTTPError(t, err, http.StatusBadRequest, "auth.invalid_request")
+}
+
+func TestAuthHandlerRegisterInternalError(t *testing.T) {
+	e := newTestEcho()
+	handler := NewAuthHandler(&fakeAuthService{
+		registerFn: func(reqData *dtos.RegisterRequest) (*models.User, error) {
+			return nil, errors.New("unexpected error")
+		},
+	})
+	c, _ := newJSONContext(e, http.MethodPost, "/api/auth/register", `{"name":"User","email":"user@example.com","password":"123456","citizen_id_number":"123456789012"}`)
+
+	err := handler.Register(c)
+	if err == nil {
+		t.Fatal("expected error, got nil")
+	}
+	// non-HTTPError should propagate as-is (Echo maps it to 500)
+	var he *echo.HTTPError
+	if errors.As(err, &he) {
+		t.Fatalf("expected raw error, got HTTPError %d", he.Code)
+	}
+}
+
+func TestAuthHandlerLoginBindError(t *testing.T) {
+	e := newTestEcho()
+	handler := NewAuthHandler(&fakeAuthService{})
+	c, _ := newJSONContext(e, http.MethodPost, "/api/auth/login", `{bad json`)
+
+	err := handler.Login(c)
+	assertHTTPError(t, err, http.StatusBadRequest, "auth.invalid_request")
+}
+
+func TestAuthHandlerLoginUserNotFound(t *testing.T) {
+	e := newTestEcho()
+	handler := NewAuthHandler(&fakeAuthService{
+		loginFn: func(reqData *dtos.LoginRequest) (*models.User, string, string, error) {
+			return nil, "", "", services.ErrUserNotFound
+		},
+	})
+	c, _ := newJSONContext(e, http.MethodPost, "/api/auth/login", `{"email":"missing@example.com","password":"123456"}`)
+
+	err := handler.Login(c)
+	assertHTTPError(t, err, http.StatusUnauthorized, "auth.user_not_found")
+}
+
+func TestAuthHandlerLoginInternalError(t *testing.T) {
+	e := newTestEcho()
+	handler := NewAuthHandler(&fakeAuthService{
+		loginFn: func(reqData *dtos.LoginRequest) (*models.User, string, string, error) {
+			return nil, "", "", errors.New("unexpected")
+		},
+	})
+	c, _ := newJSONContext(e, http.MethodPost, "/api/auth/login", `{"email":"user@example.com","password":"123456"}`)
+
+	err := handler.Login(c)
+	if err == nil {
+		t.Fatal("expected error, got nil")
+	}
+	var he *echo.HTTPError
+	if errors.As(err, &he) {
+		t.Fatalf("expected raw error, got HTTPError %d", he.Code)
+	}
+}
+
+func TestAuthHandlerRefreshTokenInvalidToken(t *testing.T) {
+	t.Setenv("JWT_SECRET", "test-secret")
+	e := newTestEcho()
+	handler := NewAuthHandler(&fakeAuthService{})
+
+	req := httptest.NewRequest(http.MethodPost, "/api/auth/refresh", nil)
+	req.AddCookie(&http.Cookie{Name: "refresh_token", Value: "not-a-valid-token"})
+	rec := httptest.NewRecorder()
+	c := e.NewContext(req, rec)
+
+	err := handler.RefreshTokenHandler(c)
+	assertHTTPError(t, err, http.StatusUnauthorized, "auth.invalid_refresh_token")
 }
 
 func TestAuthHandlerLoginMapsPasswordMismatchError(t *testing.T) {

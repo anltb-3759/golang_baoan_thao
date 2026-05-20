@@ -11,6 +11,7 @@ type ApiHandler struct {
 	AuthHandler           *handlers.AuthHandler
 	AdminAuthHandler      *handlers.AdminAuthHandler
 	ServiceCatalogHandler *handlers.ServiceCatalogHandler
+	CitizenProfileHandler  *handlers.CitizenProfileHandler
 }
 
 func SetupRoutes(e *echo.Echo, handler *ApiHandler) {
@@ -31,6 +32,11 @@ func SetupRoutes(e *echo.Echo, handler *ApiHandler) {
 	citizen := api.Group("/citizens")
 	citizen.Use(middlewares.JWTMiddleware)
 	citizen.Use(middlewares.RequireRoles(models.UserRoleCitizen))
+	citizen.GET("/me", handler.CitizenProfileHandler.GetMe)
+	citizen.PUT("/me", handler.CitizenProfileHandler.UpdateMe)
+	citizen.GET("/me/applications", handler.CitizenProfileHandler.ListMyApplications)
+	citizen.GET("/services", handler.ServiceCatalogHandler.ListServices)
+	citizen.GET("/services/:id", handler.ServiceCatalogHandler.GetService)
 
 	staff := api.Group("/staff")
 	staff.Use(middlewares.JWTMiddleware)
@@ -43,8 +49,4 @@ func SetupRoutes(e *echo.Echo, handler *ApiHandler) {
 	superAdmin := api.Group("/super-admins")
 	superAdmin.Use(middlewares.JWTMiddleware)
 	superAdmin.Use(middlewares.RequireRoles(models.UserRoleSuperAdmin))
-
-	services := api.Group("/services")
-	services.GET("", handler.ServiceCatalogHandler.ListServices)
-	services.GET("/:id", handler.ServiceCatalogHandler.GetService)
 }

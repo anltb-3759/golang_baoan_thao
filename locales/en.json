@@ -38,5 +38,11 @@
   "ui.nav.users": "Users",
   "ui.nav.departments": "Departments",
   "ui.nav.assignments": "Assignments",
-  "ui.nav.logs": "Activity Logs"
+  "ui.nav.logs": "Activity Logs",
+  "validation.len": "{field} must be exactly {param} characters",
+  "validation.numeric": "{field} must contain only digits",
+  "profile.not_found": "Profile not found",
+  "profile.invalid_request": "Invalid profile update data",
+  "profile.citizen_id_immutable": "Citizen ID number cannot be changed once registered",
+  "profile.citizen_id_taken": "This Citizen ID number is already used by another account"
 }

@@ -3,7 +3,6 @@ package handlers
 import (
 	"errors"
 	"net/http"
-	"strconv"
 
 	"github.com/awesome-academy/golang_baoan_thao/internal/models"
 	"github.com/awesome-academy/golang_baoan_thao/internal/repositories"
@@ -47,7 +46,7 @@ func (h *ServiceCatalogHandler) ListServices(c *echo.Context) error {
 	}
 
 	return c.JSON(http.StatusOK, map[string]any{
-		"data":       result.Items,
+		"services":   result.Items,
 		"pagination": utils.Pagination{Page: page, Limit: limit, Total: result.Total},
 	})
 }
@@ -63,14 +62,7 @@ func (h *ServiceCatalogHandler) GetService(c *echo.Context) error {
 	}
 
 	return c.JSON(http.StatusOK, map[string]any{
-		"data": service,
+		"service": service,
 	})
 }
 
-func parseIntParam(c *echo.Context, key string, fallback int) int {
-	v, err := strconv.Atoi(c.QueryParam(key))
-	if err != nil {
-		return fallback
-	}
-	return v
-}

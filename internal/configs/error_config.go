@@ -69,10 +69,15 @@ func translateHTTPMessage(c *echo.Context, message interface{}) ErrorDetail {
 func translateValidationMessages(c *echo.Context, messages []ValidatorMessage) []ErrorDetail {
 	translatedMessages := make([]ErrorDetail, 0, len(messages))
 	for _, message := range messages {
+		params := make(map[string]string, len(message.Params)+1)
+		for k, v := range message.Params {
+			params[k] = v
+		}
+		params["field"] = message.Field
 		translatedMessages = append(translatedMessages, ErrorDetail{
 			Field:   message.Field,
 			Code:    message.Key,
-			Message: T(c, message.Key, message.Params),
+			Message: T(c, message.Key, params),
 		})
 	}
 

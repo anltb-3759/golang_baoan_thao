@@ -38,5 +38,11 @@
   "ui.nav.users": "Người dùng",
   "ui.nav.departments": "Phòng ban",
   "ui.nav.assignments": "Phân công",
-  "ui.nav.logs": "Nhật ký"
+  "ui.nav.logs": "Nhật ký",
+  "validation.len": "{field} phải có đúng {param} ký tự",
+  "validation.numeric": "{field} chỉ được chứa chữ số",
+  "profile.not_found": "Không tìm thấy thông tin hồ sơ",
+  "profile.invalid_request": "Dữ liệu cập nhật không hợp lệ",
+  "profile.citizen_id_immutable": "Số CCCD/CMND không thể thay đổi sau khi đã đăng ký",
+  "profile.citizen_id_taken": "Số CCCD/CMND này đã được sử dụng bởi tài khoản khác"
 }

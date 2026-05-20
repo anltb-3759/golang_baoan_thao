@@ -8,7 +8,8 @@ import (
 )
 
 type ApiHandler struct {
-	AuthHandler *handlers.AuthHandler
+	AuthHandler             *handlers.AuthHandler
+	ServiceCatalogHandler   *handlers.ServiceCatalogHandler
 }
 
 func SetupRoutes(e *echo.Echo, handler *ApiHandler) {
@@ -36,4 +37,7 @@ func SetupRoutes(e *echo.Echo, handler *ApiHandler) {
 	superAdmin.Use(middlewares.JWTMiddleware)
 	superAdmin.Use(middlewares.RequireRoles(models.UserRoleSuperAdmin))
 
+	services := api.Group("/services")
+	services.GET("", handler.ServiceCatalogHandler.ListServices)
+	services.GET("/:id", handler.ServiceCatalogHandler.GetService)
 }

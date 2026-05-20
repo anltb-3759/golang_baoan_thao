@@ -67,7 +67,7 @@ func seedUsers(db *gorm.DB) error {
 		{
 			Name:         "Nguyễn Văn An",
 			Email:        "admin@example.com",
-			PasswordHash: "$2a$10$N9qo8uLOickgx2ZMRZoMyeIjZAgcg7b3XeKeUxWdeS86E36P4/TVm2",
+			PasswordHash: "$2a$10$nFfLjD3IXTX8j45eYDNF5.zxZzxoUTBU4Wklu6M3NFUojJtnYkukS",
 			Phone:        "0912345678",
 			Address:      "123 Đường Lê Lợi, Quận 1, TP. Hồ Chí Minh",
 			Role:         models.UserRoleSuperAdmin,
@@ -76,7 +76,7 @@ func seedUsers(db *gorm.DB) error {
 		{
 			Name:         "Trần Thị Bình",
 			Email:        "manager@example.com",
-			PasswordHash: "$2a$10$N9qo8uLOickgx2ZMRZoMyeIjZAgcg7b3XeKeUxWdeS86E36P4/TVm2",
+			PasswordHash: "$2a$10$nFfLjD3IXTX8j45eYDNF5.zxZzxoUTBU4Wklu6M3NFUojJtnYkukS",
 			Phone:        "0912345679",
 			Address:      "456 Đường Nguyễn Huệ, Quận 1, TP. Hồ Chí Minh",
 			Role:         models.UserRoleManager,
@@ -85,7 +85,7 @@ func seedUsers(db *gorm.DB) error {
 		{
 			Name:         "Phạm Minh Tuấn",
 			Email:        "staff1@example.com",
-			PasswordHash: "$2a$10$N9qo8uLOickgx2ZMRZoMyeIjZAgcg7b3XeKeUxWdeS86E36P4/TVm2",
+			PasswordHash: "$2a$10$nFfLjD3IXTX8j45eYDNF5.zxZzxoUTBU4Wklu6M3NFUojJtnYkukS",
 			Phone:        "0912345680",
 			Address:      "789 Đường Tôn Đức Thắng, Quận 1, TP. Hồ Chí Minh",
 			Role:         models.UserRoleStaff,
@@ -94,7 +94,7 @@ func seedUsers(db *gorm.DB) error {
 		{
 			Name:         "Hoàng Thị Liên",
 			Email:        "staff2@example.com",
-			PasswordHash: "$2a$10$N9qo8uLOickgx2ZMRZoMyeIjZAgcg7b3XeKeUxWdeS86E36P4/TVm2",
+			PasswordHash: "$2a$10$nFfLjD3IXTX8j45eYDNF5.zxZzxoUTBU4Wklu6M3NFUojJtnYkukS",
 			Phone:        "0912345681",
 			Address:      "321 Đường Độc Lập, Quận 1, TP. Hồ Chí Minh",
 			Role:         models.UserRoleStaff,
@@ -103,7 +103,7 @@ func seedUsers(db *gorm.DB) error {
 		{
 			Name:         "Vũ Thành Công",
 			Email:        "citizen1@example.com",
-			PasswordHash: "$2a$10$N9qo8uLOickgx2ZMRZoMyeIjZAgcg7b3XeKeUxWdeS86E36P4/TVm2",
+			PasswordHash: "$2a$10$nFfLjD3IXTX8j45eYDNF5.zxZzxoUTBU4Wklu6M3NFUojJtnYkukS",
 			Phone:        "0912345682",
 			Address:      "555 Đường Lạc Long Quân, Quận 5, TP. Hồ Chí Minh",
 			Role:         models.UserRoleCitizen,
@@ -112,7 +112,7 @@ func seedUsers(db *gorm.DB) error {
 		{
 			Name:         "Đặng Hữu Minh",
 			Email:        "citizen2@example.com",
-			PasswordHash: "$2a$10$N9qo8uLOickgx2ZMRZoMyeIjZAgcg7b3XeKeUxWdeS86E36P4/TVm2",
+			PasswordHash: "$2a$10$nFfLjD3IXTX8j45eYDNF5.zxZzxoUTBU4Wklu6M3NFUojJtnYkukS",
 			Phone:        "0912345683",
 			Address:      "666 Đường Phan Đình Phùng, Quận 3, TP. Hồ Chí Minh",
 			Role:         models.UserRoleCitizen,

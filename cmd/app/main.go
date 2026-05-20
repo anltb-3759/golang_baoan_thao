@@ -56,7 +56,10 @@ func main() {
 	e.HTTPErrorHandler = configs.CustomHTTPErrorHandler
 
 	userRepo := repositories.NewUserRepo(db)
-	authService := services.NewAuthService(userRepo)
+	citizenProfileRepo := repositories.NewCitizenProfileRepository(db)
+	applicationRepo := repositories.NewApplicationRepository(db)
+
+	authService := services.NewAuthService(db, userRepo, citizenProfileRepo)
 	authHandler := handlers.NewAuthHandler(authService)
 	adminAuthHandler := handlers.NewAdminAuthHandler(authService)
 
@@ -64,11 +67,15 @@ func main() {
 	serviceCatalogSvc := services.NewServiceCatalogService(serviceCatalogRepo)
 	serviceCatalogHandler := handlers.NewServiceCatalogHandler(serviceCatalogSvc)
 
+	citizenProfileSvc := services.NewCitizenProfileService(userRepo, citizenProfileRepo, applicationRepo)
+	citizenProfileHandler := handlers.NewCitizenProfileHandler(citizenProfileSvc)
+
 	docs.SetupSwaggerRoutes(e)
 	routes.SetupRoutes(e, &routes.ApiHandler{
 		AuthHandler:           authHandler,
 		AdminAuthHandler:      adminAuthHandler,
 		ServiceCatalogHandler: serviceCatalogHandler,
+		CitizenProfileHandler: citizenProfileHandler,
 	})
 
 	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)

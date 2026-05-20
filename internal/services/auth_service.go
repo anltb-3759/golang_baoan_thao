@@ -1,14 +1,22 @@
 package services
 
 import (
+	"database/sql"
 	"errors"
+	"time"
 
 	"github.com/awesome-academy/golang_baoan_thao/internal/configs"
 	"github.com/awesome-academy/golang_baoan_thao/internal/dtos"
 	"github.com/awesome-academy/golang_baoan_thao/internal/models"
 	"github.com/awesome-academy/golang_baoan_thao/internal/repositories"
 	"golang.org/x/crypto/bcrypt"
+	"gorm.io/gorm"
 )
+
+// Transactor abstracts gorm.DB.Transaction so AuthService can be unit-tested without a real DB.
+type Transactor interface {
+	Transaction(fc func(tx *gorm.DB) error, opts ...*sql.TxOptions) error
+}
 
 var ErrEmailAlreadyExists = errors.New("auth.email_exists")
 var ErrInvalidCredentials = errors.New("auth.invalid_credentials")
@@ -16,15 +24,16 @@ var ErrUserNotFound = errors.New("auth.user_not_found")
 var ErrPasswordMismatch = errors.New("auth.password_mismatch")
 
 type AuthService struct {
-	userRepo repositories.UserRepository
+	db          Transactor
+	userRepo    repositories.UserRepository
+	profileRepo repositories.CitizenProfileRepository
 }
 
-func NewAuthService(userRepo repositories.UserRepository) *AuthService {
-	return &AuthService{userRepo: userRepo}
+func NewAuthService(db Transactor, userRepo repositories.UserRepository, profileRepo repositories.CitizenProfileRepository) *AuthService {
+	return &AuthService{db: db, userRepo: userRepo, profileRepo: profileRepo}
 }
 
 func (s *AuthService) Register(reqData *dtos.RegisterRequest) (*models.User, error) {
-	// Check if user already exists
 	existingUser, err := s.userRepo.FindByEmail(reqData.Email)
 	if err != nil {
 		return nil, err
@@ -38,15 +47,35 @@ func (s *AuthService) Register(reqData *dtos.RegisterRequest) (*models.User, err
 		return nil, err
 	}
 
+	now := time.Now()
 	user := &models.User{
 		Name:         reqData.Name,
 		Email:        reqData.Email,
 		PasswordHash: string(passwordHash),
 		Role:         models.UserRoleCitizen,
 		Status:       models.UserStatusActive,
+		CreatedAt:    now,
+		UpdatedAt:    now,
 	}
 
-	return s.userRepo.Create(user)
+	txErr := s.db.Transaction(func(tx *gorm.DB) error {
+		if err := s.userRepo.CreateInTx(tx, user); err != nil {
+			return err
+		}
+		profile := &models.CitizenProfile{
+			UserID:                   user.ID,
+			CitizenIDNumber:          reqData.CitizenIDNumber,
+			EmailNotificationEnabled: true,
+			CreatedAt:                now,
+			UpdatedAt:                now,
+		}
+		return s.profileRepo.CreateInTx(tx, profile)
+	})
+	if txErr != nil {
+		return nil, txErr
+	}
+
+	return user, nil
 }
 
 func (s *AuthService) Login(reqData *dtos.LoginRequest) (*models.User, string, string, error) {

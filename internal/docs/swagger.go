@@ -20,10 +20,9 @@ const openAPISpec = `{
     }
   ],
   "tags": [
-    {
-      "name": "Auth",
-      "description": "Authentication APIs"
-    }
+    { "name": "Auth",           "description": "Authentication APIs" },
+    { "name": "Citizen Profile","description": "Citizen profile and applications" },
+    { "name": "Service Catalog","description": "Public service catalog" }
   ],
   "paths": {
     "/api/auth/register": {
@@ -194,6 +193,105 @@ const openAPISpec = `{
         }
       }
     },
+    "/api/citizens/me": {
+      "get": {
+        "tags": ["Citizen Profile"],
+        "summary": "Get my profile",
+        "security": [{ "BearerAuth": [] }],
+        "parameters": [
+          { "name": "Accept-Language", "in": "header", "schema": { "type": "string", "enum": ["vi", "en"], "default": "vi" } }
+        ],
+        "responses": {
+          "200": {
+            "description": "Profile retrieved successfully",
+            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ProfileResponse" } } }
+          },
+          "401": { "description": "Unauthorized", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } } } },
+          "404": { "description": "Profile not found", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } } } }
+        }
+      },
+      "put": {
+        "tags": ["Citizen Profile"],
+        "summary": "Update my profile",
+        "description": "All fields are optional. CitizenIDNumber cannot be changed.",
+        "security": [{ "BearerAuth": [] }],
+        "parameters": [
+          { "name": "Accept-Language", "in": "header", "schema": { "type": "string", "enum": ["vi", "en"], "default": "vi" } }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": { "application/json": { "schema": { "$ref": "#/components/schemas/UpdateProfileRequest" } } }
+        },
+        "responses": {
+          "200": {
+            "description": "Profile updated successfully",
+            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ProfileResponse" } } }
+          },
+          "400": { "description": "Invalid request or validation error", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } } } },
+          "401": { "description": "Unauthorized", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } } } },
+          "404": { "description": "Profile not found", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } } } }
+        }
+      }
+    },
+    "/api/citizens/me/applications": {
+      "get": {
+        "tags": ["Citizen Profile"],
+        "summary": "List my applications",
+        "security": [{ "BearerAuth": [] }],
+        "parameters": [
+          { "name": "Accept-Language", "in": "header", "schema": { "type": "string", "enum": ["vi", "en"], "default": "vi" } },
+          { "name": "page",  "in": "query", "schema": { "type": "integer", "default": 1 } },
+          { "name": "limit", "in": "query", "schema": { "type": "integer", "default": 10, "maximum": 100 } }
+        ],
+        "responses": {
+          "200": {
+            "description": "Applications retrieved successfully",
+            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ApplicationListResponse" } } }
+          },
+          "401": { "description": "Unauthorized", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } } } }
+        }
+      }
+    },
+    "/api/citizens/services": {
+      "get": {
+        "tags": ["Service Catalog"],
+        "summary": "List available services",
+        "security": [{ "BearerAuth": [] }],
+        "parameters": [
+          { "name": "Accept-Language", "in": "header", "schema": { "type": "string", "enum": ["vi", "en"], "default": "vi" } },
+          { "name": "page",     "in": "query", "schema": { "type": "integer", "default": 1 } },
+          { "name": "limit",    "in": "query", "schema": { "type": "integer", "default": 20, "maximum": 100 } },
+          { "name": "category", "in": "query", "schema": { "type": "string" }, "description": "Filter by category" },
+          { "name": "search",   "in": "query", "schema": { "type": "string" }, "description": "Search by name" }
+        ],
+        "responses": {
+          "200": {
+            "description": "Services retrieved successfully",
+            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ServiceListResponse" } } }
+          },
+          "401": { "description": "Unauthorized", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } } } }
+        }
+      }
+    },
+    "/api/citizens/services/{id}": {
+      "get": {
+        "tags": ["Service Catalog"],
+        "summary": "Get service detail",
+        "security": [{ "BearerAuth": [] }],
+        "parameters": [
+          { "name": "Accept-Language", "in": "header", "schema": { "type": "string", "enum": ["vi", "en"], "default": "vi" } },
+          { "name": "id", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } }
+        ],
+        "responses": {
+          "200": {
+            "description": "Service retrieved successfully",
+            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ServiceDetailResponse" } } }
+          },
+          "401": { "description": "Unauthorized", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } } } },
+          "404": { "description": "Service not found", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } } } }
+        }
+      }
+    },
     "/api/auth/logout": {
       "post": {
         "tags": ["Auth"],
@@ -343,6 +441,92 @@ const openAPISpec = `{
           "message": {
             "type": "string"
           }
+        }
+      },
+      "UpdateProfileRequest": {
+        "type": "object",
+        "properties": {
+          "name":                       { "type": "string", "minLength": 1 },
+          "phone":                      { "type": "string" },
+          "address":                    { "type": "string" },
+          "gender":                     { "type": "string" },
+          "permanent_address":          { "type": "string" },
+          "date_of_birth":              { "type": "string", "format": "date-time" },
+          "email_notification_enabled": { "type": "boolean" }
+        }
+      },
+      "CitizenProfile": {
+        "type": "object",
+        "properties": {
+          "user_id":                    { "type": "string", "format": "uuid" },
+          "name":                       { "type": "string" },
+          "email":                      { "type": "string", "format": "email" },
+          "phone":                      { "type": "string" },
+          "address":                    { "type": "string" },
+          "citizen_id_number":          { "type": "string", "example": "123456789012" },
+          "gender":                     { "type": "string" },
+          "permanent_address":          { "type": "string" },
+          "date_of_birth":              { "type": "string", "format": "date-time", "nullable": true },
+          "email_notification_enabled": { "type": "boolean" },
+          "created_at":                 { "type": "string", "format": "date-time" },
+          "updated_at":                 { "type": "string", "format": "date-time" }
+        }
+      },
+      "ProfileResponse": {
+        "type": "object",
+        "properties": {
+          "profile": { "$ref": "#/components/schemas/CitizenProfile" }
+        }
+      },
+      "ApplicationItem": {
+        "type": "object",
+        "properties": {
+          "id":                { "type": "string", "format": "uuid" },
+          "application_code":  { "type": "string", "example": "APP-20240101-ABCDEF" },
+          "service_type_id":   { "type": "string", "format": "uuid" },
+          "service_type_name": { "type": "string" },
+          "status":            { "type": "string", "enum": ["received", "processing", "approved", "rejected"] },
+          "submitted_at":      { "type": "string", "format": "date-time" }
+        }
+      },
+      "Pagination": {
+        "type": "object",
+        "properties": {
+          "page":  { "type": "integer" },
+          "limit": { "type": "integer" },
+          "total": { "type": "integer" }
+        }
+      },
+      "ApplicationListResponse": {
+        "type": "object",
+        "properties": {
+          "applications": { "type": "array", "items": { "$ref": "#/components/schemas/ApplicationItem" } },
+          "pagination":   { "$ref": "#/components/schemas/Pagination" }
+        }
+      },
+      "ServiceType": {
+        "type": "object",
+        "properties": {
+          "id":          { "type": "string", "format": "uuid" },
+          "name":        { "type": "string" },
+          "code":        { "type": "string" },
+          "description": { "type": "string" },
+          "category":    { "type": "string" },
+          "is_active":   { "type": "boolean" },
+          "created_at":  { "type": "string", "format": "date-time" }
+        }
+      },
+      "ServiceListResponse": {
+        "type": "object",
+        "properties": {
+          "services":   { "type": "array", "items": { "$ref": "#/components/schemas/ServiceType" } },
+          "pagination": { "$ref": "#/components/schemas/Pagination" }
+        }
+      },
+      "ServiceDetailResponse": {
+        "type": "object",
+        "properties": {
+          "service": { "$ref": "#/components/schemas/ServiceType" }
         }
       },
       "ErrorResponse": {

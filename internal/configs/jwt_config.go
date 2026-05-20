@@ -7,6 +7,7 @@ import (
 
 	"github.com/awesome-academy/golang_baoan_thao/internal/models"
 	"github.com/golang-jwt/jwt/v5"
+	"github.com/labstack/echo/v5"
 )
 
 type JwtCustomClaims struct {
@@ -74,6 +75,14 @@ func generateToken(user *models.User, tokenType string, duration time.Duration) 
 	}
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
 	return token.SignedString(LoadJWTSecret())
+}
+
+func UserIDFromContext(c *echo.Context) string {
+	return c.Get("user").(*JwtCustomClaims).ID
+}
+
+func ClaimsFromContext(c *echo.Context) *JwtCustomClaims {
+	return c.Get("user").(*JwtCustomClaims)
 }
 
 func ParseToken(tokenString string, expectedTokenType string) (*JwtCustomClaims, error) {

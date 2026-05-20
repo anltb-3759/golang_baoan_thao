@@ -24,4 +24,6 @@ type Application struct {
 	CreatedAt           time.Time         `json:"created_at" gorm:"not null"`
 	UpdatedAt           time.Time         `json:"updated_at" gorm:"not null"`
 	DeletedAt           *time.Time        `json:"deleted_at" gorm:"index"`
+
+	ApplicationAttachments []ApplicationAttachment `json:"application_attachments,omitempty" gorm:"foreignKey:ApplicationID"`
 }

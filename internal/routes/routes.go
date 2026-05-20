@@ -11,7 +11,8 @@ type ApiHandler struct {
 	AuthHandler           *handlers.AuthHandler
 	AdminAuthHandler      *handlers.AdminAuthHandler
 	ServiceCatalogHandler *handlers.ServiceCatalogHandler
-	CitizenProfileHandler  *handlers.CitizenProfileHandler
+	CitizenProfileHandler *handlers.CitizenProfileHandler
+	ApplicationHandler    *handlers.ApplicationHandler
 }
 
 func SetupRoutes(e *echo.Echo, handler *ApiHandler) {
@@ -34,9 +35,13 @@ func SetupRoutes(e *echo.Echo, handler *ApiHandler) {
 	citizen.Use(middlewares.RequireRoles(models.UserRoleCitizen))
 	citizen.GET("/me", handler.CitizenProfileHandler.GetMe)
 	citizen.PUT("/me", handler.CitizenProfileHandler.UpdateMe)
-	citizen.GET("/me/applications", handler.CitizenProfileHandler.ListMyApplications)
 	citizen.GET("/services", handler.ServiceCatalogHandler.ListServices)
 	citizen.GET("/services/:id", handler.ServiceCatalogHandler.GetService)
+
+	// Applications
+	citizen.POST("/me/applications", handler.ApplicationHandler.Submit)
+	citizen.GET("/me/applications", handler.ApplicationHandler.ListMine)
+	citizen.GET("/me/applications/:id", handler.ApplicationHandler.GetMine)
 
 	staff := api.Group("/staff")
 	staff.Use(middlewares.JWTMiddleware)

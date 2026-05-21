@@ -16,10 +16,10 @@ import (
 )
 
 var (
-	ErrEmptyFileName     = errors.New("attachment file name is empty")
-	ErrUnsafeFileName    = errors.New("attachment file name is unsafe")
-	ErrDisallowedMime    = errors.New("attachment mime type not allowed")
-	ErrPathEscape        = errors.New("attachment path escapes upload directory")
+	ErrEmptyFileName  = errors.New("attachment file name is empty")
+	ErrUnsafeFileName = errors.New("attachment file name is unsafe")
+	ErrDisallowedMime = errors.New("attachment mime type not allowed")
+	ErrPathEscape     = errors.New("attachment path escapes upload directory")
 )
 
 var allowedMime = map[string]struct{}{
@@ -33,6 +33,7 @@ var unsafeChars = regexp.MustCompile(`[^A-Za-z0-9._-]`)
 type FileStorage interface {
 	SaveApplicationFile(applicationID string, fh *multipart.FileHeader) (publicURL, sniffedMime string, savedSize int64, err error)
 	RemoveApplicationDir(applicationID string) error
+	RemoveFile(publicURL string) error
 }
 
 type LocalDiskStorage struct {
@@ -109,6 +110,31 @@ func (s *LocalDiskStorage) RemoveApplicationDir(applicationID string) error {
 		return nil
 	}
 	return os.RemoveAll(filepath.Join(s.BaseDir, "applications", applicationID))
+}
+
+func (s *LocalDiskStorage) RemoveFile(publicURL string) error {
+	if publicURL == "" {
+		return nil
+	}
+	// publicURL is expected to contain the public prefix and a path like "/applications/<id>/<file>"
+	prefix := strings.TrimRight(s.PublicPrefix, "/")
+	var rel string
+	if strings.HasPrefix(publicURL, prefix) {
+		rel = strings.TrimPrefix(publicURL, prefix)
+	} else {
+		// fallback: try to find "/applications/" in the URL
+		idx := strings.Index(publicURL, "/applications/")
+		if idx == -1 {
+			return nil
+		}
+		rel = publicURL[idx:]
+	}
+	rel = strings.TrimPrefix(rel, "/")
+	// construct filesystem path under BaseDir
+	path := filepath.Join(s.BaseDir, filepath.FromSlash(rel))
+	// best-effort remove
+	_ = os.Remove(path)
+	return nil
 }
 
 func sanitizeFileName(raw string) (string, error) {

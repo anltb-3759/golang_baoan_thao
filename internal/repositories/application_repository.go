@@ -3,6 +3,7 @@ package repositories
 import (
 	"errors"
 	"strings"
+	"time"
 
 	"github.com/awesome-academy/golang_baoan_thao/internal/models"
 	"github.com/awesome-academy/golang_baoan_thao/internal/utils"
@@ -15,6 +16,8 @@ type ApplicationRepository interface {
 	CreateWithAttachments(app *models.Application, atts []models.ApplicationAttachment, notif *models.Notification, codeGen func() string) error
 	ListByCitizen(citizenUserID string, page, limit int) ([]models.Application, int64, error)
 	GetByIDForCitizen(id, citizenUserID string) (*models.Application, error)
+	ListStatusLogsByCitizen(appID, citizenUserID string, page, limit int, since *time.Time) ([]models.ApplicationStatusLog, int64, error)
+	CreateAttachments(appID string, atts []models.ApplicationAttachment) error
 }
 
 type applicationRepo struct {
@@ -96,6 +99,43 @@ func (r *applicationRepo) GetByIDForCitizen(id, citizenUserID string) (*models.A
 		return nil, err
 	}
 	return &app, nil
+}
+
+func (r *applicationRepo) ListStatusLogsByCitizen(appID, citizenUserID string, page, limit int, since *time.Time) ([]models.ApplicationStatusLog, int64, error) {
+	q := r.db.Model(&models.ApplicationStatusLog{}).
+		Joins("JOIN applications ON applications.id = application_status_logs.application_id").
+		Where("application_status_logs.application_id = ? AND applications.citizen_user_id = ? AND applications.deleted_at IS NULL", appID, citizenUserID)
+
+	if since != nil {
+		q = q.Where("application_status_logs.created_at > ?", *since)
+	}
+
+	var total int64
+	if err := q.Count(&total).Error; err != nil {
+		return nil, 0, err
+	}
+
+	offset := (page - 1) * limit
+	items := make([]models.ApplicationStatusLog, 0)
+	if err := q.Preload("ChangedByUser").
+		Order("application_status_logs.created_at DESC").
+		Offset(offset).
+		Limit(limit).
+		Find(&items).Error; err != nil {
+		return nil, 0, err
+	}
+
+	return items, total, nil
+}
+
+func (r *applicationRepo) CreateAttachments(appID string, atts []models.ApplicationAttachment) error {
+	if len(atts) == 0 {
+		return nil
+	}
+	for i := range atts {
+		atts[i].ApplicationID = appID
+	}
+	return r.db.Create(&atts).Error
 }
 
 func isApplicationCodeConflict(err error) bool {

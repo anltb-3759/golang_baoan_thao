@@ -70,6 +70,8 @@ func SetupRoutes(e *echo.Echo, handler *ApiHandler) {
 	citizen.POST("/me/applications", handler.ApplicationHandler.Submit)
 	citizen.GET("/me/applications", handler.ApplicationHandler.ListMine)
 	citizen.GET("/me/applications/:id", handler.ApplicationHandler.GetMine)
+	citizen.GET("/me/applications/:id/status-history", handler.ApplicationHandler.ListMyStatusHistory)
+	citizen.POST("/me/applications/:id/supplements", handler.ApplicationHandler.UploadSupplements)
 
 	staff := api.Group("/staff")
 	staff.Use(middlewares.JWTMiddleware)

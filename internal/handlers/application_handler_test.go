@@ -48,6 +48,22 @@ func (m *mockApplicationSvc) GetMyApplication(uid, appID string) (*dtos.Applicat
 	return args.Get(0).(*dtos.ApplicationResponse), args.Error(1)
 }
 
+func (m *mockApplicationSvc) ListMyApplicationStatusHistory(uid, appID string, page, limit int, since *time.Time) ([]models.ApplicationStatusLog, int64, error) {
+	args := m.Called(uid, appID, page, limit, since)
+	if args.Get(0) == nil {
+		return nil, args.Get(1).(int64), args.Error(2)
+	}
+	return args.Get(0).([]models.ApplicationStatusLog), args.Get(1).(int64), args.Error(2)
+}
+
+func (m *mockApplicationSvc) UploadMyApplicationSupplements(uid, appID string, files []*multipart.FileHeader) ([]dtos.ApplicationAttachmentResponse, error) {
+	args := m.Called(uid, appID, files)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).([]dtos.ApplicationAttachmentResponse), args.Error(1)
+}
+
 // newApplicationHandler bypasses the concrete type requirement via the interface.
 func newApplicationHandler(svc *mockApplicationSvc) *handlers.ApplicationHandler {
 	return handlers.NewApplicationHandlerFromSvc(svc)
@@ -376,5 +392,116 @@ func TestGetMine_InternalError(t *testing.T) {
 	var he *echo.HTTPError
 	assert.True(t, errors.As(err, &he))
 	assert.Equal(t, http.StatusInternalServerError, he.Code)
+	svc.AssertExpectations(t)
+}
+
+func TestListMyStatusHistory_Success(t *testing.T) {
+	_ = configs.LoadI18nMessages("../../locales")
+	e := newTestEcho()
+
+	svc := new(mockApplicationSvc)
+	h := newApplicationHandler(svc)
+
+	logs := []models.ApplicationStatusLog{
+		{ID: "log-1", NewStatus: models.ApplicationStatusProcessing, CreatedAt: time.Now()},
+	}
+	svc.On("ListMyApplicationStatusHistory", "u1", "app-1", 1, 10, (*time.Time)(nil)).Return(logs, int64(1), nil)
+
+	req := httptest.NewRequest(http.MethodGet, "/api/citizens/me/applications/app-1/status-history", nil)
+	req.Header.Set("Accept-Language", "vi")
+	rec := httptest.NewRecorder()
+	c := e.NewContext(req, rec)
+	c.SetPathValues(echo.PathValues{{Name: "id", Value: "app-1"}})
+	c.Set("user", &configs.JwtCustomClaims{ID: "u1", Role: "citizen"})
+
+	err := h.ListMyStatusHistory(c)
+	assert.NoError(t, err)
+	assert.Equal(t, http.StatusOK, rec.Code)
+
+	var body map[string]any
+	_ = json.Unmarshal(rec.Body.Bytes(), &body)
+	items := body["status_history"].([]any)
+	assert.Equal(t, "processing", items[0].(map[string]any)["new_status"])
+	svc.AssertExpectations(t)
+}
+
+func TestListMyStatusHistory_InvalidSince(t *testing.T) {
+	_ = configs.LoadI18nMessages("../../locales")
+	e := newTestEcho()
+
+	svc := new(mockApplicationSvc)
+	h := newApplicationHandler(svc)
+
+	req := httptest.NewRequest(http.MethodGet, "/api/citizens/me/applications/app-1/status-history?since=bad-time", nil)
+	req.Header.Set("Accept-Language", "vi")
+	rec := httptest.NewRecorder()
+	c := e.NewContext(req, rec)
+	c.SetPathValues(echo.PathValues{{Name: "id", Value: "app-1"}})
+	c.Set("user", &configs.JwtCustomClaims{ID: "u1", Role: "citizen"})
+
+	err := h.ListMyStatusHistory(c)
+	var he *echo.HTTPError
+	assert.True(t, errors.As(err, &he))
+	assert.Equal(t, http.StatusBadRequest, he.Code)
+}
+
+func TestUploadSupplements_Success(t *testing.T) {
+	_ = configs.LoadI18nMessages("../../locales")
+	e := newTestEcho()
+
+	svc := new(mockApplicationSvc)
+	h := newApplicationHandler(svc)
+
+	body := &bytes.Buffer{}
+	w := multipart.NewWriter(body)
+	part, _ := w.CreateFormFile("attachments[]", "bo-sung.pdf")
+	_, _ = part.Write([]byte("dummy"))
+	_ = w.Close()
+
+	svc.On("UploadMyApplicationSupplements", "u1", "app-1", mock.Anything).
+		Return([]dtos.ApplicationAttachmentResponse{{FileName: "bo-sung.pdf"}}, nil)
+
+	req := httptest.NewRequest(http.MethodPost, "/api/citizens/me/applications/app-1/supplements", body)
+	req.Header.Set("Content-Type", w.FormDataContentType())
+	req.Header.Set("Accept-Language", "vi")
+	rec := httptest.NewRecorder()
+	c := e.NewContext(req, rec)
+	c.SetPathValues(echo.PathValues{{Name: "id", Value: "app-1"}})
+	c.Set("user", &configs.JwtCustomClaims{ID: "u1", Role: "citizen"})
+
+	err := h.UploadSupplements(c)
+	assert.NoError(t, err)
+	assert.Equal(t, http.StatusCreated, rec.Code)
+	svc.AssertExpectations(t)
+}
+
+func TestUploadSupplements_NotAllowedStatus(t *testing.T) {
+	_ = configs.LoadI18nMessages("../../locales")
+	e := newTestEcho()
+
+	svc := new(mockApplicationSvc)
+	h := newApplicationHandler(svc)
+
+	body := &bytes.Buffer{}
+	w := multipart.NewWriter(body)
+	part, _ := w.CreateFormFile("attachments[]", "bo-sung.pdf")
+	_, _ = part.Write([]byte("dummy"))
+	_ = w.Close()
+
+	svc.On("UploadMyApplicationSupplements", "u1", "app-1", mock.Anything).
+		Return(nil, services.ErrSupplementNotAllowed)
+
+	req := httptest.NewRequest(http.MethodPost, "/api/citizens/me/applications/app-1/supplements", body)
+	req.Header.Set("Content-Type", w.FormDataContentType())
+	req.Header.Set("Accept-Language", "vi")
+	rec := httptest.NewRecorder()
+	c := e.NewContext(req, rec)
+	c.SetPathValues(echo.PathValues{{Name: "id", Value: "app-1"}})
+	c.Set("user", &configs.JwtCustomClaims{ID: "u1", Role: "citizen"})
+
+	err := h.UploadSupplements(c)
+	var he *echo.HTTPError
+	assert.True(t, errors.As(err, &he))
+	assert.Equal(t, http.StatusUnprocessableEntity, he.Code)
 	svc.AssertExpectations(t)
 }

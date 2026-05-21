@@ -276,6 +276,70 @@ const openAPISpec = `{
         }
       }
     },
+    "/api/citizens/me/applications/{id}/status-history": {
+      "get": {
+        "tags": ["Applications"],
+        "summary": "Get my application status history",
+        "description": "Returns status timeline for a citizen-owned application. Supports polling with since (RFC3339).",
+        "security": [{ "BearerAuth": [] }],
+        "parameters": [
+          { "name": "Accept-Language", "in": "header", "schema": { "type": "string", "enum": ["vi", "en"], "default": "vi" } },
+          { "name": "id", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } },
+          { "name": "page",  "in": "query", "schema": { "type": "integer", "default": 1 } },
+          { "name": "limit", "in": "query", "schema": { "type": "integer", "default": 10, "maximum": 100 } },
+          { "name": "since", "in": "query", "schema": { "type": "string", "format": "date-time" }, "description": "Only return logs after this timestamp (RFC3339)" }
+        ],
+        "responses": {
+          "200": {
+            "description": "Status history retrieved successfully",
+            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ApplicationStatusHistoryResponse" } } }
+          },
+          "400": { "description": "Invalid query parameter", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } } } },
+          "401": { "description": "Unauthorized", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } } } },
+          "404": { "description": "Application not found", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } } } }
+        }
+      }
+    },
+    "/api/citizens/me/applications/{id}/supplements": {
+      "post": {
+        "tags": ["Applications"],
+        "summary": "Upload supplement attachments",
+        "description": "Upload additional documents for a citizen-owned application. Allowed only when status is processing or need_more_info.",
+        "security": [{ "BearerAuth": [] }],
+        "parameters": [
+          { "name": "Accept-Language", "in": "header", "schema": { "type": "string", "enum": ["vi", "en"], "default": "vi" } },
+          { "name": "id", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "type": "object",
+                "required": ["attachments[]"],
+                "properties": {
+                  "attachments[]": {
+                    "type": "array",
+                    "items": { "type": "string", "format": "binary" },
+                    "description": "Supplement file attachments (PDF/JPG/PNG, max 10 files, 10 MiB each, 30 MiB total)"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Supplement attachments uploaded successfully",
+            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ApplicationAttachmentsResponse" } } }
+          },
+          "400": { "description": "Invalid request or empty attachments", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } } } },
+          "401": { "description": "Unauthorized", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } } } },
+          "404": { "description": "Application not found", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } } } },
+          "422": { "description": "Upload not allowed by status or file constraints", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } } } }
+        }
+      }
+    },
     "/api/citizens/services": {
       "get": {
         "tags": ["Service Catalog"],
@@ -342,10 +406,25 @@ const openAPISpec = `{
         "type": "object",
         "required": ["name", "email", "password", "citizen_id_number"],
         "properties": {
-          "name":              { "type": "string", "example": "Nguyen Van A" },
-          "email":             { "type": "string", "format": "email", "example": "citizen@example.com" },
-          "password":          { "type": "string", "minLength": 6, "example": "secret123" },
-          "citizen_id_number": { "type": "string", "minLength": 12, "maxLength": 12, "pattern": "^[0-9]{12}$", "example": "012345678901", "description": "12-digit national ID number" }
+          "name": {
+            "type": "string",
+            "example": "Nguyen Van A"
+          },
+          "email": {
+            "type": "string",
+            "format": "email",
+            "example": "user@example.com"
+          },
+          "password": {
+            "type": "string",
+            "minLength": 6,
+            "example": "123456"
+          },
+          "citizen_id_number": {
+            "type": "string",
+            "description": "12-digit numeric citizen ID number",
+            "example": "123456789012"
+          }
         }
       },
       "LoginRequest": {
@@ -394,7 +473,9 @@ const openAPISpec = `{
       "UserResponse": {
         "type": "object",
         "properties": {
-          "user": { "$ref": "#/components/schemas/User" }
+          "user": {
+            "$ref": "#/components/schemas/User"
+          }
         }
       },
       "LoginResponse": {
@@ -486,6 +567,31 @@ const openAPISpec = `{
         "type": "object",
         "properties": {
           "application": { "$ref": "#/components/schemas/ApplicationDetail" }
+        }
+      },
+      "ApplicationStatusHistoryItem": {
+        "type": "object",
+        "properties": {
+          "id":                   { "type": "string", "format": "uuid" },
+          "old_status":           { "type": "string", "enum": ["received", "processing", "need_more_info", "approved", "rejected"], "nullable": true },
+          "new_status":           { "type": "string", "enum": ["received", "processing", "need_more_info", "approved", "rejected"] },
+          "note":                 { "type": "string" },
+          "changed_by_user_id":   { "type": "string", "format": "uuid", "nullable": true },
+          "changed_by_user_name": { "type": "string", "nullable": true },
+          "created_at":           { "type": "string", "format": "date-time" }
+        }
+      },
+      "ApplicationStatusHistoryResponse": {
+        "type": "object",
+        "properties": {
+          "status_history": { "type": "array", "items": { "$ref": "#/components/schemas/ApplicationStatusHistoryItem" } },
+          "pagination":     { "$ref": "#/components/schemas/Pagination" }
+        }
+      },
+      "ApplicationAttachmentsResponse": {
+        "type": "object",
+        "properties": {
+          "attachments": { "type": "array", "items": { "$ref": "#/components/schemas/ApplicationAttachment" } }
         }
       },
       "ServiceType": {

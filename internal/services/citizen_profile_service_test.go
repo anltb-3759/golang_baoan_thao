@@ -62,6 +62,12 @@ func (r *fakeProfileApplicationRepo) ListByCitizen(_ string, _, _ int) ([]models
 func (r *fakeProfileApplicationRepo) GetByIDForCitizen(_, _ string) (*models.Application, error) {
 	return nil, nil
 }
+func (r *fakeProfileApplicationRepo) ListStatusLogsByCitizen(_, _ string, _, _ int, _ *time.Time) ([]models.ApplicationStatusLog, int64, error) {
+	return nil, 0, nil
+}
+func (r *fakeProfileApplicationRepo) CreateAttachments(_ string, _ []models.ApplicationAttachment) error {
+	return nil
+}
 func (r *fakeProfileApplicationRepo) CreateWithAttachments(_ *models.Application, _ []models.ApplicationAttachment, _ *models.Notification, _ func() string) error {
 	return nil
 }

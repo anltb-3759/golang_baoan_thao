@@ -46,12 +46,16 @@ func (r *fakeAppUserRepo) UpdateStatus(_ string, _ models.UserStatus, _ string) 
 func (r *fakeAppUserRepo) SoftDelete(_ string, _ string) error                        { return nil }
 
 type fakeAppRepo struct {
-	createErr error
-	apps      []models.Application
-	total     int64
-	listErr   error
-	app       *models.Application
-	getErr    error
+	createErr    error
+	apps         []models.Application
+	total        int64
+	listErr      error
+	app          *models.Application
+	getErr       error
+	logs         []models.ApplicationStatusLog
+	logsTotal    int64
+	logsErr      error
+	createAttErr error
 }
 
 func (r *fakeAppRepo) CreateWithAttachments(_ *models.Application, _ []models.ApplicationAttachment, _ *models.Notification, _ func() string) error {
@@ -62,6 +66,12 @@ func (r *fakeAppRepo) ListByCitizen(_ string, _, _ int) ([]models.Application, i
 }
 func (r *fakeAppRepo) GetByIDForCitizen(_, _ string) (*models.Application, error) {
 	return r.app, r.getErr
+}
+func (r *fakeAppRepo) ListStatusLogsByCitizen(_, _ string, _, _ int, _ *time.Time) ([]models.ApplicationStatusLog, int64, error) {
+	return r.logs, r.logsTotal, r.logsErr
+}
+func (r *fakeAppRepo) CreateAttachments(_ string, _ []models.ApplicationAttachment) error {
+	return r.createAttErr
 }
 
 type fakeStorage struct {
@@ -78,6 +88,7 @@ func (s *fakeStorage) SaveApplicationFile(_ string, fh *multipart.FileHeader) (s
 	return s.pubURL, s.mime, s.size, nil
 }
 func (s *fakeStorage) RemoveApplicationDir(_ string) error { return nil }
+func (s *fakeStorage) RemoveFile(_ string) error           { return nil }
 
 type fakeMailer struct{ sent bool }
 
@@ -125,7 +136,7 @@ func validReq() *dtos.SubmitApplicationRequest {
 	return &dtos.SubmitApplicationRequest{
 		ServiceTypeID: "st-1",
 		SubmittedData: makeData(map[string]string{
-			"full_name":    "Nguyen Van A",
+			"full_name":     "Nguyen Van A",
 			"date_of_birth": "1995-01-01",
 		}),
 	}
@@ -395,6 +406,96 @@ func TestAppService_GetMyApplication_NotFound(t *testing.T) {
 	assert.ErrorIs(t, err, ErrApplicationNotFound)
 }
 
+func TestAppService_ListMyApplicationStatusHistory_Success(t *testing.T) {
+	logs := []models.ApplicationStatusLog{{ID: "log-1", NewStatus: models.ApplicationStatusProcessing}}
+	svc := newSvc(
+		&fakeAppRepo{
+			app:       &models.Application{ID: "app-1", CitizenUserID: "u1"},
+			logs:      logs,
+			logsTotal: 1,
+		},
+		&fakeAppServiceTypeRepo{},
+		&fakeAppUserRepo{},
+		&fakeStorage{},
+		&fakeMailer{},
+	)
+
+	items, total, err := svc.ListMyApplicationStatusHistory("u1", "app-1", 1, 10, nil)
+	assert.NoError(t, err)
+	assert.Equal(t, int64(1), total)
+	assert.Len(t, items, 1)
+}
+
+func TestAppService_ListMyApplicationStatusHistory_NotFound(t *testing.T) {
+	svc := newSvc(
+		&fakeAppRepo{getErr: errors.New("record not found")},
+		&fakeAppServiceTypeRepo{},
+		&fakeAppUserRepo{},
+		&fakeStorage{},
+		&fakeMailer{},
+	)
+
+	_, _, err := svc.ListMyApplicationStatusHistory("u1", "bad", 1, 10, nil)
+	assert.ErrorIs(t, err, ErrApplicationNotFound)
+}
+
+func TestAppService_UploadMyApplicationSupplements_Success(t *testing.T) {
+	files := []*multipart.FileHeader{{Filename: "bo-sung.pdf", Size: 1024}}
+	svc := newSvc(
+		&fakeAppRepo{app: &models.Application{ID: "app-1", Status: models.ApplicationStatusNeedMoreInfo}},
+		&fakeAppServiceTypeRepo{},
+		&fakeAppUserRepo{},
+		&fakeStorage{pubURL: "/uploads/app-1/bo-sung.pdf", mime: "application/pdf", size: 1024},
+		&fakeMailer{},
+	)
+
+	resp, err := svc.UploadMyApplicationSupplements("u1", "app-1", files)
+	assert.NoError(t, err)
+	assert.Len(t, resp, 1)
+	assert.Equal(t, "bo-sung.pdf", resp[0].FileName)
+}
+
+func TestAppService_UploadMyApplicationSupplements_EmptyFiles(t *testing.T) {
+	svc := newSvc(
+		&fakeAppRepo{},
+		&fakeAppServiceTypeRepo{},
+		&fakeAppUserRepo{},
+		&fakeStorage{},
+		&fakeMailer{},
+	)
+
+	_, err := svc.UploadMyApplicationSupplements("u1", "app-1", nil)
+	assert.ErrorIs(t, err, ErrAttachmentRequired)
+}
+
+func TestAppService_UploadMyApplicationSupplements_StatusNotAllowed(t *testing.T) {
+	files := []*multipart.FileHeader{{Filename: "bo-sung.pdf", Size: 1024}}
+	svc := newSvc(
+		&fakeAppRepo{app: &models.Application{ID: "app-1", Status: models.ApplicationStatusApproved}},
+		&fakeAppServiceTypeRepo{},
+		&fakeAppUserRepo{},
+		&fakeStorage{},
+		&fakeMailer{},
+	)
+
+	_, err := svc.UploadMyApplicationSupplements("u1", "app-1", files)
+	assert.ErrorIs(t, err, ErrSupplementNotAllowed)
+}
+
+func TestAppService_UploadMyApplicationSupplements_NotFound(t *testing.T) {
+	files := []*multipart.FileHeader{{Filename: "bo-sung.pdf", Size: 1024}}
+	svc := newSvc(
+		&fakeAppRepo{getErr: errors.New("record not found")},
+		&fakeAppServiceTypeRepo{},
+		&fakeAppUserRepo{},
+		&fakeStorage{},
+		&fakeMailer{},
+	)
+
+	_, err := svc.UploadMyApplicationSupplements("u1", "missing", files)
+	assert.ErrorIs(t, err, ErrApplicationNotFound)
+}
+
 // --- validateSubmittedData ---
 
 func TestValidateSubmittedData_EmptySchema(t *testing.T) {
@@ -425,5 +526,5 @@ func TestValidateSubmittedData_EmptyStringField(t *testing.T) {
 func TestValidateSubmittedData_InvalidJSON(t *testing.T) {
 	schema := makeSchema([]string{"name"})
 	err := validateSubmittedData(json.RawMessage(`{bad json`), schema)
-	assert.ErrorIs(t, err, ErrMissingRequiredField)
+	assert.ErrorIs(t, err, ErrInvalidSubmittedData)
 }

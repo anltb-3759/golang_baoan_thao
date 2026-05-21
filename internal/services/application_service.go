@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log"
 	"mime/multipart"
+	"strings"
 	"time"
 
 	"github.com/awesome-academy/golang_baoan_thao/internal/configs"
@@ -23,13 +24,17 @@ const (
 )
 
 var (
-	ErrApplicationNotFound      = errors.New("application.not_found")
-	ErrServiceTypeNotFound      = errors.New("application.service_type_not_found")
-	ErrServiceTypeInactive      = errors.New("application.service_type_inactive")
-	ErrMissingRequiredField     = errors.New("application.missing_required_field")
-	ErrTooManyAttachments       = errors.New("application.attachment_too_many")
-	ErrAttachmentTooLarge       = errors.New("application.attachment_too_large")
-	ErrAttachmentInvalidType    = errors.New("application.attachment_invalid_type")
+	ErrApplicationNotFound   = errors.New("application.not_found")
+	ErrServiceTypeNotFound   = errors.New("application.service_type_not_found")
+	ErrServiceTypeInactive   = errors.New("application.service_type_inactive")
+	ErrMissingRequiredField  = errors.New("application.missing_required_field")
+	ErrInvalidSubmittedData  = errors.New("application.invalid_submitted_data")
+	ErrInvalidFormSchema     = errors.New("application.invalid_form_schema")
+	ErrAttachmentRequired    = errors.New("application.attachment_required")
+	ErrTooManyAttachments    = errors.New("application.attachment_too_many")
+	ErrAttachmentTooLarge    = errors.New("application.attachment_too_large")
+	ErrAttachmentInvalidType = errors.New("application.attachment_invalid_type")
+	ErrSupplementNotAllowed  = errors.New("application.supplement_not_allowed")
 )
 
 type ApplicationService struct {
@@ -73,18 +78,8 @@ func (s *ApplicationService) SubmitApplication(
 		return nil, err
 	}
 
-	if len(files) > maxAttachments {
-		return nil, ErrTooManyAttachments
-	}
-	var totalSize int64
-	for _, f := range files {
-		if f.Size > maxFileSizeBytes {
-			return nil, ErrAttachmentTooLarge
-		}
-		totalSize += f.Size
-	}
-	if totalSize > MaxTotalAttachmentBytes {
-		return nil, ErrAttachmentTooLarge
+	if err := validateAttachmentLimits(files); err != nil {
+		return nil, err
 	}
 
 	now := time.Now()
@@ -127,11 +122,12 @@ func (s *ApplicationService) SubmitApplication(
 		})
 	}
 
+	loc := configs.DefaultLocale
 	notifParams := map[string]string{"code": app.ApplicationCode, "service": st.Name}
 	notif := &models.Notification{
 		UserID:    citizenUserID,
-		Title:     configs.TLang("vi", "notification.received.title", notifParams),
-		Message:   configs.TLang("vi", "notification.received.message", notifParams),
+		Title:     configs.TLang(loc, "notification.received.title", notifParams),
+		Message:   configs.TLang(loc, "notification.received.message", notifParams),
 		Type:      models.NotificationTypeReceived,
 		CreatedAt: now,
 	}
@@ -182,6 +178,79 @@ func (s *ApplicationService) GetMyApplication(userID, appID string) (*dtos.Appli
 	return toApplicationResponseFromModel(app), nil
 }
 
+func (s *ApplicationService) ListMyApplicationStatusHistory(userID, appID string, page, limit int, since *time.Time) ([]models.ApplicationStatusLog, int64, error) {
+	if _, err := s.appRepo.GetByIDForCitizen(appID, userID); err != nil {
+		return nil, 0, ErrApplicationNotFound
+	}
+	return s.appRepo.ListStatusLogsByCitizen(appID, userID, page, limit, since)
+}
+
+func (s *ApplicationService) UploadMyApplicationSupplements(userID, appID string, files []*multipart.FileHeader) ([]dtos.ApplicationAttachmentResponse, error) {
+	if len(files) == 0 {
+		return nil, ErrAttachmentRequired
+	}
+
+	if err := validateAttachmentLimits(files); err != nil {
+		return nil, err
+	}
+
+	app, err := s.appRepo.GetByIDForCitizen(appID, userID)
+	if err != nil {
+		return nil, ErrApplicationNotFound
+	}
+
+	if app.Status != models.ApplicationStatusProcessing && app.Status != models.ApplicationStatusNeedMoreInfo {
+		return nil, ErrSupplementNotAllowed
+	}
+
+	now := time.Now()
+	atts := make([]models.ApplicationAttachment, 0, len(files))
+	savedURLs := make([]string, 0, len(files))
+	for _, fh := range files {
+		pubURL, mimeType, size, saveErr := s.storage.SaveApplicationFile(app.ID, fh)
+		if saveErr != nil {
+			for _, u := range savedURLs {
+				_ = s.storage.RemoveFile(u)
+			}
+			if errors.Is(saveErr, utils.ErrDisallowedMime) {
+				return nil, ErrAttachmentInvalidType
+			}
+			return nil, fmt.Errorf("save supplement attachment: %w", saveErr)
+		}
+		savedURLs = append(savedURLs, pubURL)
+		sz := size
+		atts = append(atts, models.ApplicationAttachment{
+			UploadedByUserID: userID,
+			FileName:         fh.Filename,
+			FileURL:          pubURL,
+			FileType:         mimeType,
+			FileSize:         &sz,
+			AttachmentType:   models.AttachmentTypeSupplement,
+			CreatedAt:        now,
+		})
+	}
+
+	if err := s.appRepo.CreateAttachments(app.ID, atts); err != nil {
+		for _, a := range atts {
+			_ = s.storage.RemoveFile(a.FileURL)
+		}
+		return nil, fmt.Errorf("create supplement attachments: %w", err)
+	}
+
+	resp := make([]dtos.ApplicationAttachmentResponse, 0, len(atts))
+	for _, a := range atts {
+		resp = append(resp, dtos.ApplicationAttachmentResponse{
+			ID:       a.ID,
+			FileName: a.FileName,
+			FileURL:  a.FileURL,
+			FileType: a.FileType,
+			FileSize: a.FileSize,
+		})
+	}
+
+	return resp, nil
+}
+
 func validateSubmittedData(data json.RawMessage, schema json.RawMessage) error {
 	if len(schema) == 0 {
 		return nil
@@ -191,7 +260,7 @@ func validateSubmittedData(data json.RawMessage, schema json.RawMessage) error {
 		Required []string `json:"required"`
 	}
 	if err := json.Unmarshal(schema, &s); err != nil {
-		return nil // schema is not parseable — skip validation
+		return ErrInvalidFormSchema
 	}
 	if len(s.Required) == 0 {
 		return nil
@@ -199,13 +268,35 @@ func validateSubmittedData(data json.RawMessage, schema json.RawMessage) error {
 
 	var submitted map[string]interface{}
 	if err := json.Unmarshal(data, &submitted); err != nil {
-		return ErrMissingRequiredField
+		return ErrInvalidSubmittedData
 	}
 	for _, field := range s.Required {
 		v, ok := submitted[field]
-		if !ok || v == nil || v == "" {
+		if !ok || v == nil {
 			return fmt.Errorf("%w: %s", ErrMissingRequiredField, field)
 		}
+		if str, ok := v.(string); ok {
+			if strings.TrimSpace(str) == "" {
+				return fmt.Errorf("%w: %s", ErrMissingRequiredField, field)
+			}
+		}
+	}
+	return nil
+}
+
+func validateAttachmentLimits(files []*multipart.FileHeader) error {
+	if len(files) > maxAttachments {
+		return ErrTooManyAttachments
+	}
+	var total int64
+	for _, f := range files {
+		if f.Size > maxFileSizeBytes {
+			return ErrAttachmentTooLarge
+		}
+		total += f.Size
+	}
+	if total > MaxTotalAttachmentBytes {
+		return ErrAttachmentTooLarge
 	}
 	return nil
 }

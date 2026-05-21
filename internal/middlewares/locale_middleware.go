@@ -9,10 +9,11 @@ func LocaleMiddleware(next echo.HandlerFunc) echo.HandlerFunc {
 	return func(c *echo.Context) error {
 		locale := configs.DefaultLocale
 
+		// Prefer cookie if set (user choice), otherwise fall back to Accept-Language header
 		if cookieLang, err := c.Cookie("lang"); err == nil && cookieLang.Value != "" {
 			locale = configs.NormalizeLocale(cookieLang.Value)
-		} else if header := c.Request().Header.Get("Accept-Language"); header != "" {
-			locale = configs.NormalizeLocale(header)
+		} else if al := c.Request().Header.Get("Accept-Language"); al != "" {
+			locale = configs.NormalizeLocale(al)
 		}
 
 		c.Set(configs.LocaleKey, locale)

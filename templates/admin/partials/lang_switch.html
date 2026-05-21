@@ -1,0 +1,6 @@
+{{ define "lang_switch" }}
+<div class="flex gap-1">
+  <a href="/set-locale?lang=vi" class="px-2 py-1 rounded text-xs transition {{ if eq (currentLocale) "vi" }}bg-indigo-600 text-white{{ else }}bg-gray-100 text-gray-600 hover:bg-gray-200{{ end }}">VI</a>
+  <a href="/set-locale?lang=en" class="px-2 py-1 rounded text-xs transition {{ if eq (currentLocale) "en" }}bg-indigo-600 text-white{{ else }}bg-gray-100 text-gray-600 hover:bg-gray-200{{ end }}">EN</a>
+</div>
+{{ end }}

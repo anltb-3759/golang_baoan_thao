@@ -3,9 +3,13 @@ package utils
 type Map map[string]interface{}
 
 type Pagination struct {
-	Page  int   `json:"page"`
-	Limit int   `json:"limit"`
-	Total int64 `json:"total"`
+	Page     int   `json:"page"`
+	Limit    int   `json:"limit"`
+	Total    int64 `json:"total"`
+	From     int   `json:"from"`
+	To       int   `json:"to"`
+	PrevPage int   `json:"prev_page"`
+	NextPage int   `json:"next_page"`
 }
 
 type PaginationData struct {

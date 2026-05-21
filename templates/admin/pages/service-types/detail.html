@@ -1,0 +1,68 @@
+{{ define "content" }}
+<div class="max-w-3xl">
+  <header class="mb-6 flex items-center justify-between">
+    <div>
+      <h1 class="text-xl font-semibold text-gray-900">{{ .ServiceType.Name }}</h1>
+      <p class="text-sm text-gray-500">{{ t "service_type.form_subtitle" }}</p>
+    </div>
+    <div class="flex gap-2">
+      <a href="/admin/service-types/{{ .ServiceType.ID }}/edit" class="bg-indigo-600 text-white px-4 py-2 rounded-md text-sm hover:bg-indigo-700">{{ t "service_type.edit_button" }}</a>
+      <a href="/admin/service-types" class="text-sm text-gray-600 hover:underline">{{ t "service_type.back_button" }}</a>
+    </div>
+  </header>
+
+  <section class="bg-white rounded-lg shadow-sm border border-gray-200 p-6 space-y-4">
+    <div>
+      <h2 class="text-sm font-medium text-gray-700">{{ t "service_type.code" }}</h2>
+      <div class="mt-1 font-mono text-indigo-600">{{ .ServiceType.Code }}</div>
+    </div>
+
+    <div>
+      <h2 class="text-sm font-medium text-gray-700">{{ t "service_type.category" }}</h2>
+      <div class="mt-1 text-sm text-gray-700">{{ .ServiceType.Category }}</div>
+    </div>
+
+    <div>
+      <h2 class="text-sm font-medium text-gray-700">{{ t "service_type.department" }}</h2>
+      {{ if .ServiceType.ResponsibleDepartment }}
+      <div class="mt-1 text-sm text-gray-700">{{ .ServiceType.ResponsibleDepartment.Name }} ({{ .ServiceType.ResponsibleDepartment.Code }})</div>
+      {{ else }}
+      <div class="mt-1 text-gray-400">{{ t "service_type.no_department" }}</div>
+      {{ end }}
+    </div>
+
+    <div>
+      <h2 class="text-sm font-medium text-gray-700">{{ t "service_type.description" }}</h2>
+      <div class="mt-1 text-sm text-gray-700">{{ .ServiceType.Description }}</div>
+    </div>
+
+    <div>
+      <h2 class="text-sm font-medium text-gray-700">{{ t "service_type.required_documents" }}</h2>
+      <div class="mt-1 text-sm text-gray-700 whitespace-pre-wrap">{{ .ServiceType.RequiredDocuments }}</div>
+    </div>
+
+    <div>
+      <h2 class="text-sm font-medium text-gray-700">{{ t "service_type.form_schema" }}</h2>
+      <pre class="mt-1 rounded bg-gray-50 p-3 text-xs text-gray-700 overflow-auto">{{ if .ServiceType.FormSchema }}{{ printf "%s" .ServiceType.FormSchema }}{{ else }}{}{{ end }}</pre>
+    </div>
+
+    <div class="grid grid-cols-3 gap-4">
+      <div>
+        <h2 class="text-sm font-medium text-gray-700">{{ t "service_type.processing_time" }}</h2>
+        <div class="mt-1 text-sm text-gray-700">{{ if .ServiceType.ProcessingTime }}{{ .ServiceType.ProcessingTime }} {{ t "service_type.days" }}{{ else }}-{{ end }}</div>
+      </div>
+      <div>
+        <h2 class="text-sm font-medium text-gray-700">{{ t "service_type.fee" }}</h2>
+        <div class="mt-1 text-sm text-gray-700">{{ printf "%.2f" .ServiceType.Fee }}</div>
+      </div>
+      <div>
+        <h2 class="text-sm font-medium text-gray-700">{{ t "service_type.active" }}</h2>
+        <div class="mt-1 text-sm text-gray-700">{{ if .ServiceType.IsActive }}{{ t "service_type.active_yes" }}{{ else }}{{ t "service_type.active_no" }}{{ end }}</div>
+      </div>
+    </div>
+
+  </section>
+</div>
+{{ end }}
+
+{{ template "base" . }}

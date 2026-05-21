@@ -1,6 +1,7 @@
 package services
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"mime/multipart"
@@ -22,11 +23,23 @@ type fakeAppServiceTypeRepo struct {
 	err error
 }
 
-func (r *fakeAppServiceTypeRepo) List(_ repositories.ListFilter) (*repositories.ListResult, error) {
+func (r *fakeAppServiceTypeRepo) List(ctx context.Context, _ repositories.ListFilter) (*repositories.ListResult, error) {
 	return nil, nil
 }
-func (r *fakeAppServiceTypeRepo) GetByID(_ string) (*models.ServiceType, error) {
+func (r *fakeAppServiceTypeRepo) GetByID(ctx context.Context, _ string) (*models.ServiceType, error) {
 	return r.st, r.err
+}
+func (r *fakeAppServiceTypeRepo) GetByIDForAdmin(ctx context.Context, _ string) (*models.ServiceType, error) {
+	return r.st, r.err
+}
+func (r *fakeAppServiceTypeRepo) ListDepartments(ctx context.Context) ([]models.Department, error) {
+	return nil, nil
+}
+func (r *fakeAppServiceTypeRepo) Create(ctx context.Context, _ *models.ServiceType) error { return nil }
+func (r *fakeAppServiceTypeRepo) Update(ctx context.Context, _ *models.ServiceType) error { return nil }
+func (r *fakeAppServiceTypeRepo) Delete(ctx context.Context, _ string) error              { return nil }
+func (r *fakeAppServiceTypeRepo) CountApplications(ctx context.Context, _ string) (int64, error) {
+	return 0, nil
 }
 
 type fakeAppUserRepo struct {

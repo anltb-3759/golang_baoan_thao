@@ -10,6 +10,7 @@ import (
 	"github.com/awesome-academy/golang_baoan_thao/internal/models"
 	"github.com/awesome-academy/golang_baoan_thao/internal/repositories"
 	"github.com/awesome-academy/golang_baoan_thao/internal/services"
+	"github.com/awesome-academy/golang_baoan_thao/internal/utils"
 	"github.com/labstack/echo/v5"
 )
 
@@ -49,7 +50,7 @@ func (h *AdminDepartmentHandler) ListDepartments(c *echo.Context) error {
 		"CurrentPath": "/admin/departments",
 		"CurrentUser": adminCurrentUser(c),
 		"Departments": depts,
-		"Pagination":  newPagination(page, limit, total),
+		"Pagination":  utils.NewPagination(page, limit, total),
 		"Search":      search,
 		"Flash":       flashFromQuery(c),
 	}

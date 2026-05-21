@@ -29,6 +29,16 @@ func SetupRoutes(e *echo.Echo, handler *ApiHandler) {
 	admin := e.Group("/admin", middlewares.AdminWebMiddleware)
 	admin.GET("", handler.AdminDashboardHandler.ShowDashboard)
 
+	// Service types (Super Admin only)
+	serviceTypes := admin.Group("/service-types", middlewares.AdminWebRequireRoles(models.UserRoleSuperAdmin))
+	serviceTypes.GET("", handler.ServiceCatalogHandler.ListServiceTypesAdmin)
+	serviceTypes.GET("/:id", handler.ServiceCatalogHandler.ShowServiceType)
+	serviceTypes.GET("/new", handler.ServiceCatalogHandler.CreateServiceTypeForm)
+	serviceTypes.POST("", handler.ServiceCatalogHandler.CreateServiceType)
+	serviceTypes.GET("/:id/edit", handler.ServiceCatalogHandler.EditServiceTypeForm)
+	serviceTypes.POST("/:id", handler.ServiceCatalogHandler.UpdateServiceType)
+	serviceTypes.POST("/:id/delete", handler.ServiceCatalogHandler.DeleteServiceType)
+
 	// Users (Super Admin only)
 	users := admin.Group("/users", middlewares.AdminWebRequireRoles(models.UserRoleSuperAdmin))
 	users.GET("", handler.AdminUserHandler.ListUsers)

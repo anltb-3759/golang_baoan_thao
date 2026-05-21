@@ -1,9 +1,11 @@
 package repositories
 
 import (
+	"context"
 	"errors"
 	"regexp"
 	"testing"
+	"time"
 
 	"github.com/DATA-DOG/go-sqlmock"
 	"github.com/awesome-academy/golang_baoan_thao/internal/models"
@@ -44,7 +46,7 @@ func TestServiceTypeRepoListReturnsItems(t *testing.T) {
 	deptRows := sqlmock.NewRows([]string{"id", "name"})
 	mock.ExpectQuery(`SELECT`).WillReturnRows(deptRows)
 
-	result, err := repo.List(ListFilter{Page: 1, Limit: 10})
+	result, err := repo.List(context.Background(), ListFilter{Page: 1, Limit: 10})
 	if err != nil {
 		t.Fatalf("expected nil error, got %v", err)
 	}
@@ -70,7 +72,7 @@ func TestServiceTypeRepoListWithCategoryAndSearch(t *testing.T) {
 	deptRows := sqlmock.NewRows([]string{"id", "name"})
 	mock.ExpectQuery(`SELECT`).WillReturnRows(deptRows)
 
-	result, err := repo.List(ListFilter{Category: "hanh_chinh", Search: "CCCD", Page: 1, Limit: 10})
+	result, err := repo.List(context.Background(), ListFilter{Category: "hanh_chinh", Search: "CCCD", Page: 1, Limit: 10})
 	if err != nil {
 		t.Fatalf("expected nil error, got %v", err)
 	}
@@ -86,7 +88,7 @@ func TestServiceTypeRepoListCountError(t *testing.T) {
 	dbErr := errors.New("count error")
 	mock.ExpectQuery(`SELECT count`).WillReturnError(dbErr)
 
-	_, err := repo.List(ListFilter{Page: 1, Limit: 10})
+	_, err := repo.List(context.Background(), ListFilter{Page: 1, Limit: 10})
 	if !errors.Is(err, dbErr) {
 		t.Fatalf("expected count error, got %v", err)
 	}
@@ -102,7 +104,7 @@ func TestServiceTypeRepoListFindError(t *testing.T) {
 	dbErr := errors.New("find error")
 	mock.ExpectQuery(`SELECT`).WillReturnError(dbErr)
 
-	_, err := repo.List(ListFilter{Page: 1, Limit: 10})
+	_, err := repo.List(context.Background(), ListFilter{Page: 1, Limit: 10})
 	if !errors.Is(err, dbErr) {
 		t.Fatalf("expected find error, got %v", err)
 	}
@@ -119,7 +121,7 @@ func TestServiceTypeRepoGetByIDReturnsServiceType(t *testing.T) {
 	deptRows := sqlmock.NewRows([]string{"id", "name"})
 	mock.ExpectQuery(`SELECT`).WillReturnRows(deptRows)
 
-	st, err := repo.GetByID("st1")
+	st, err := repo.GetByID(context.Background(), "st1")
 	if err != nil {
 		t.Fatalf("expected nil error, got %v", err)
 	}
@@ -134,9 +136,69 @@ func TestServiceTypeRepoGetByIDReturnsNotFound(t *testing.T) {
 
 	mock.ExpectQuery(`SELECT`).WillReturnError(gorm.ErrRecordNotFound)
 
-	_, err := repo.GetByID("bad-id")
+	_, err := repo.GetByID(context.Background(), "bad-id")
 	if !errors.Is(err, gorm.ErrRecordNotFound) {
 		t.Fatalf("expected ErrRecordNotFound, got %v", err)
+	}
+}
+
+func TestServiceTypeRepoGetByIDForAdminReturnsInactiveServiceType(t *testing.T) {
+	repo, mock, cleanup := newMockServiceTypeRepo(t)
+	defer cleanup()
+
+	stRows := sqlmock.NewRows([]string{"id", "name", "is_active"}).AddRow("st1", "Cấp CCCD", false)
+	mock.ExpectQuery(`SELECT`).WillReturnRows(stRows)
+
+	deptRows := sqlmock.NewRows([]string{"id", "name"})
+	mock.ExpectQuery(`SELECT`).WillReturnRows(deptRows)
+
+	st, err := repo.GetByIDForAdmin(context.Background(), "st1")
+	if err != nil {
+		t.Fatalf("expected nil error, got %v", err)
+	}
+	if st == nil {
+		t.Fatal("expected service type, got nil")
+	}
+	if st.IsActive {
+		t.Fatal("expected inactive service type")
+	}
+}
+
+func TestServiceTypeRepoCreateUpdateDeleteCountApplications(t *testing.T) {
+	repo, mock, cleanup := newMockServiceTypeRepo(t)
+	defer cleanup()
+
+	serviceType := &models.ServiceType{ID: "st1", Name: "Test", Code: "TEST", Category: models.ServiceCategoryAdministrative, FormSchema: []byte("{}"), CreatedAt: time.Now(), UpdatedAt: time.Now()}
+	mock.ExpectBegin()
+	mock.ExpectQuery(`INSERT INTO "service_types"`).WillReturnRows(sqlmock.NewRows([]string{"id"}).AddRow("st1"))
+	mock.ExpectCommit()
+
+	if err := repo.Create(context.Background(), serviceType); err != nil {
+		t.Fatalf("expected nil error on create, got %v", err)
+	}
+
+	mock.ExpectBegin()
+	mock.ExpectExec(`UPDATE "service_types"`).WillReturnResult(sqlmock.NewResult(0, 1))
+	mock.ExpectCommit()
+	if err := repo.Update(context.Background(), serviceType); err != nil {
+		t.Fatalf("expected nil error on update, got %v", err)
+	}
+
+	mock.ExpectBegin()
+	mock.ExpectExec(`UPDATE "service_types"`).WillReturnResult(sqlmock.NewResult(0, 1))
+	mock.ExpectCommit()
+	if err := repo.Delete(context.Background(), "st1"); err != nil {
+		t.Fatalf("expected nil error on delete, got %v", err)
+	}
+
+	countRows := sqlmock.NewRows([]string{"count"}).AddRow(3)
+	mock.ExpectQuery(`SELECT count\(\*\) FROM "applications"`).WillReturnRows(countRows)
+	count, err := repo.CountApplications(context.Background(), "st1")
+	if err != nil {
+		t.Fatalf("expected nil error on count, got %v", err)
+	}
+	if count != 3 {
+		t.Fatalf("expected count=3, got %d", count)
 	}
 }
 

@@ -10,6 +10,7 @@ import (
 	"github.com/awesome-academy/golang_baoan_thao/internal/models"
 	"github.com/awesome-academy/golang_baoan_thao/internal/repositories"
 	"github.com/awesome-academy/golang_baoan_thao/internal/services"
+	"github.com/awesome-academy/golang_baoan_thao/internal/utils"
 	"github.com/labstack/echo/v5"
 )
 
@@ -31,40 +32,6 @@ func NewAdminUserHandler(svc AdminUserService) *AdminUserHandler {
 	return &AdminUserHandler{svc: svc}
 }
 
-type PaginationData struct {
-	Page     int
-	Limit    int
-	Total    int64
-	From     int
-	To       int
-	PrevPage int
-	NextPage int
-	HasPrev  bool
-	HasNext  bool
-}
-
-func newPagination(page, limit int, total int64) PaginationData {
-	from := (page-1)*limit + 1
-	to := page * limit
-	if int64(to) > total {
-		to = int(total)
-	}
-	if total == 0 {
-		from = 0
-	}
-	totalPages := int((total + int64(limit) - 1) / int64(limit))
-	return PaginationData{
-		Page:     page,
-		Limit:    limit,
-		Total:    total,
-		From:     from,
-		To:       to,
-		PrevPage: page - 1,
-		NextPage: page + 1,
-		HasPrev:  page > 1,
-		HasNext:  page < totalPages,
-	}
-}
 
 func adminCurrentUser(c *echo.Context) *configs.JwtCustomClaims {
 	v := c.Get("user")
@@ -119,7 +86,7 @@ func (h *AdminUserHandler) ListUsers(c *echo.Context) error {
 		"CurrentPath": "/admin/users",
 		"CurrentUser": adminCurrentUser(c),
 		"Users":       users,
-		"Pagination":  newPagination(page, limit, total),
+		"Pagination":  utils.NewPagination(page, limit, total),
 		"Search":      search,
 		"RoleFilter":  role,
 		"Flash":       flashFromQuery(c),

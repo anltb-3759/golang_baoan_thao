@@ -89,7 +89,6 @@ func (h *CitizenProfileHandler) ListMyApplications(c *echo.Context) error {
 
 	return c.JSON(http.StatusOK, utils.Map{
 		"applications": items,
-		"pagination":   utils.Pagination{Page: page, Limit: limit, Total: total},
+		"pagination":   utils.NewPagination(page, limit, total),
 	})
 }
-

@@ -1,0 +1,87 @@
+{{ define "content" }}
+<div class="max-w-2xl">
+  <header class="mb-6 flex items-center justify-between">
+    <div>
+      <h1 class="text-xl font-semibold text-gray-900">{{ .Title }}</h1>
+      <p class="text-sm text-gray-500">{{ t "service_type.form_subtitle" }}</p>
+    </div>
+    <a href="/admin/service-types" class="text-sm text-gray-600 hover:underline">{{ t "service_type.back_button" }}</a>
+  </header>
+
+  {{ if .Error }}
+  <div class="mb-5 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{{ .Error }}</div>
+  {{ end }}
+
+  <section class="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+    <form method="post" action="{{ .Action }}" class="space-y-4">
+      <div class="grid grid-cols-2 gap-4">
+        <label class="grid gap-2">
+          <span class="text-sm font-medium text-gray-700">{{ t "service_type.name" }}</span>
+          <input name="name" value="{{ .ServiceType.Name }}" class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm" required>
+        </label>
+        <label class="grid gap-2">
+          <span class="text-sm font-medium text-gray-700">{{ t "service_type.code" }}</span>
+          <input name="code" value="{{ .ServiceType.Code }}" class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm" required>
+        </label>
+      </div>
+
+      <div class="grid grid-cols-2 gap-4">
+        <label class="grid gap-2">
+          <span class="text-sm font-medium text-gray-700">{{ t "service_type.category" }}</span>
+          <select name="category" class="w-full rounded-lg border border-gray-300 bg-white text-sm px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-100 focus:border-indigo-500">
+            {{ range .Categories }}
+            <option value="{{ .Value }}" {{ if eq $.ServiceType.Category .Value }}selected{{ end }}>{{ t .Label }}</option>
+            {{ end }}
+          </select>
+        </label>
+        <label class="grid gap-2">
+          <span class="text-sm font-medium text-gray-700">{{ t "service_type.department" }}</span>
+          <select name="responsible_department_id" class="w-full rounded-lg border border-gray-300 bg-white text-sm px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-100 focus:border-indigo-500">
+            <option value="">{{ t "service_type.no_department" }}</option>
+            {{ range .Departments }}
+            <option value="{{ .ID }}" {{ if eq $.ServiceType.ResponsibleDepartmentID .ID }}selected{{ end }}>{{ .Name }} ({{ .Code }})</option>
+            {{ end }}
+          </select>
+        </label>
+      </div>
+
+      <label class="grid gap-2">
+        <span class="text-sm font-medium text-gray-700">{{ t "service_type.description" }}</span>
+        <textarea name="description" rows="4" class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm">{{ .ServiceType.Description }}</textarea>
+      </label>
+
+      <label class="grid gap-2">
+        <span class="text-sm font-medium text-gray-700">{{ t "service_type.required_documents" }}</span>
+        <textarea name="required_documents" rows="3" class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm">{{ .ServiceType.RequiredDocuments }}</textarea>
+      </label>
+
+      <label class="grid gap-2">
+        <span class="text-sm font-medium text-gray-700">{{ t "service_type.form_schema" }}</span>
+        <textarea name="form_schema" rows="6" class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm">{{ .ServiceType.FormSchema }}</textarea>
+      </label>
+
+      <div class="grid grid-cols-3 gap-4 items-end">
+        <label class="grid gap-2">
+          <span class="text-sm font-medium text-gray-700">{{ t "service_type.processing_time" }}</span>
+          <input name="processing_time" value="{{ .ServiceType.ProcessingTime }}" class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm">
+        </label>
+        <label class="grid gap-2">
+          <span class="text-sm font-medium text-gray-700">{{ t "service_type.fee" }}</span>
+          <input name="fee" value="{{ .ServiceType.Fee }}" class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm">
+        </label>
+        <label class="flex items-center gap-3">
+          <input type="checkbox" name="is_active" value="true" class="h-4 w-4" {{ if .ServiceType.IsActive }}checked{{ end }}>
+          <span class="text-sm text-gray-700">{{ t "service_type.active" }}</span>
+        </label>
+      </div>
+
+      <div class="flex gap-2 pt-2">
+        <button type="submit" class="bg-indigo-600 text-white px-4 py-2 rounded-md text-sm hover:bg-indigo-700">{{ t "service_type.save_button" }}</button>
+        <a href="/admin/service-types" class="bg-white text-gray-700 border border-gray-300 px-4 py-2 rounded-md text-sm hover:bg-gray-50">{{ t "service_type.cancel_button" }}</a>
+      </div>
+    </form>
+  </section>
+</div>
+{{ end }}
+
+{{ template "base" . }}

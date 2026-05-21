@@ -1,6 +1,7 @@
 package services
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -31,10 +32,10 @@ var (
 	ErrInvalidSubmittedData  = errors.New("application.invalid_submitted_data")
 	ErrInvalidFormSchema     = errors.New("application.invalid_form_schema")
 	ErrAttachmentRequired    = errors.New("application.attachment_required")
+	ErrSupplementNotAllowed  = errors.New("application.supplement_not_allowed")
 	ErrTooManyAttachments    = errors.New("application.attachment_too_many")
 	ErrAttachmentTooLarge    = errors.New("application.attachment_too_large")
 	ErrAttachmentInvalidType = errors.New("application.attachment_invalid_type")
-	ErrSupplementNotAllowed  = errors.New("application.supplement_not_allowed")
 )
 
 type ApplicationService struct {
@@ -66,7 +67,7 @@ func (s *ApplicationService) SubmitApplication(
 	req *dtos.SubmitApplicationRequest,
 	files []*multipart.FileHeader,
 ) (*dtos.ApplicationResponse, error) {
-	st, err := s.serviceTypeRepo.GetByID(req.ServiceTypeID)
+	st, err := s.serviceTypeRepo.GetByID(context.Background(), req.ServiceTypeID)
 	if err != nil {
 		return nil, ErrServiceTypeNotFound
 	}

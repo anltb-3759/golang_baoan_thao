@@ -14,6 +14,7 @@ import (
 	"github.com/awesome-academy/golang_baoan_thao/internal/models"
 	"github.com/awesome-academy/golang_baoan_thao/internal/repositories"
 	"github.com/awesome-academy/golang_baoan_thao/internal/services"
+	"github.com/awesome-academy/golang_baoan_thao/internal/utils"
 	"github.com/labstack/echo/v5"
 	"github.com/stretchr/testify/assert"
 )
@@ -533,31 +534,31 @@ func TestFlashFromQuery_BothParams(t *testing.T) {
 	assert.Equal(t, "done", result["Message"])
 }
 
-// --- newPagination ---
+// --- utils.NewPagination ---
 
 func TestNewPagination_Normal(t *testing.T) {
-	p := newPagination(2, 10, 25)
+	p := utils.NewPagination(2, 10, 25)
 	assert.Equal(t, 2, p.Page)
 	assert.Equal(t, 11, p.From)
 	assert.Equal(t, 20, p.To)
-	assert.True(t, p.HasPrev)
-	assert.True(t, p.HasNext)
+	assert.Greater(t, p.PrevPage, 0)
+	assert.Less(t, p.NextPage, 999999)
 	assert.Equal(t, 1, p.PrevPage)
 	assert.Equal(t, 3, p.NextPage)
 }
 
 func TestNewPagination_LastPage(t *testing.T) {
-	p := newPagination(3, 10, 25)
+	p := utils.NewPagination(3, 10, 25)
 	assert.Equal(t, 25, p.To)
-	assert.False(t, p.HasNext)
+	assert.Equal(t, 999999, p.NextPage)
 }
 
 func TestNewPagination_Empty(t *testing.T) {
-	p := newPagination(1, 10, 0)
+	p := utils.NewPagination(1, 10, 0)
 	assert.Equal(t, 0, p.From)
 	assert.Equal(t, 0, p.To)
-	assert.False(t, p.HasPrev)
-	assert.False(t, p.HasNext)
+	assert.Equal(t, 0, p.PrevPage)
+	assert.Equal(t, 999999, p.NextPage)
 }
 
 // --- adminCurrentUser ---

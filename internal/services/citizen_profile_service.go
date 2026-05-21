@@ -71,12 +71,12 @@ func (s *CitizenProfileService) UpdateProfile(userID string, req *dtos.UpdateCit
 		return nil, ErrProfileNotFound
 	}
 
-	utils.SetIfNotNil(&user.Name,    req.Name)
-	utils.SetIfNotNil(&user.Phone,   req.Phone)
+	utils.SetIfNotNil(&user.Name, req.Name)
+	utils.SetIfNotNil(&user.Phone, req.Phone)
 	utils.SetIfNotNil(&user.Address, req.Address)
 
-	utils.SetIfNotNil(&profile.Gender,                   req.Gender)
-	utils.SetIfNotNil(&profile.PermanentAddress,         req.PermanentAddress)
+	utils.SetIfNotNil(&profile.Gender, req.Gender)
+	utils.SetIfNotNil(&profile.PermanentAddress, req.PermanentAddress)
 	utils.SetIfNotNil(&profile.EmailNotificationEnabled, req.EmailNotificationEnabled)
 	if req.DateOfBirth != nil {
 		profile.DateOfBirth = req.DateOfBirth
@@ -99,4 +99,3 @@ func (s *CitizenProfileService) UpdateProfile(userID string, req *dtos.UpdateCit
 func (s *CitizenProfileService) ListMyApplications(userID string, page, limit int) ([]models.Application, int64, error) {
 	return s.appRepo.ListByCitizen(userID, page, limit)
 }
-

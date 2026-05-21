@@ -29,6 +29,11 @@
       <i data-lucide="building-2" class="h-4 w-4"></i>
       {{ t "ui.nav.departments" }}
     </a>
+    <a href="/admin/categories"
+       class="flex items-center gap-3 px-3 py-2 rounded-md text-sm transition {{ if eq .CurrentPath "/admin/categories" }}bg-gray-100 text-gray-900 font-medium{{ else }}text-gray-600 hover:bg-gray-50 hover:text-gray-900{{ end }}">
+      <i data-lucide="tag" class="h-4 w-4"></i>
+      {{ t "ui.nav.categories" }}
+    </a>
     <a href="/admin/assignments"
        class="flex items-center gap-3 px-3 py-2 rounded-md text-sm transition {{ if eq .CurrentPath "/admin/assignments" }}bg-gray-100 text-gray-900 font-medium{{ else }}text-gray-600 hover:bg-gray-50 hover:text-gray-900{{ end }}">
       <i data-lucide="user-check" class="h-4 w-4"></i>

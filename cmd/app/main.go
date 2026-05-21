@@ -82,15 +82,20 @@ func main() {
 	adminUserHandler := handlers.NewAdminUserHandler(adminUserSvc)
 	adminDashboardHandler := handlers.NewAdminDashboardHandler()
 
+	departmentRepo := repositories.NewDepartmentRepo(db)
+	departmentSvc := services.NewDepartmentService(departmentRepo)
+	adminDepartmentHandler := handlers.NewAdminDepartmentHandler(departmentSvc, adminUserSvc)
+
 	docs.SetupSwaggerRoutes(e)
 	routes.SetupRoutes(e, &routes.ApiHandler{
-		AuthHandler:           authHandler,
-		AdminAuthHandler:      adminAuthHandler,
-		AdminDashboardHandler: adminDashboardHandler,
-		AdminUserHandler:      adminUserHandler,
-		ServiceCatalogHandler: serviceCatalogHandler,
-		CitizenProfileHandler: citizenProfileHandler,
-		ApplicationHandler:    applicationHandler,
+		AuthHandler:            authHandler,
+		AdminAuthHandler:       adminAuthHandler,
+		AdminDashboardHandler:  adminDashboardHandler,
+		AdminUserHandler:       adminUserHandler,
+		AdminDepartmentHandler: adminDepartmentHandler,
+		ServiceCatalogHandler:  serviceCatalogHandler,
+		CitizenProfileHandler:  citizenProfileHandler,
+		ApplicationHandler:     applicationHandler,
 	})
 
 	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)

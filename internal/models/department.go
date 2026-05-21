@@ -12,4 +12,5 @@ type Department struct {
 	CreatedAt    time.Time  `json:"created_at" gorm:"not null"`
 	UpdatedAt    time.Time  `json:"updated_at" gorm:"not null"`
 	DeletedAt    *time.Time `json:"deleted_at" gorm:"index"`
+	DeletedBy    *string    `json:"deleted_by" gorm:"type:uuid"`
 }

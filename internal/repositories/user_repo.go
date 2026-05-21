@@ -2,6 +2,7 @@ package repositories
 
 import (
 	"errors"
+	"strings"
 	"time"
 
 	"github.com/awesome-academy/golang_baoan_thao/internal/models"
@@ -72,8 +73,8 @@ func (r *UserRepo) Update(user *models.User) error {
 func (r *UserRepo) List(filter UserFilter, offset, limit int) ([]models.User, int64, error) {
 	q := r.db.Model(&models.User{}).Where("deleted_at IS NULL")
 	if filter.Search != "" {
-		like := "%" + filter.Search + "%"
-		q = q.Where("name ILIKE ? OR email ILIKE ?", like, like)
+		like := "%" + strings.ToLower(filter.Search) + "%"
+		q = q.Where("LOWER(name) LIKE ? OR LOWER(email) LIKE ?", like, like)
 	}
 	if filter.Role != "" {
 		q = q.Where("role = ?", filter.Role)

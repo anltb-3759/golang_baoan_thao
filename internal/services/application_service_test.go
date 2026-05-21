@@ -384,7 +384,7 @@ func TestAppService_GetMyApplication_Success(t *testing.T) {
 
 func TestAppService_GetMyApplication_NotFound(t *testing.T) {
 	svc := newSvc(
-		&fakeAppRepo{getErr: errors.New("record not found")},
+		&fakeAppRepo{getErr: gorm.ErrRecordNotFound},
 		&fakeAppServiceTypeRepo{},
 		&fakeAppUserRepo{},
 		&fakeStorage{},

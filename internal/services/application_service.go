@@ -13,6 +13,7 @@ import (
 	"github.com/awesome-academy/golang_baoan_thao/internal/models"
 	"github.com/awesome-academy/golang_baoan_thao/internal/repositories"
 	"github.com/awesome-academy/golang_baoan_thao/internal/utils"
+	"gorm.io/gorm"
 )
 
 const (
@@ -173,7 +174,10 @@ func (s *ApplicationService) ListMyApplications(userID string, page, limit int) 
 func (s *ApplicationService) GetMyApplication(userID, appID string) (*dtos.ApplicationResponse, error) {
 	app, err := s.appRepo.GetByIDForCitizen(appID, userID)
 	if err != nil {
-		return nil, ErrApplicationNotFound
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, ErrApplicationNotFound
+		}
+		return nil, fmt.Errorf("get application: %w", err)
 	}
 	return toApplicationResponseFromModel(app), nil
 }

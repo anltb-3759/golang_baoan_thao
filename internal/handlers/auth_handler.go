@@ -3,6 +3,8 @@ package handlers
 import (
 	"errors"
 	"net/http"
+	"os"
+	"strings"
 	"time"
 
 	"github.com/awesome-academy/golang_baoan_thao/internal/configs"
@@ -15,6 +17,10 @@ import (
 
 const AGE_REFRESH_TOKEN = 7 * 24 * 60 * 60
 const AGE_LANGUAGE_COOKIE = 365 * 24 * 60 * 60
+
+func cookieSecure() bool {
+	return os.Getenv("APP_ENV") == "production"
+}
 
 type AuthHandler struct {
 	authService AuthService
@@ -90,7 +96,7 @@ func (h *AuthHandler) Login(c *echo.Context) error {
 		Path:     "/",
 		MaxAge:   AGE_REFRESH_TOKEN,
 		HttpOnly: true,
-		Secure:   false,
+		Secure:   cookieSecure(),
 		SameSite: http.SameSiteLaxMode,
 	})
 
@@ -133,7 +139,7 @@ func (h *AuthHandler) Logout(c *echo.Context) error {
 		MaxAge:   -1,
 		Expires:  time.Unix(0, 0),
 		HttpOnly: true,
-		Secure:   false,
+		Secure:   cookieSecure(),
 		SameSite: http.SameSiteLaxMode,
 	})
 
@@ -201,7 +207,7 @@ func (h *AdminAuthHandler) WebLogin(c *echo.Context) error {
 		Path:     "/",
 		MaxAge:   AGE_REFRESH_TOKEN,
 		HttpOnly: true,
-		Secure:   false,
+		Secure:   cookieSecure(),
 		SameSite: http.SameSiteLaxMode,
 	})
 
@@ -216,7 +222,7 @@ func (h *AdminAuthHandler) WebLogout(c *echo.Context) error {
 		MaxAge:   -1,
 		Expires:  time.Unix(0, 0),
 		HttpOnly: true,
-		Secure:   false,
+		Secure:   cookieSecure(),
 		SameSite: http.SameSiteLaxMode,
 	})
 	return c.Redirect(http.StatusSeeOther, "/admin/login")
@@ -233,12 +239,12 @@ func (h *AdminAuthHandler) SetLocale(c *echo.Context) error {
 		Path:     "/",
 		MaxAge:   AGE_LANGUAGE_COOKIE,
 		HttpOnly: false,
-		Secure:   false,
+		Secure:   cookieSecure(),
 		SameSite: http.SameSiteLaxMode,
 	})
 
 	referer := c.Request().Header.Get("Referer")
-	if referer == "" {
+	if referer == "" || !strings.HasPrefix(referer, "/") {
 		referer = "/admin/login"
 	}
 	return c.Redirect(http.StatusSeeOther, referer)

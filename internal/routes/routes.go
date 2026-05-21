@@ -10,17 +10,35 @@ import (
 type ApiHandler struct {
 	AuthHandler           *handlers.AuthHandler
 	AdminAuthHandler      *handlers.AdminAuthHandler
+	AdminDashboardHandler *handlers.AdminDashboardHandler
+	AdminUserHandler      *handlers.AdminUserHandler
 	ServiceCatalogHandler *handlers.ServiceCatalogHandler
 	CitizenProfileHandler *handlers.CitizenProfileHandler
 	ApplicationHandler    *handlers.ApplicationHandler
 }
 
 func SetupRoutes(e *echo.Echo, handler *ApiHandler) {
-	// Admin web routes (HTML templates)
+	// Admin auth (public)
 	e.GET("/admin/login", handler.AdminAuthHandler.ShowLoginPage)
 	e.POST("/admin/login", handler.AdminAuthHandler.WebLogin)
 	e.GET("/admin/logout", handler.AdminAuthHandler.WebLogout)
 	e.GET("/set-locale", handler.AdminAuthHandler.SetLocale)
+
+	// Admin web routes (protected by cookie auth)
+	admin := e.Group("/admin", middlewares.AdminWebMiddleware)
+	admin.GET("", handler.AdminDashboardHandler.ShowDashboard)
+
+	// Users (Super Admin only)
+	users := admin.Group("/users", middlewares.AdminWebRequireRoles(models.UserRoleSuperAdmin))
+	users.GET("", handler.AdminUserHandler.ListUsers)
+	users.GET("/new", handler.AdminUserHandler.ShowCreateForm)
+	users.POST("", handler.AdminUserHandler.CreateUser)
+	users.GET("/:id", handler.AdminUserHandler.ShowUser)
+	users.GET("/:id/edit", handler.AdminUserHandler.ShowEditForm)
+	users.POST("/:id/edit", handler.AdminUserHandler.UpdateUser)
+	users.POST("/:id/block", handler.AdminUserHandler.BlockUser)
+	users.POST("/:id/unblock", handler.AdminUserHandler.UnblockUser)
+	users.POST("/:id/delete", handler.AdminUserHandler.DeleteUser)
 
 	api := e.Group("/api")
 

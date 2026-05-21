@@ -26,6 +26,11 @@ func (r *fakeProfileUserRepo) FindByID(_ string) (*models.User, error)     { ret
 func (r *fakeProfileUserRepo) Create(u *models.User) (*models.User, error) { return u, nil }
 func (r *fakeProfileUserRepo) CreateInTx(_ *gorm.DB, u *models.User) error { return nil }
 func (r *fakeProfileUserRepo) Update(u *models.User) error                 { r.updated = u; return r.updateErr }
+func (r *fakeProfileUserRepo) List(_ repositories.UserFilter, _, _ int) ([]models.User, int64, error) {
+	return nil, 0, nil
+}
+func (r *fakeProfileUserRepo) UpdateStatus(_ string, _ models.UserStatus, _ string) error { return nil }
+func (r *fakeProfileUserRepo) SoftDelete(_ string, _ string) error                        { return nil }
 
 type fakeProfileCitizenProfileRepo struct {
 	profile   *models.CitizenProfile

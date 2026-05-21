@@ -1,0 +1,43 @@
+<aside class="w-56 bg-white border-r border-gray-200 flex flex-col flex-shrink-0 min-h-screen">
+  <div class="flex items-center gap-2 px-4 py-4 border-b border-gray-100">
+    <i data-lucide="shield-check" class="h-5 w-5 text-indigo-600"></i>
+    <span class="text-sm font-semibold text-gray-900">Admin Portal</span>
+  </div>
+  <nav class="flex-1 px-3 py-4 space-y-1">
+    <a href="/admin"
+       class="flex items-center gap-3 px-3 py-2 rounded-md text-sm transition {{ if eq .CurrentPath "/admin" }}bg-gray-100 text-gray-900 font-medium{{ else }}text-gray-600 hover:bg-gray-50 hover:text-gray-900{{ end }}">
+      <i data-lucide="layout-dashboard" class="h-4 w-4"></i>
+      {{ t "ui.nav.dashboard" }}
+    </a>
+    <a href="/admin/applications"
+       class="flex items-center gap-3 px-3 py-2 rounded-md text-sm transition {{ if eq .CurrentPath "/admin/applications" }}bg-gray-100 text-gray-900 font-medium{{ else }}text-gray-600 hover:bg-gray-50 hover:text-gray-900{{ end }}">
+      <i data-lucide="file-text" class="h-4 w-4"></i>
+      {{ t "ui.nav.applications" }}
+    </a>
+    <a href="/admin/services"
+       class="flex items-center gap-3 px-3 py-2 rounded-md text-sm transition {{ if eq .CurrentPath "/admin/services" }}bg-gray-100 text-gray-900 font-medium{{ else }}text-gray-600 hover:bg-gray-50 hover:text-gray-900{{ end }}">
+      <i data-lucide="layers" class="h-4 w-4"></i>
+      {{ t "ui.nav.services" }}
+    </a>
+    <a href="/admin/users"
+       class="flex items-center gap-3 px-3 py-2 rounded-md text-sm transition {{ if eq .CurrentPath "/admin/users" }}bg-gray-100 text-gray-900 font-medium{{ else }}text-gray-600 hover:bg-gray-50 hover:text-gray-900{{ end }}">
+      <i data-lucide="users" class="h-4 w-4"></i>
+      {{ t "ui.nav.users" }}
+    </a>
+    <a href="/admin/departments"
+       class="flex items-center gap-3 px-3 py-2 rounded-md text-sm transition {{ if eq .CurrentPath "/admin/departments" }}bg-gray-100 text-gray-900 font-medium{{ else }}text-gray-600 hover:bg-gray-50 hover:text-gray-900{{ end }}">
+      <i data-lucide="building-2" class="h-4 w-4"></i>
+      {{ t "ui.nav.departments" }}
+    </a>
+    <a href="/admin/assignments"
+       class="flex items-center gap-3 px-3 py-2 rounded-md text-sm transition {{ if eq .CurrentPath "/admin/assignments" }}bg-gray-100 text-gray-900 font-medium{{ else }}text-gray-600 hover:bg-gray-50 hover:text-gray-900{{ end }}">
+      <i data-lucide="user-check" class="h-4 w-4"></i>
+      {{ t "ui.nav.assignments" }}
+    </a>
+    <a href="/admin/logs"
+       class="flex items-center gap-3 px-3 py-2 rounded-md text-sm transition {{ if eq .CurrentPath "/admin/logs" }}bg-gray-100 text-gray-900 font-medium{{ else }}text-gray-600 hover:bg-gray-50 hover:text-gray-900{{ end }}">
+      <i data-lucide="scroll-text" class="h-4 w-4"></i>
+      {{ t "ui.nav.logs" }}
+    </a>
+  </nav>
+</aside>

@@ -36,10 +36,38 @@ func (cv *CustomValidator) Validate(i interface{}) error {
 						Field: e.Field(),
 						Key:   "validation.required",
 					})
-				case "min":
+				case "email":
 					errorMessages = append(errorMessages, ValidatorMessage{
 						Field: e.Field(),
-						Key:   "validation.min",
+						Key:   "validation.email",
+					})
+				case "min":
+					errorMessages = append(errorMessages, ValidatorMessage{
+						Field:  e.Field(),
+						Key:    "validation.min",
+						Params: map[string]string{"param": e.Param()},
+					})
+				case "max":
+					errorMessages = append(errorMessages, ValidatorMessage{
+						Field:  e.Field(),
+						Key:    "validation.max",
+						Params: map[string]string{"param": e.Param()},
+					})
+				case "len":
+					errorMessages = append(errorMessages, ValidatorMessage{
+						Field:  e.Field(),
+						Key:    "validation.len",
+						Params: map[string]string{"param": e.Param()},
+					})
+				case "numeric":
+					errorMessages = append(errorMessages, ValidatorMessage{
+						Field: e.Field(),
+						Key:   "validation.numeric",
+					})
+				case "oneof":
+					errorMessages = append(errorMessages, ValidatorMessage{
+						Field: e.Field(),
+						Key:   "validation.invalid",
 					})
 				default:
 					errorMessages = append(errorMessages, ValidatorMessage{

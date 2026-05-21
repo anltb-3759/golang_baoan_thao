@@ -78,10 +78,16 @@ func main() {
 	applicationSvc := services.NewApplicationService(applicationRepo, serviceCatalogRepo, userRepo, storage, mailer)
 	applicationHandler := handlers.NewApplicationHandler(applicationSvc)
 
+	adminUserSvc := services.NewAdminUserService(userRepo)
+	adminUserHandler := handlers.NewAdminUserHandler(adminUserSvc)
+	adminDashboardHandler := handlers.NewAdminDashboardHandler()
+
 	docs.SetupSwaggerRoutes(e)
 	routes.SetupRoutes(e, &routes.ApiHandler{
 		AuthHandler:           authHandler,
 		AdminAuthHandler:      adminAuthHandler,
+		AdminDashboardHandler: adminDashboardHandler,
+		AdminUserHandler:      adminUserHandler,
 		ServiceCatalogHandler: serviceCatalogHandler,
 		CitizenProfileHandler: citizenProfileHandler,
 		ApplicationHandler:    applicationHandler,

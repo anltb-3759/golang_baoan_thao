@@ -3,6 +3,7 @@ package configs
 import (
 	"errors"
 	"net/http"
+	"strings"
 
 	"github.com/labstack/echo/v5"
 )
@@ -39,15 +40,41 @@ func CustomHTTPErrorHandler(c *echo.Context, err error) {
 		}
 	}
 
-	errorResponse := map[string]interface{}{
-		"errors": errorDetails,
-		"code":   code,
-	}
+	path := c.Request().URL.Path
+	isAdminWeb := strings.HasPrefix(path, "/admin") && !strings.HasPrefix(path, "/admin/api")
 
 	if c.Request().Method == http.MethodHead {
 		c.NoContent(code)
-	} else {
-		c.JSON(code, errorResponse)
+		return
+	}
+
+	if isAdminWeb {
+		headingKey, messageKey := adminErrorKeys(code)
+		data := map[string]interface{}{
+			"Title":   T(c, headingKey, nil),
+			"Code":    code,
+			"Heading": T(c, headingKey, nil),
+			"Message": T(c, messageKey, nil),
+		}
+		if renderErr := c.Render(code, "admin/pages/error.html", data); renderErr != nil {
+			c.JSON(code, map[string]interface{}{"errors": errorDetails, "code": code})
+		}
+		return
+	}
+
+	c.JSON(code, map[string]interface{}{"errors": errorDetails, "code": code})
+}
+
+func adminErrorKeys(code int) (headingKey, messageKey string) {
+	switch code {
+	case http.StatusNotFound:
+		return "ui.error.404.heading", "ui.error.404.message"
+	case http.StatusForbidden:
+		return "ui.error.403.heading", "ui.error.403.message"
+	case http.StatusUnauthorized:
+		return "ui.error.401.heading", "ui.error.401.message"
+	default:
+		return "ui.error.500.heading", "ui.error.500.message"
 	}
 }
 

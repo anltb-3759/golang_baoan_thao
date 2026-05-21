@@ -39,6 +39,11 @@ func (r *fakeAppUserRepo) FindByID(_ string) (*models.User, error)     { return 
 func (r *fakeAppUserRepo) Create(u *models.User) (*models.User, error) { return u, nil }
 func (r *fakeAppUserRepo) CreateInTx(_ *gorm.DB, _ *models.User) error { return nil }
 func (r *fakeAppUserRepo) Update(_ *models.User) error                 { return nil }
+func (r *fakeAppUserRepo) List(_ repositories.UserFilter, _, _ int) ([]models.User, int64, error) {
+	return nil, 0, nil
+}
+func (r *fakeAppUserRepo) UpdateStatus(_ string, _ models.UserStatus, _ string) error { return nil }
+func (r *fakeAppUserRepo) SoftDelete(_ string, _ string) error                        { return nil }
 
 type fakeAppRepo struct {
 	createErr error

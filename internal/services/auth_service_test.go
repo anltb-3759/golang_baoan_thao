@@ -7,6 +7,7 @@ import (
 
 	"github.com/awesome-academy/golang_baoan_thao/internal/dtos"
 	"github.com/awesome-academy/golang_baoan_thao/internal/models"
+	"github.com/awesome-academy/golang_baoan_thao/internal/repositories"
 	"golang.org/x/crypto/bcrypt"
 	"gorm.io/gorm"
 )
@@ -57,6 +58,11 @@ func (r *fakeUserRepository) CreateInTx(_ *gorm.DB, user *models.User) error {
 }
 
 func (r *fakeUserRepository) Update(_ *models.User) error { return nil }
+func (r *fakeUserRepository) List(_ repositories.UserFilter, _, _ int) ([]models.User, int64, error) {
+	return nil, 0, nil
+}
+func (r *fakeUserRepository) UpdateStatus(_ string, _ models.UserStatus, _ string) error { return nil }
+func (r *fakeUserRepository) SoftDelete(_ string, _ string) error                        { return nil }
 
 // --- fakeCitizenProfileRepository ---
 

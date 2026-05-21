@@ -22,6 +22,7 @@ var ErrEmailAlreadyExists = errors.New("auth.email_exists")
 var ErrInvalidCredentials = errors.New("auth.invalid_credentials")
 var ErrUserNotFound = errors.New("auth.user_not_found")
 var ErrPasswordMismatch = errors.New("auth.password_mismatch")
+var ErrUserBlocked = errors.New("auth.user_blocked")
 
 type AuthService struct {
 	db          Transactor
@@ -88,6 +89,9 @@ func (s *AuthService) Login(reqData *dtos.LoginRequest) (*models.User, string, s
 	}
 	if err := bcrypt.CompareHashAndPassword([]byte(user.PasswordHash), []byte(reqData.Password)); err != nil {
 		return nil, "", "", ErrPasswordMismatch
+	}
+	if user.Status == models.UserStatusBlocked {
+		return nil, "", "", ErrUserBlocked
 	}
 	token, refreshToken, err := configs.GenerateTokenPair(user)
 	return user, token, refreshToken, err

@@ -1,0 +1,138 @@
+{{ template "admin/partials/head.html" . }}
+<div class="flex h-screen overflow-hidden">
+  {{ template "admin/partials/sidebar.html" . }}
+  <div class="flex-1 flex flex-col overflow-hidden">
+    {{ template "admin/partials/topbar.html" . }}
+    <main class="flex-1 overflow-y-auto bg-gray-50">
+      <div class="max-w-2xl mx-auto p-6 space-y-6">
+
+        <!-- Page Header -->
+        <div class="flex items-center justify-between">
+          <h1 class="text-xl font-semibold text-gray-900">
+            {{ if .IsEdit }}{{ t "ui.users.form.edit_title" }}{{ else }}{{ t "ui.users.form.create_title" }}{{ end }}
+          </h1>
+        </div>
+
+        {{ if .Error }}
+        <div class="px-4 py-3 rounded-lg text-sm border bg-red-50 text-red-700 border-red-200">
+          {{ .Error }}
+        </div>
+        {{ end }}
+
+        <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+          {{ if .IsEdit }}
+          <form method="POST" action="/admin/users/{{ .User.ID }}/edit" class="space-y-4">
+          {{ else }}
+          <form method="POST" action="/admin/users" class="space-y-4">
+          {{ end }}
+
+            <div class="grid grid-cols-2 gap-4">
+              <!-- Name -->
+              <div>
+                <label class="text-sm font-medium text-gray-700">{{ t "ui.users.form.name" }}</label>
+                <input type="text" name="name"
+                       value="{{ if .Req }}{{ .Req.Name }}{{ else if .User }}{{ .User.Name }}{{ end }}"
+                       class="mt-1 w-full rounded-lg border text-sm px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-100 focus:border-indigo-500
+                         {{ if and .FieldErrors (index .FieldErrors "Name") }}border-red-400 bg-red-50{{ else }}border-gray-300{{ end }}"
+                       required>
+                {{ if and .FieldErrors (index .FieldErrors "Name") }}
+                <p class="text-red-600 text-xs mt-1">{{ index .FieldErrors "Name" }}</p>
+                {{ end }}
+              </div>
+
+              <!-- Phone -->
+              <div>
+                <label class="text-sm font-medium text-gray-700">{{ t "ui.users.form.phone" }}</label>
+                <input type="text" name="phone"
+                       value="{{ if .Req }}{{ .Req.Phone }}{{ else if .User }}{{ .User.Phone }}{{ end }}"
+                       placeholder="0912345678"
+                       class="mt-1 w-full rounded-lg border text-sm px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-100 focus:border-indigo-500
+                         {{ if and .FieldErrors (index .FieldErrors "Phone") }}border-red-400 bg-red-50{{ else }}border-gray-300{{ end }}">
+                {{ if and .FieldErrors (index .FieldErrors "Phone") }}
+                <p class="text-red-600 text-xs mt-1">{{ index .FieldErrors "Phone" }}</p>
+                {{ else }}
+                <p class="text-xs text-gray-400 mt-1">{{ t "ui.users.form.phone_hint" }}</p>
+                {{ end }}
+              </div>
+            </div>
+
+            {{ if not .IsEdit }}
+            <!-- Email -->
+            <div>
+              <label class="text-sm font-medium text-gray-700">{{ t "ui.users.form.email" }}</label>
+              <input type="email" name="email"
+                     value="{{ if .Req }}{{ .Req.Email }}{{ end }}"
+                     class="mt-1 w-full rounded-lg border text-sm px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-100 focus:border-indigo-500
+                       {{ if and .FieldErrors (index .FieldErrors "Email") }}border-red-400 bg-red-50{{ else }}border-gray-300{{ end }}"
+                     required>
+              {{ if and .FieldErrors (index .FieldErrors "Email") }}
+              <p class="text-red-600 text-xs mt-1">{{ index .FieldErrors "Email" }}</p>
+              {{ end }}
+            </div>
+
+            <!-- Password -->
+            <div>
+              <label class="text-sm font-medium text-gray-700">{{ t "ui.users.form.password" }}</label>
+              <input type="password" name="password"
+                     class="mt-1 w-full rounded-lg border text-sm px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-100 focus:border-indigo-500
+                       {{ if and .FieldErrors (index .FieldErrors "Password") }}border-red-400 bg-red-50{{ else }}border-gray-300{{ end }}"
+                     required minlength="6" maxlength="72">
+              {{ if and .FieldErrors (index .FieldErrors "Password") }}
+              <p class="text-red-600 text-xs mt-1">{{ index .FieldErrors "Password" }}</p>
+              {{ else }}
+              <p class="text-xs text-gray-400 mt-1">{{ t "ui.users.form.password_hint" }}</p>
+              {{ end }}
+            </div>
+            {{ end }}
+
+            <!-- Role -->
+            <div>
+              <label class="text-sm font-medium text-gray-700">{{ t "ui.users.col.role" }}</label>
+              <select name="role"
+                      class="mt-1 w-full rounded-lg border bg-white text-sm px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-100 focus:border-indigo-500
+                        {{ if and .FieldErrors (index .FieldErrors "Role") }}border-red-400{{ else }}border-gray-300{{ end }}"
+                      required>
+                {{ $reqRole  := "" }}
+                {{ $userRole := "" }}
+                {{ if .Req }}{{ $reqRole = printf "%s" .Req.Role }}{{ end }}
+                {{ if .User }}{{ $userRole = printf "%s" .User.Role }}{{ end }}
+                {{ $cur := or $reqRole $userRole }}
+                <option value="citizen"     {{ if eq $cur "citizen"     }}selected{{ end }}>{{ t "ui.users.role.citizen" }}</option>
+                <option value="staff"       {{ if eq $cur "staff"       }}selected{{ end }}>{{ t "ui.users.role.staff" }}</option>
+                <option value="manager"     {{ if eq $cur "manager"     }}selected{{ end }}>{{ t "ui.users.role.manager" }}</option>
+                <option value="super_admin" {{ if eq $cur "super_admin" }}selected{{ end }}>{{ t "ui.users.role.super_admin" }}</option>
+              </select>
+              {{ if and .FieldErrors (index .FieldErrors "Role") }}
+              <p class="text-red-600 text-xs mt-1">{{ index .FieldErrors "Role" }}</p>
+              {{ end }}
+            </div>
+
+            <!-- Address -->
+            <div>
+              <label class="text-sm font-medium text-gray-700">{{ t "ui.users.form.address" }}</label>
+              <textarea name="address" rows="2"
+                        class="mt-1 w-full rounded-lg border text-sm px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-100 focus:border-indigo-500
+                          {{ if and .FieldErrors (index .FieldErrors "Address") }}border-red-400 bg-red-50{{ else }}border-gray-300{{ end }}">{{ if .Req }}{{ .Req.Address }}{{ else if .User }}{{ .User.Address }}{{ end }}</textarea>
+              {{ if and .FieldErrors (index .FieldErrors "Address") }}
+              <p class="text-red-600 text-xs mt-1">{{ index .FieldErrors "Address" }}</p>
+              {{ end }}
+            </div>
+
+            <div class="flex gap-2 pt-4 border-t border-gray-100">
+              <button type="submit"
+                      class="bg-indigo-600 text-white px-4 py-2 rounded-md text-sm hover:bg-indigo-700">
+                {{ t "ui.users.form.save" }}
+              </button>
+              <a href="/admin/users"
+                 class="bg-white text-gray-700 border border-gray-300 px-4 py-2 rounded-md text-sm hover:bg-gray-50">
+                {{ t "ui.users.form.cancel" }}
+              </a>
+            </div>
+
+          </form>
+        </div>
+      </div>
+    </main>
+  </div>
+</div>
+{{ template "admin/partials/foot.html" . }}

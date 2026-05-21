@@ -77,6 +77,8 @@ func (h *AuthHandler) Login(c *echo.Context) error {
 			return echo.NewHTTPError(http.StatusUnauthorized, "auth.user_not_found")
 		case errors.Is(err, services.ErrPasswordMismatch):
 			return echo.NewHTTPError(http.StatusUnauthorized, "auth.password_mismatch")
+		case errors.Is(err, services.ErrUserBlocked):
+			return echo.NewHTTPError(http.StatusForbidden, "auth.user_blocked")
 		default:
 			return err
 		}
@@ -171,6 +173,8 @@ func (h *AdminAuthHandler) WebLogin(c *echo.Context) error {
 			msg = configs.T(c, "auth.user_not_found", nil)
 		case errors.Is(err, services.ErrPasswordMismatch):
 			msg = configs.T(c, "auth.password_mismatch", nil)
+		case errors.Is(err, services.ErrUserBlocked):
+			msg = configs.T(c, "auth.user_blocked", nil)
 		default:
 			msg = configs.T(c, "common.internal_error", nil)
 		}

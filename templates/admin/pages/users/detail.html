@@ -1,0 +1,122 @@
+{{ template "admin/partials/head.html" . }}
+<div class="flex h-screen overflow-hidden">
+  {{ template "admin/partials/sidebar.html" . }}
+  <div class="flex-1 flex flex-col overflow-hidden">
+    {{ template "admin/partials/topbar.html" . }}
+    <main class="flex-1 overflow-y-auto bg-gray-50">
+      <div class="max-w-2xl mx-auto p-6 space-y-6">
+
+        <!-- Page Header -->
+        <div class="flex items-center justify-between">
+          <h1 class="text-xl font-semibold text-gray-900">{{ t "ui.users.detail.title" }}</h1>
+          <div class="flex gap-2">
+            <a href="/admin/users/{{ .User.ID }}/edit"
+               class="inline-flex items-center gap-2 bg-indigo-600 text-white px-4 py-2 rounded-md text-sm hover:bg-indigo-700">
+              <i data-lucide="pencil" class="h-4 w-4"></i>
+              {{ t "ui.users.detail.edit" }}
+            </a>
+            <a href="/admin/users"
+               class="bg-white text-gray-700 border border-gray-300 px-4 py-2 rounded-md text-sm hover:bg-gray-50">
+              {{ t "ui.users.detail.back" }}
+            </a>
+          </div>
+        </div>
+
+        <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-6 space-y-4">
+          <div class="grid grid-cols-2 gap-6">
+            <div>
+              <p class="text-xs font-medium text-gray-500 uppercase">{{ t "ui.users.form.name" }}</p>
+              <p class="mt-1 text-sm text-gray-900 font-medium">{{ .User.Name }}</p>
+            </div>
+            <div>
+              <p class="text-xs font-medium text-gray-500 uppercase">{{ t "ui.users.form.email" }}</p>
+              <p class="mt-1 text-sm text-gray-900">{{ .User.Email }}</p>
+            </div>
+            <div>
+              <p class="text-xs font-medium text-gray-500 uppercase">{{ t "ui.users.col.role" }}</p>
+              <p class="mt-1">
+                {{ if eq (printf "%s" .User.Role) "citizen" }}
+                <span class="bg-gray-100 text-gray-700 text-xs px-2 py-1 rounded-md">{{ t "ui.users.role.citizen" }}</span>
+                {{ else if eq (printf "%s" .User.Role) "staff" }}
+                <span class="bg-blue-100 text-blue-700 text-xs px-2 py-1 rounded-md">{{ t "ui.users.role.staff" }}</span>
+                {{ else if eq (printf "%s" .User.Role) "manager" }}
+                <span class="bg-purple-100 text-purple-700 text-xs px-2 py-1 rounded-md">{{ t "ui.users.role.manager" }}</span>
+                {{ else if eq (printf "%s" .User.Role) "super_admin" }}
+                <span class="bg-orange-100 text-orange-700 text-xs px-2 py-1 rounded-md">{{ t "ui.users.role.super_admin" }}</span>
+                {{ end }}
+              </p>
+            </div>
+            <div>
+              <p class="text-xs font-medium text-gray-500 uppercase">{{ t "ui.users.col.status" }}</p>
+              <p class="mt-1">
+                {{ if eq (printf "%s" .User.Status) "active" }}
+                <span class="bg-green-100 text-green-700 text-xs px-2 py-1 rounded-md">{{ t "ui.users.status.active" }}</span>
+                {{ else }}
+                <span class="bg-red-100 text-red-700 text-xs px-2 py-1 rounded-md">{{ t "ui.users.status.blocked" }}</span>
+                {{ end }}
+              </p>
+            </div>
+            <div>
+              <p class="text-xs font-medium text-gray-500 uppercase">{{ t "ui.users.form.phone" }}</p>
+              <p class="mt-1 text-sm text-gray-900">{{ if .User.Phone }}{{ .User.Phone }}{{ else }}<span class="text-gray-400">—</span>{{ end }}</p>
+            </div>
+            <div>
+              <p class="text-xs font-medium text-gray-500 uppercase">{{ t "ui.users.detail.last_login" }}</p>
+              <p class="mt-1 text-sm text-gray-900">
+                {{ if .User.LastLoginAt }}{{ .User.LastLoginAt }}{{ else }}<span class="text-gray-400">{{ t "ui.users.detail.never" }}</span>{{ end }}
+              </p>
+            </div>
+            <div class="col-span-2">
+              <p class="text-xs font-medium text-gray-500 uppercase">{{ t "ui.users.form.address" }}</p>
+              <p class="mt-1 text-sm text-gray-900">{{ if .User.Address }}{{ .User.Address }}{{ else }}<span class="text-gray-400">—</span>{{ end }}</p>
+            </div>
+            <div>
+              <p class="text-xs font-medium text-gray-500 uppercase">{{ t "ui.users.detail.created_at" }}</p>
+              <p class="mt-1 text-sm text-gray-900">{{ .User.CreatedAt }}</p>
+            </div>
+          </div>
+        </div>
+
+        <!-- Actions -->
+        <div class="flex gap-2">
+          {{ if eq (printf "%s" .User.Status) "active" }}
+          <form method="POST" action="/admin/users/{{ .User.ID }}/block"
+                data-modal-title="{{ t "ui.modal.block_title" }}"
+                data-modal-message="{{ t "ui.modal.block_message" }}"
+                data-modal-variant="warning">
+            <button type="button" data-modal-target="confirm-modal"
+                    class="inline-flex items-center gap-2 bg-yellow-600 text-white px-4 py-2 rounded-md text-sm hover:bg-yellow-700">
+              <i data-lucide="ban" class="h-4 w-4"></i>
+              {{ t "ui.users.action.block" }}
+            </button>
+          </form>
+          {{ else }}
+          <form method="POST" action="/admin/users/{{ .User.ID }}/unblock"
+                data-modal-title="{{ t "ui.modal.unblock_title" }}"
+                data-modal-message="{{ t "ui.modal.unblock_message" }}"
+                data-modal-variant="success">
+            <button type="button" data-modal-target="confirm-modal"
+                    class="inline-flex items-center gap-2 bg-green-600 text-white px-4 py-2 rounded-md text-sm hover:bg-green-700">
+              <i data-lucide="check-circle" class="h-4 w-4"></i>
+              {{ t "ui.users.action.unblock" }}
+            </button>
+          </form>
+          {{ end }}
+          <form method="POST" action="/admin/users/{{ .User.ID }}/delete"
+                data-modal-title="{{ t "ui.modal.delete_title" }}"
+                data-modal-message="{{ t "ui.modal.delete_message" }}"
+                data-modal-variant="danger">
+            <button type="button" data-modal-target="confirm-modal"
+                    class="inline-flex items-center gap-2 bg-red-600 text-white px-4 py-2 rounded-md text-sm hover:bg-red-700">
+              <i data-lucide="trash-2" class="h-4 w-4"></i>
+              {{ t "ui.users.action.delete" }}
+            </button>
+          </form>
+        </div>
+
+      </div>
+    </main>
+  </div>
+</div>
+{{ template "admin/partials/confirm-modal.html" . }}
+{{ template "admin/partials/foot.html" . }}

@@ -42,7 +42,7 @@ func TestUserRepoFindByEmailReturnsUser(t *testing.T) {
 	rows := sqlmock.NewRows([]string{"id", "name", "email", "password_hash", "role", "status"}).
 		AddRow("user-id", "User", email, "hashed-password", models.UserRoleCitizen, models.UserStatusActive)
 
-	mock.ExpectQuery(regexp.QuoteMeta(`SELECT * FROM "users" WHERE email = $1 ORDER BY "users"."id" LIMIT $2`)).
+	mock.ExpectQuery(regexp.QuoteMeta(`SELECT * FROM "users" WHERE email = $1 AND deleted_at IS NULL ORDER BY "users"."id" LIMIT $2`)).
 		WithArgs(email, 1).
 		WillReturnRows(rows)
 
@@ -69,7 +69,7 @@ func TestUserRepoFindByEmailReturnsNilWhenNotFound(t *testing.T) {
 	email := "missing@example.com"
 	rows := sqlmock.NewRows([]string{"id", "name", "email", "password_hash", "role", "status"})
 
-	mock.ExpectQuery(regexp.QuoteMeta(`SELECT * FROM "users" WHERE email = $1 ORDER BY "users"."id" LIMIT $2`)).
+	mock.ExpectQuery(regexp.QuoteMeta(`SELECT * FROM "users" WHERE email = $1 AND deleted_at IS NULL ORDER BY "users"."id" LIMIT $2`)).
 		WithArgs(email, 1).
 		WillReturnRows(rows)
 
@@ -93,7 +93,7 @@ func TestUserRepoFindByEmailReturnsDatabaseError(t *testing.T) {
 	email := "user@example.com"
 	dbErr := errors.New("database error")
 
-	mock.ExpectQuery(regexp.QuoteMeta(`SELECT * FROM "users" WHERE email = $1 ORDER BY "users"."id" LIMIT $2`)).
+	mock.ExpectQuery(regexp.QuoteMeta(`SELECT * FROM "users" WHERE email = $1 AND deleted_at IS NULL ORDER BY "users"."id" LIMIT $2`)).
 		WithArgs(email, 1).
 		WillReturnError(dbErr)
 
@@ -175,7 +175,7 @@ func TestUserRepoFindByIDReturnsUser(t *testing.T) {
 	defer cleanup()
 
 	rows := sqlmock.NewRows([]string{"id", "name", "email"}).AddRow("u1", "An", "an@example.com")
-	mock.ExpectQuery(regexp.QuoteMeta(`SELECT * FROM "users" WHERE id = $1 ORDER BY "users"."id" LIMIT $2`)).
+	mock.ExpectQuery(regexp.QuoteMeta(`SELECT * FROM "users" WHERE id = $1 AND deleted_at IS NULL ORDER BY "users"."id" LIMIT $2`)).
 		WithArgs("u1", 1).
 		WillReturnRows(rows)
 
@@ -196,7 +196,7 @@ func TestUserRepoFindByIDReturnsNilWhenNotFound(t *testing.T) {
 	defer cleanup()
 
 	rows := sqlmock.NewRows([]string{"id", "name", "email"})
-	mock.ExpectQuery(regexp.QuoteMeta(`SELECT * FROM "users" WHERE id = $1 ORDER BY "users"."id" LIMIT $2`)).
+	mock.ExpectQuery(regexp.QuoteMeta(`SELECT * FROM "users" WHERE id = $1 AND deleted_at IS NULL ORDER BY "users"."id" LIMIT $2`)).
 		WithArgs("missing", 1).
 		WillReturnRows(rows)
 
@@ -217,7 +217,7 @@ func TestUserRepoFindByIDReturnsDatabaseError(t *testing.T) {
 	defer cleanup()
 
 	dbErr := errors.New("db error")
-	mock.ExpectQuery(regexp.QuoteMeta(`SELECT * FROM "users" WHERE id = $1 ORDER BY "users"."id" LIMIT $2`)).
+	mock.ExpectQuery(regexp.QuoteMeta(`SELECT * FROM "users" WHERE id = $1 AND deleted_at IS NULL ORDER BY "users"."id" LIMIT $2`)).
 		WithArgs("u1", 1).
 		WillReturnError(dbErr)
 

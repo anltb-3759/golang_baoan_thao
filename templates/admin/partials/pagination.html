@@ -1,0 +1,23 @@
+{{ if .Pagination }}
+{{ $p := .Pagination }}
+<div class="flex items-center justify-between px-4 py-3 border-t border-gray-200">
+  <span class="text-sm text-gray-500">
+    {{ t "ui.pagination.showing" }} {{ $p.From }}-{{ $p.To }} / {{ $p.Total }} {{ t "ui.pagination.results" }}
+  </span>
+  <div class="flex gap-1">
+    {{ if $p.HasPrev }}
+    <a href="?page={{ $p.PrevPage }}&search={{ $.Search }}&role={{ $.RoleFilter }}"
+       class="px-3 py-1 text-sm rounded-md border border-gray-300 hover:bg-gray-50 text-gray-700">{{ t "ui.pagination.prev" }}</a>
+    {{ else }}
+    <span class="px-3 py-1 text-sm rounded-md border border-gray-200 text-gray-300 cursor-not-allowed">{{ t "ui.pagination.prev" }}</span>
+    {{ end }}
+    <span class="px-3 py-1 text-sm rounded-md border border-indigo-500 bg-indigo-50 text-indigo-700">{{ $p.Page }}</span>
+    {{ if $p.HasNext }}
+    <a href="?page={{ $p.NextPage }}&search={{ $.Search }}&role={{ $.RoleFilter }}"
+       class="px-3 py-1 text-sm rounded-md border border-gray-300 hover:bg-gray-50 text-gray-700">{{ t "ui.pagination.next" }}</a>
+    {{ else }}
+    <span class="px-3 py-1 text-sm rounded-md border border-gray-200 text-gray-300 cursor-not-allowed">{{ t "ui.pagination.next" }}</span>
+    {{ end }}
+  </div>
+</div>
+{{ end }}

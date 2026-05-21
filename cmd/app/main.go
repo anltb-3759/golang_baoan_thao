@@ -86,6 +86,10 @@ func main() {
 	departmentSvc := services.NewDepartmentService(departmentRepo)
 	adminDepartmentHandler := handlers.NewAdminDepartmentHandler(departmentSvc, adminUserSvc)
 
+	categoryRepo := repositories.NewCategoryRepo(db)
+	categorySvc := services.NewCategoryService(categoryRepo)
+	adminCategoryHandler := handlers.NewAdminCategoryHandler(categorySvc)
+
 	docs.SetupSwaggerRoutes(e)
 	routes.SetupRoutes(e, &routes.ApiHandler{
 		AuthHandler:            authHandler,
@@ -93,6 +97,7 @@ func main() {
 		AdminDashboardHandler:  adminDashboardHandler,
 		AdminUserHandler:       adminUserHandler,
 		AdminDepartmentHandler: adminDepartmentHandler,
+		AdminCategoryHandler:   adminCategoryHandler,
 		ServiceCatalogHandler:  serviceCatalogHandler,
 		CitizenProfileHandler:  citizenProfileHandler,
 		ApplicationHandler:     applicationHandler,

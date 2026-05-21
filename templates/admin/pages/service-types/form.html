@@ -28,9 +28,10 @@
       <div class="grid grid-cols-2 gap-4">
         <label class="grid gap-2">
           <span class="text-sm font-medium text-gray-700">{{ t "service_type.category" }}</span>
-          <select name="category" class="w-full rounded-lg border border-gray-300 bg-white text-sm px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-100 focus:border-indigo-500">
+          <select name="category_id" class="w-full rounded-lg border border-gray-300 bg-white text-sm px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-100 focus:border-indigo-500">
+            <option value="">{{ t "service_type.no_category" }}</option>
             {{ range .Categories }}
-            <option value="{{ .Value }}" {{ if eq $.ServiceType.Category .Value }}selected{{ end }}>{{ t .Label }}</option>
+            <option value="{{ .ID }}" {{ if eq $.ServiceType.CategoryID .ID }}selected{{ end }}>{{ .Name }}</option>
             {{ end }}
           </select>
         </label>

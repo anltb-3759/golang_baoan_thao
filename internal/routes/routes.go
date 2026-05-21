@@ -13,6 +13,7 @@ type ApiHandler struct {
 	AdminDashboardHandler    *handlers.AdminDashboardHandler
 	AdminUserHandler         *handlers.AdminUserHandler
 	AdminDepartmentHandler   *handlers.AdminDepartmentHandler
+	AdminCategoryHandler     *handlers.AdminCategoryHandler
 	ServiceCatalogHandler    *handlers.ServiceCatalogHandler
 	CitizenProfileHandler    *handlers.CitizenProfileHandler
 	ApplicationHandler       *handlers.ApplicationHandler
@@ -59,6 +60,15 @@ func SetupRoutes(e *echo.Echo, handler *ApiHandler) {
 	depts.GET("/:id/edit", handler.AdminDepartmentHandler.ShowEditForm)
 	depts.POST("/:id/edit", handler.AdminDepartmentHandler.UpdateDepartment)
 	depts.POST("/:id/delete", handler.AdminDepartmentHandler.DeleteDepartment)
+
+	// Categories (Super Admin only)
+	cats := admin.Group("/categories", middlewares.AdminWebRequireRoles(models.UserRoleSuperAdmin))
+	cats.GET("", handler.AdminCategoryHandler.ListCategories)
+	cats.GET("/new", handler.AdminCategoryHandler.ShowCreateForm)
+	cats.POST("", handler.AdminCategoryHandler.CreateCategory)
+	cats.GET("/:id/edit", handler.AdminCategoryHandler.ShowEditForm)
+	cats.POST("/:id/edit", handler.AdminCategoryHandler.UpdateCategory)
+	cats.POST("/:id/delete", handler.AdminCategoryHandler.DeleteCategory)
 
 	api := e.Group("/api")
 

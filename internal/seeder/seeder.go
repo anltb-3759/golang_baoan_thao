@@ -215,7 +215,6 @@ func seedServiceTypes(db *gorm.DB) error {
 		{
 			Name:                    "Cấp CCCD lần đầu",
 			Code:                    "CCCD_NEW",
-			Category:                models.ServiceCategoryAdministrative,
 			Description:             "Cấp Căn cước công dân lần đầu cho công dân đủ 14 tuổi",
 			RequiredDocuments:       "Giấy khai sinh, Chứng minh thư hoặc Hộ chiếu, Ảnh màu 3x4",
 			FormSchema:              formSchema1,
@@ -227,7 +226,6 @@ func seedServiceTypes(db *gorm.DB) error {
 		{
 			Name:                    "Cấp Giấy phép lái xe hạng A",
 			Code:                    "LICENSE_CLASS_A",
-			Category:                models.ServiceCategoryAdministrative,
 			Description:             "Cấp Giấy phép lái xe hạng A (xe máy)",
 			RequiredDocuments:       "CCCD/Hộ chiếu, Giấy chứng nhận sức khỏe, 4 ảnh 3x4",
 			FormSchema:              formSchema2,
@@ -239,7 +237,6 @@ func seedServiceTypes(db *gorm.DB) error {
 		{
 			Name:                    "Cấp Giấy phép lái xe hạng C",
 			Code:                    "LICENSE_CLASS_C",
-			Category:                models.ServiceCategoryAdministrative,
 			Description:             "Cấp Giấy phép lái xe hạng C (ô tô nhỏ)",
 			RequiredDocuments:       "CCCD/Hộ chiếu, Giấy chứng nhận sức khỏe, 4 ảnh 3x4",
 			FormSchema:              formSchema2,
@@ -251,7 +248,6 @@ func seedServiceTypes(db *gorm.DB) error {
 		{
 			Name:              "Đăng ký xe máy",
 			Code:              "REGISTER_BIKE",
-			Category:          models.ServiceCategoryAdministrative,
 			Description:       "Đăng ký xe máy tại Cục Đăng ký Lái xe và Xe cơ giới",
 			RequiredDocuments: "Hóa đơn bán hàng, CCCD, Bảng kiểm tra kỹ thuật",
 			FormSchema:        formSchema3,
@@ -262,7 +258,6 @@ func seedServiceTypes(db *gorm.DB) error {
 		{
 			Name:              "Đăng ký nhập học trường công lập",
 			Code:              "EDU_ENROLL",
-			Category:          models.ServiceCategoryEducation,
 			Description:       "Đăng ký nhập học cho học sinh vào trường tiểu học và trung học công lập",
 			RequiredDocuments: "Giấy khai sinh, Hộ khẩu hoặc Giấy xác nhận cư trú, Ảnh 3x4",
 			FormSchema:        formSchema4,
@@ -273,7 +268,6 @@ func seedServiceTypes(db *gorm.DB) error {
 		{
 			Name:              "Đăng ký khám sức khỏe định kỳ",
 			Code:              "HEALTH_CHECK",
-			Category:          models.ServiceCategoryHealth,
 			Description:       "Đăng ký dịch vụ khám sức khỏe định kỳ tại cơ sở y tế công lập",
 			RequiredDocuments: "CCCD, Thẻ bảo hiểm y tế",
 			FormSchema:        formSchema5,

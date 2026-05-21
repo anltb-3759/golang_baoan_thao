@@ -38,7 +38,7 @@ func NewPagination(page, limit int, total int64) PaginationData {
 	if page > 1 {
 		prevPage = page - 1
 	}
-	nextPage := 0
+	nextPage := 999999
 	if page < totalPages {
 		nextPage = page + 1
 	}

@@ -168,7 +168,7 @@ func TestServiceTypeRepoCreateUpdateDeleteCountApplications(t *testing.T) {
 	repo, mock, cleanup := newMockServiceTypeRepo(t)
 	defer cleanup()
 
-	serviceType := &models.ServiceType{ID: "st1", Name: "Test", Code: "TEST", Category: models.ServiceCategoryAdministrative, FormSchema: []byte("{}"), CreatedAt: time.Now(), UpdatedAt: time.Now()}
+	serviceType := &models.ServiceType{ID: "st1", Name: "Test", Code: "TEST", FormSchema: []byte("{}"), CreatedAt: time.Now(), UpdatedAt: time.Now()}
 	mock.ExpectBegin()
 	mock.ExpectQuery(`INSERT INTO "service_types"`).WillReturnRows(sqlmock.NewRows([]string{"id"}).AddRow("st1"))
 	mock.ExpectCommit()

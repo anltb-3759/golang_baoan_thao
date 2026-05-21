@@ -35,6 +35,10 @@ func (s *ServiceCatalogService) ListDepartments(ctx context.Context) ([]models.D
 	return s.repo.ListDepartments(ctx)
 }
 
+func (s *ServiceCatalogService) ListCategories(ctx context.Context) ([]models.Category, error) {
+	return s.repo.ListCategories(ctx)
+}
+
 func (s *ServiceCatalogService) Create(ctx context.Context, st *models.ServiceType) error {
 	if err := s.repo.Create(ctx, st); err != nil {
 		if isDuplicateServiceTypeError(err) {

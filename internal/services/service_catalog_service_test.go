@@ -42,6 +42,10 @@ func (m *mockServiceTypeRepo) GetByIDForAdmin(ctx context.Context, id string) (*
 	return args.Get(0).(*models.ServiceType), args.Error(1)
 }
 
+func (m *mockServiceTypeRepo) ListCategories(ctx context.Context) ([]models.Category, error) {
+	return nil, nil
+}
+
 func (m *mockServiceTypeRepo) ListDepartments(ctx context.Context) ([]models.Department, error) {
 	args := m.Called(ctx)
 	if args.Get(0) == nil {

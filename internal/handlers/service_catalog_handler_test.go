@@ -58,6 +58,10 @@ func (m *mockServiceCatalogSvc) ListDepartments(ctx context.Context) ([]models.D
 	return args.Get(0).([]models.Department), args.Error(1)
 }
 
+func (m *mockServiceCatalogSvc) ListCategories(ctx context.Context) ([]models.Category, error) {
+	return nil, nil
+}
+
 func (m *mockServiceCatalogSvc) Create(ctx context.Context, st *models.ServiceType) error {
 	args := m.Called(ctx, st)
 	return args.Error(0)

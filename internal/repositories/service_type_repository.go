@@ -26,6 +26,7 @@ type ServiceTypeRepository interface {
 	GetByID(ctx context.Context, id string) (*models.ServiceType, error)
 	GetByIDForAdmin(ctx context.Context, id string) (*models.ServiceType, error)
 	ListDepartments(ctx context.Context) ([]models.Department, error)
+	ListCategories(ctx context.Context) ([]models.Category, error)
 	Create(ctx context.Context, st *models.ServiceType) error
 	Update(ctx context.Context, st *models.ServiceType) error
 	Delete(ctx context.Context, id string) error
@@ -42,7 +43,8 @@ func NewServiceTypeRepository(db *gorm.DB) ServiceTypeRepository {
 
 func (r *serviceTypeRepo) List(ctx context.Context, filter ListFilter) (*ListResult, error) {
 	q := r.db.WithContext(ctx).Model(&models.ServiceType{}).
-		Preload("ResponsibleDepartment")
+		Preload("ResponsibleDepartment").
+		Preload("Category")
 
 	if filter.IncludeInactive {
 		q = q.Where("deleted_at IS NULL")
@@ -51,7 +53,7 @@ func (r *serviceTypeRepo) List(ctx context.Context, filter ListFilter) (*ListRes
 	}
 
 	if filter.Category != "" {
-		q = q.Where("category = ?", filter.Category)
+		q = q.Where("category_id = ?", filter.Category)
 	}
 	if filter.Search != "" {
 		like := "%" + filter.Search + "%"
@@ -82,7 +84,7 @@ func (r *serviceTypeRepo) GetByIDForAdmin(ctx context.Context, id string) (*mode
 
 func (r *serviceTypeRepo) getByID(ctx context.Context, id string, activeOnly bool) (*models.ServiceType, error) {
 	var st models.ServiceType
-	query := r.db.WithContext(ctx).Preload("ResponsibleDepartment").
+	query := r.db.WithContext(ctx).Preload("ResponsibleDepartment").Preload("Category").
 		Where("id = ? AND deleted_at IS NULL", id)
 	if activeOnly {
 		query = query.Where("is_active = ?", true)
@@ -106,6 +108,17 @@ func (r *serviceTypeRepo) ListDepartments(ctx context.Context) ([]models.Departm
 	return departments, nil
 }
 
+func (r *serviceTypeRepo) ListCategories(ctx context.Context) ([]models.Category, error) {
+	cats := make([]models.Category, 0)
+	if err := r.db.WithContext(ctx).
+		Where("deleted_at IS NULL AND is_active = ?", true).
+		Order("name ASC").
+		Find(&cats).Error; err != nil {
+		return nil, err
+	}
+	return cats, nil
+}
+
 func (r *serviceTypeRepo) Create(ctx context.Context, st *models.ServiceType) error {
 	return r.db.WithContext(ctx).Create(st).Error
 }
@@ -117,7 +130,7 @@ func (r *serviceTypeRepo) Update(ctx context.Context, st *models.ServiceType) er
 		Updates(map[string]any{
 			"name":                      st.Name,
 			"code":                      st.Code,
-			"category":                  st.Category,
+			"category_id":               st.CategoryID,
 			"description":               st.Description,
 			"required_documents":        st.RequiredDocuments,
 			"form_schema":               st.FormSchema,

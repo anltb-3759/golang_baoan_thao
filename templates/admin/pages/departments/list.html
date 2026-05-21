@@ -1,0 +1,100 @@
+{{ template "admin/partials/head.html" . }}
+<div class="flex h-screen overflow-hidden">
+  {{ template "admin/partials/sidebar.html" . }}
+  <div class="flex-1 flex flex-col overflow-hidden">
+    {{ template "admin/partials/topbar.html" . }}
+    <main class="flex-1 overflow-y-auto bg-gray-50">
+      <div class="max-w-6xl mx-auto p-6 space-y-6">
+
+        {{ if .Flash }}
+        <div class="px-4 py-3 rounded-lg text-sm border
+          {{ if eq (index .Flash "Type") "success" }}bg-green-50 text-green-700 border-green-200{{ else }}bg-red-50 text-red-700 border-red-200{{ end }}">
+          {{ index .Flash "Message" }}
+        </div>
+        {{ end }}
+
+        <!-- Page Header -->
+        <div class="flex items-center justify-between">
+          <h1 class="text-xl font-semibold text-gray-900">{{ t "ui.departments.title" }}</h1>
+          <a href="/admin/departments/new"
+             class="inline-flex items-center gap-2 bg-indigo-600 text-white px-4 py-2 rounded-md text-sm hover:bg-indigo-700">
+            <i data-lucide="plus" class="h-4 w-4"></i>
+            {{ t "ui.departments.add" }}
+          </a>
+        </div>
+
+        <!-- Filter Bar -->
+        <form method="GET" action="/admin/departments" class="flex gap-3">
+          <input type="text" name="search" value="{{ .Search }}"
+                 placeholder="{{ t "ui.departments.search_placeholder" }}"
+                 class="rounded-lg border border-gray-300 text-sm px-3 py-2 w-64 focus:outline-none focus:ring-2 focus:ring-indigo-100 focus:border-indigo-500">
+          <button type="submit"
+                  class="inline-flex items-center gap-2 bg-white border border-gray-300 text-gray-700 px-4 py-2 rounded-md text-sm hover:bg-gray-50">
+            <i data-lucide="search" class="h-4 w-4"></i>
+            {{ t "ui.departments.search_btn" }}
+          </button>
+          {{ if .Search }}
+          <a href="/admin/departments"
+             class="inline-flex items-center gap-1 text-sm text-gray-500 hover:text-gray-700 px-2 py-2">
+            <i data-lucide="x" class="h-3.5 w-3.5"></i>
+            {{ t "ui.departments.clear_filter" }}
+          </a>
+          {{ end }}
+        </form>
+
+        <!-- Data Table -->
+        <div class="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
+          <table class="min-w-full divide-y divide-gray-200">
+            <thead class="bg-gray-50">
+              <tr>
+                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">{{ t "ui.departments.col.name" }}</th>
+                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">{{ t "ui.departments.col.code" }}</th>
+                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">{{ t "ui.departments.col.address" }}</th>
+                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">{{ t "ui.departments.col.leader" }}</th>
+                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">{{ t "ui.departments.col.actions" }}</th>
+              </tr>
+            </thead>
+            <tbody class="divide-y divide-gray-200">
+              {{ if .Departments }}
+              {{ range .Departments }}
+              <tr class="hover:bg-gray-50">
+                <td class="px-4 py-3 text-sm text-gray-900 font-medium">{{ .Name }}</td>
+                <td class="px-4 py-3">
+                  <span class="bg-indigo-50 text-indigo-700 text-xs px-2 py-1 rounded-md font-mono">{{ .Code }}</span>
+                </td>
+                <td class="px-4 py-3 text-sm text-gray-700">
+                  {{ if .Address }}{{ .Address }}{{ else }}<span class="text-gray-400">—</span>{{ end }}
+                </td>
+                <td class="px-4 py-3 text-sm text-gray-700">
+                  {{ if .LeaderUser }}{{ .LeaderUser.Name }}{{ else }}<span class="text-gray-400">—</span>{{ end }}
+                </td>
+                <td class="px-4 py-3">
+                  <div class="flex items-center gap-3">
+                    <a href="/admin/departments/{{ .ID }}/edit" class="text-gray-600 hover:text-gray-800 text-sm">{{ t "ui.departments.action.edit" }}</a>
+                    <form method="POST" action="/admin/departments/{{ .ID }}/delete"
+                          data-modal-title="{{ t "ui.departments.modal.delete_title" }}"
+                          data-modal-message="{{ t "ui.departments.modal.delete_message" }}"
+                          data-modal-variant="danger">
+                      <button type="button" data-modal-target="confirm-modal"
+                              class="text-red-600 hover:text-red-800 text-sm">{{ t "ui.departments.action.delete" }}</button>
+                    </form>
+                  </div>
+                </td>
+              </tr>
+              {{ end }}
+              {{ else }}
+              <tr>
+                <td colspan="5" class="text-gray-400 text-center py-8 text-sm">{{ t "ui.departments.empty" }}</td>
+              </tr>
+              {{ end }}
+            </tbody>
+          </table>
+          {{ template "admin/partials/pagination.html" . }}
+        </div>
+
+      </div>
+    </main>
+  </div>
+</div>
+{{ template "admin/partials/confirm-modal.html" . }}
+{{ template "admin/partials/foot.html" . }}

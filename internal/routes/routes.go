@@ -8,13 +8,14 @@ import (
 )
 
 type ApiHandler struct {
-	AuthHandler           *handlers.AuthHandler
-	AdminAuthHandler      *handlers.AdminAuthHandler
-	AdminDashboardHandler *handlers.AdminDashboardHandler
-	AdminUserHandler      *handlers.AdminUserHandler
-	ServiceCatalogHandler *handlers.ServiceCatalogHandler
-	CitizenProfileHandler *handlers.CitizenProfileHandler
-	ApplicationHandler    *handlers.ApplicationHandler
+	AuthHandler              *handlers.AuthHandler
+	AdminAuthHandler         *handlers.AdminAuthHandler
+	AdminDashboardHandler    *handlers.AdminDashboardHandler
+	AdminUserHandler         *handlers.AdminUserHandler
+	AdminDepartmentHandler   *handlers.AdminDepartmentHandler
+	ServiceCatalogHandler    *handlers.ServiceCatalogHandler
+	CitizenProfileHandler    *handlers.CitizenProfileHandler
+	ApplicationHandler       *handlers.ApplicationHandler
 }
 
 func SetupRoutes(e *echo.Echo, handler *ApiHandler) {
@@ -39,6 +40,15 @@ func SetupRoutes(e *echo.Echo, handler *ApiHandler) {
 	users.POST("/:id/block", handler.AdminUserHandler.BlockUser)
 	users.POST("/:id/unblock", handler.AdminUserHandler.UnblockUser)
 	users.POST("/:id/delete", handler.AdminUserHandler.DeleteUser)
+
+	// Departments (Super Admin only)
+	depts := admin.Group("/departments", middlewares.AdminWebRequireRoles(models.UserRoleSuperAdmin))
+	depts.GET("", handler.AdminDepartmentHandler.ListDepartments)
+	depts.GET("/new", handler.AdminDepartmentHandler.ShowCreateForm)
+	depts.POST("", handler.AdminDepartmentHandler.CreateDepartment)
+	depts.GET("/:id/edit", handler.AdminDepartmentHandler.ShowEditForm)
+	depts.POST("/:id/edit", handler.AdminDepartmentHandler.UpdateDepartment)
+	depts.POST("/:id/delete", handler.AdminDepartmentHandler.DeleteDepartment)
 
 	api := e.Group("/api")
 
@@ -68,8 +78,4 @@ func SetupRoutes(e *echo.Echo, handler *ApiHandler) {
 	manager := api.Group("/managers")
 	manager.Use(middlewares.JWTMiddleware)
 	manager.Use(middlewares.RequireRoles(models.UserRoleManager))
-
-	superAdmin := api.Group("/super-admins")
-	superAdmin.Use(middlewares.JWTMiddleware)
-	superAdmin.Use(middlewares.RequireRoles(models.UserRoleSuperAdmin))
 }

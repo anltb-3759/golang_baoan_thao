@@ -3,6 +3,7 @@ package configs
 import (
 	"log"
 	"os"
+	"sync"
 	"time"
 
 	"github.com/awesome-academy/golang_baoan_thao/internal/models"
@@ -26,12 +27,20 @@ const (
 	RefreshTokenDuration = 7 * 24 * time.Hour
 )
 
+var (
+	jwtSecret     []byte
+	jwtSecretOnce sync.Once
+)
+
 func LoadJWTSecret() []byte {
-	secret := os.Getenv("JWT_SECRET")
-	if secret == "" {
-		log.Fatal("JWT_SECRET is not set")
-	}
-	return []byte(secret)
+	jwtSecretOnce.Do(func() {
+		secret := os.Getenv("JWT_SECRET")
+		if secret == "" {
+			log.Fatal("JWT_SECRET is not set")
+		}
+		jwtSecret = []byte(secret)
+	})
+	return jwtSecret
 }
 
 func GenerateToken(user *models.User) (string, error) {
@@ -78,11 +87,16 @@ func generateToken(user *models.User, tokenType string, duration time.Duration) 
 }
 
 func UserIDFromContext(c *echo.Context) string {
-	return c.Get("user").(*JwtCustomClaims).ID
+	claims, ok := c.Get("user").(*JwtCustomClaims)
+	if !ok || claims == nil {
+		return ""
+	}
+	return claims.ID
 }
 
 func ClaimsFromContext(c *echo.Context) *JwtCustomClaims {
-	return c.Get("user").(*JwtCustomClaims)
+	claims, _ := c.Get("user").(*JwtCustomClaims)
+	return claims
 }
 
 func ParseToken(tokenString string, expectedTokenType string) (*JwtCustomClaims, error) {

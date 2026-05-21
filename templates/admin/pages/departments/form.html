@@ -1,0 +1,100 @@
+{{ template "admin/partials/head.html" . }}
+<div class="flex h-screen overflow-hidden">
+  {{ template "admin/partials/sidebar.html" . }}
+  <div class="flex-1 flex flex-col overflow-hidden">
+    {{ template "admin/partials/topbar.html" . }}
+    <main class="flex-1 overflow-y-auto bg-gray-50">
+      <div class="max-w-2xl mx-auto p-6 space-y-6">
+
+        <!-- Page Header -->
+        <div class="flex items-center justify-between">
+          <h1 class="text-xl font-semibold text-gray-900">
+            {{ if .IsEdit }}{{ t "ui.departments.form.edit_title" }}{{ else }}{{ t "ui.departments.form.create_title" }}{{ end }}
+          </h1>
+        </div>
+
+        {{ if .Error }}
+        <div class="px-4 py-3 rounded-lg text-sm border bg-red-50 text-red-700 border-red-200">
+          {{ .Error }}
+        </div>
+        {{ end }}
+
+        <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+          {{ if .IsEdit }}
+          <form method="POST" action="/admin/departments/{{ .Department.ID }}/edit" class="space-y-4">
+          {{ else }}
+          <form method="POST" action="/admin/departments" class="space-y-4">
+          {{ end }}
+
+            <div class="grid grid-cols-2 gap-4">
+              <!-- Name -->
+              <div>
+                <label class="text-sm font-medium text-gray-700">{{ t "ui.departments.form.name" }}</label>
+                <input type="text" name="name"
+                       value="{{ if .Req }}{{ .Req.Name }}{{ else if .Department }}{{ .Department.Name }}{{ end }}"
+                       class="mt-1 w-full rounded-lg border text-sm px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-100 focus:border-indigo-500
+                         {{ if and .FieldErrors (index .FieldErrors "Name") }}border-red-400 bg-red-50{{ else }}border-gray-300{{ end }}"
+                       required>
+                {{ if and .FieldErrors (index .FieldErrors "Name") }}
+                <p class="text-red-600 text-xs mt-1">{{ index .FieldErrors "Name" }}</p>
+                {{ end }}
+              </div>
+
+              <!-- Code -->
+              <div>
+                <label class="text-sm font-medium text-gray-700">{{ t "ui.departments.form.code" }}</label>
+                <input type="text" name="code"
+                       value="{{ if .Req }}{{ .Req.Code }}{{ else if .Department }}{{ .Department.Code }}{{ end }}"
+                       class="mt-1 w-full rounded-lg border text-sm px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-100 focus:border-indigo-500
+                         {{ if and .FieldErrors (index .FieldErrors "Code") }}border-red-400 bg-red-50{{ else }}border-gray-300{{ end }}"
+                       required>
+                {{ if and .FieldErrors (index .FieldErrors "Code") }}
+                <p class="text-red-600 text-xs mt-1">{{ index .FieldErrors "Code" }}</p>
+                {{ end }}
+              </div>
+            </div>
+
+            <!-- Address -->
+            <div>
+              <label class="text-sm font-medium text-gray-700">{{ t "ui.departments.form.address" }}</label>
+              <textarea name="address" rows="2"
+                        class="mt-1 w-full rounded-lg border text-sm px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-100 focus:border-indigo-500
+                          {{ if and .FieldErrors (index .FieldErrors "Address") }}border-red-400 bg-red-50{{ else }}border-gray-300{{ end }}">{{ if .Req }}{{ .Req.Address }}{{ else if .Department }}{{ .Department.Address }}{{ end }}</textarea>
+              {{ if and .FieldErrors (index .FieldErrors "Address") }}
+              <p class="text-red-600 text-xs mt-1">{{ index .FieldErrors "Address" }}</p>
+              {{ end }}
+            </div>
+
+            <!-- Leader -->
+            <div>
+              <label class="text-sm font-medium text-gray-700">{{ t "ui.departments.form.leader" }}</label>
+              <select name="leader_user_id"
+                      class="mt-1 w-full rounded-lg border bg-white text-sm px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-100 focus:border-indigo-500 border-gray-300">
+                {{ $reqLeader := "" }}
+                {{ if .Req }}{{ $reqLeader = .Req.LeaderUserID }}{{ end }}
+                {{ $curLeader := or $reqLeader .CurrentLeaderID }}
+                <option value="">{{ t "ui.departments.form.leader_placeholder" }}</option>
+                {{ range .StaffUsers }}
+                <option value="{{ .ID }}" {{ if eq $curLeader .ID }}selected{{ end }}>{{ .Name }}</option>
+                {{ end }}
+              </select>
+            </div>
+
+            <div class="flex gap-2 pt-4 border-t border-gray-100">
+              <button type="submit"
+                      class="bg-indigo-600 text-white px-4 py-2 rounded-md text-sm hover:bg-indigo-700">
+                {{ t "ui.departments.form.save" }}
+              </button>
+              <a href="/admin/departments"
+                 class="bg-white text-gray-700 border border-gray-300 px-4 py-2 rounded-md text-sm hover:bg-gray-50">
+                {{ t "ui.departments.form.cancel" }}
+              </a>
+            </div>
+
+          </form>
+        </div>
+      </div>
+    </main>
+  </div>
+</div>
+{{ template "admin/partials/foot.html" . }}

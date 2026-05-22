@@ -13,11 +13,12 @@ var ErrDepartmentNotFound = errors.New("department.not_found")
 var ErrDepartmentCodeExists = errors.New("department.code_exists")
 
 type DepartmentService struct {
-	repo repositories.DepartmentRepository
+	repo      repositories.DepartmentRepository
+	staffRepo repositories.StaffProfileRepository
 }
 
-func NewDepartmentService(repo repositories.DepartmentRepository) *DepartmentService {
-	return &DepartmentService{repo: repo}
+func NewDepartmentService(repo repositories.DepartmentRepository, staffRepo repositories.StaffProfileRepository) *DepartmentService {
+	return &DepartmentService{repo: repo, staffRepo: staffRepo}
 }
 
 func (s *DepartmentService) ListDepartments(filter repositories.DepartmentFilter, page, limit int) ([]models.Department, int64, error) {
@@ -55,6 +56,10 @@ func (s *DepartmentService) CreateDepartment(req *dtos.DepartmentCreateRequest, 
 	}
 	if req.LeaderUserID != "" {
 		dept.LeaderUserID = &req.LeaderUserID
+		if s.staffRepo != nil {
+			// ensure leader is assigned as staff to this department
+			_ = s.staffRepo.UpdateDepartment(req.LeaderUserID, &dept.ID, createdBy)
+		}
 	}
 
 	return s.repo.Create(dept)
@@ -86,6 +91,10 @@ func (s *DepartmentService) UpdateDepartment(id string, req *dtos.DepartmentUpda
 
 	if req.LeaderUserID != "" {
 		dept.LeaderUserID = &req.LeaderUserID
+		if s.staffRepo != nil {
+			// ensure leader is assigned as staff to this department
+			_ = s.staffRepo.UpdateDepartment(req.LeaderUserID, &dept.ID, updatedBy)
+		}
 	} else {
 		dept.LeaderUserID = nil
 	}

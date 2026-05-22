@@ -6,13 +6,6 @@
     <main class="flex-1 overflow-y-auto bg-gray-50">
       <div class="max-w-6xl mx-auto p-6 space-y-6">
 
-        {{ if .Flash }}
-        <div class="px-4 py-3 rounded-lg text-sm border
-          {{ if eq (index .Flash "Type") "success" }}bg-green-50 text-green-700 border-green-200{{ else }}bg-red-50 text-red-700 border-red-200{{ end }}">
-          {{ index .Flash "Message" }}
-        </div>
-        {{ end }}
-
         <!-- Page Header -->
         <div class="flex items-center justify-between">
           <h1 class="text-xl font-semibold text-gray-900">{{ t "ui.users.title" }}</h1>

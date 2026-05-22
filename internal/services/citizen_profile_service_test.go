@@ -71,6 +71,20 @@ func (r *fakeProfileApplicationRepo) CreateAttachments(_ string, _ []models.Appl
 func (r *fakeProfileApplicationRepo) CreateWithAttachments(_ *models.Application, _ []models.ApplicationAttachment, _ *models.Notification, _ func() string) error {
 	return nil
 }
+func (r *fakeProfileApplicationRepo) AdminList(page, limit int) ([]models.Application, int64, error) {
+	return r.apps, r.total, r.err
+}
+func (r *fakeProfileApplicationRepo) GetByID(id string) (*models.Application, error) {
+	for i := range r.apps {
+		if r.apps[i].ID == id {
+			return &r.apps[i], r.err
+		}
+	}
+	return nil, r.err
+}
+func (r *fakeProfileApplicationRepo) UpdateAssignedStaff(applicationID string, assignedStaffUserID *string, updatedBy string) error {
+	return nil
+}
 
 // compile-time interface checks
 var _ repositories.UserRepository = (*fakeProfileUserRepo)(nil)

@@ -32,7 +32,6 @@ func NewAdminUserHandler(svc AdminUserService) *AdminUserHandler {
 	return &AdminUserHandler{svc: svc}
 }
 
-
 func adminCurrentUser(c *echo.Context) *configs.JwtCustomClaims {
 	v := c.Get("user")
 	if v == nil {

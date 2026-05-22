@@ -44,7 +44,8 @@ func NewServiceTypeRepository(db *gorm.DB) ServiceTypeRepository {
 func (r *serviceTypeRepo) List(ctx context.Context, filter ListFilter) (*ListResult, error) {
 	q := r.db.WithContext(ctx).Model(&models.ServiceType{}).
 		Preload("ResponsibleDepartment").
-		Preload("Category")
+		Preload("Category").
+		Preload("ResponsibleStaffUser")
 
 	if filter.IncludeInactive {
 		q = q.Where("deleted_at IS NULL")
@@ -84,13 +85,14 @@ func (r *serviceTypeRepo) GetByIDForAdmin(ctx context.Context, id string) (*mode
 
 func (r *serviceTypeRepo) getByID(ctx context.Context, id string, activeOnly bool) (*models.ServiceType, error) {
 	var st models.ServiceType
-	query := r.db.WithContext(ctx).Preload("ResponsibleDepartment").Preload("Category").
+	query := r.db.WithContext(ctx).Preload("Category").
+		Preload("ResponsibleDepartment").
+		Preload("ResponsibleStaffUser").
 		Where("id = ? AND deleted_at IS NULL", id)
 	if activeOnly {
 		query = query.Where("is_active = ?", true)
 	}
-	err := query.
-		First(&st).Error
+	err := query.First(&st).Error
 	if err != nil {
 		return nil, err
 	}
@@ -137,6 +139,7 @@ func (r *serviceTypeRepo) Update(ctx context.Context, st *models.ServiceType) er
 			"processing_time":           st.ProcessingTime,
 			"fee":                       st.Fee,
 			"responsible_department_id": st.ResponsibleDepartmentID,
+			"responsible_staff_user_id": st.ResponsibleStaffUserID,
 			"is_active":                 st.IsActive,
 			"updated_at":                st.UpdatedAt,
 		}).Error

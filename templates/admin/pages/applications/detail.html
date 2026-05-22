@@ -1,0 +1,31 @@
+{{ define "content" }}
+<div class="max-w-4xl">
+  <header class="mb-6 flex items-center justify-between">
+    <div>
+      <h1 class="text-xl font-semibold text-gray-900">{{ .Title }}</h1>
+    </div>
+    <a href="/admin/applications/{{ .Application.ID }}/assign" class="text-sm bg-indigo-600 text-white px-3 py-1 rounded">{{ t "ui.actions.assign" }}</a>
+  </header>
+
+  <section class="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+    <div class="grid grid-cols-2 gap-6">
+      <div>
+        <h2 class="font-medium">{{ .Application.ApplicationCode }}</h2>
+        <p class="text-sm text-gray-500">{{ t "ui.applications.detail.service" }}: {{ .Application.ServiceType.Name }}</p>
+        <p class="text-sm text-gray-500">{{ t "ui.applications.detail.citizen" }}: {{ if .Application.CitizenUser.Name }}{{ .Application.CitizenUser.Name }}{{ else }}—{{ end }}</p>
+        <p class="text-sm text-gray-500">{{ t "ui.applications.detail.status" }}: {{ .Application.Status }}</p>
+        <p class="text-sm text-gray-500">
+          {{ t "ui.applications.detail.assigned_staff" }}:
+          {{ if .Application.AssignedStaffUser }}{{ .Application.AssignedStaffUser.Name }}{{ else }}{{ t "ui.applications.detail.unassigned" }}{{ end }}
+        </p>
+      </div>
+      <div>
+        <h3 class="font-medium">{{ t "ui.applications.detail.submitted_at" }}</h3>
+        <p class="text-sm text-gray-500">{{ .Application.SubmittedAt }}</p>
+      </div>
+    </div>
+  </section>
+</div>
+{{ end }}
+
+{{ template "base" . }}

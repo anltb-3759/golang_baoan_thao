@@ -14,10 +14,6 @@
       </div>
     </div>
 
-    {{ if .Message }}
-    <div class="mt-4 rounded-lg border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-700">{{ .Message }}</div>
-    {{ end }}
-
     <form method="get" action="/admin/service-types" class="mt-5 flex gap-3">
       <input name="search" value="{{ .Search }}" placeholder="{{ t "service_type.search_placeholder" }}" class="rounded-lg border border-gray-300 px-3 py-2 text-sm w-64">
       <button type="submit" class="px-4 py-2 rounded-md border border-gray-300 bg-white text-sm">{{ t "service_type.search_button" }}</button>

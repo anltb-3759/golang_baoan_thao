@@ -14,10 +14,13 @@ const codeRetryAttempts = 3
 
 type ApplicationRepository interface {
 	CreateWithAttachments(app *models.Application, atts []models.ApplicationAttachment, notif *models.Notification, codeGen func() string) error
+	GetByID(id string) (*models.Application, error)
+	AdminList(page, limit int) ([]models.Application, int64, error)
 	ListByCitizen(citizenUserID string, page, limit int) ([]models.Application, int64, error)
 	GetByIDForCitizen(id, citizenUserID string) (*models.Application, error)
 	ListStatusLogsByCitizen(appID, citizenUserID string, page, limit int, since *time.Time) ([]models.ApplicationStatusLog, int64, error)
 	CreateAttachments(appID string, atts []models.ApplicationAttachment) error
+	UpdateAssignedStaff(applicationID string, assignedStaffUserID *string, updatedBy string) error
 }
 
 type applicationRepo struct {
@@ -68,6 +71,30 @@ func (r *applicationRepo) CreateWithAttachments(
 		notif.ApplicationID = nil
 	}
 	return lastErr
+}
+
+func (r *applicationRepo) GetByID(id string) (*models.Application, error) {
+	var app models.Application
+	if err := r.db.Preload("CitizenUser").Preload("ServiceType").Preload("AssignedStaffUser").Preload("ApplicationAttachments").Where("id = ? AND deleted_at IS NULL", id).First(&app).Error; err != nil {
+		return nil, err
+	}
+	return &app, nil
+}
+
+func (r *applicationRepo) AdminList(page, limit int) ([]models.Application, int64, error) {
+	q := r.db.Model(&models.Application{}).Where("deleted_at IS NULL")
+
+	var total int64
+	if err := q.Count(&total).Error; err != nil {
+		return nil, 0, err
+	}
+
+	offset := (page - 1) * limit
+	items := make([]models.Application, 0)
+	if err := q.Preload("ServiceType").Preload("CitizenUser").Preload("AssignedStaffUser").Order("submitted_at DESC").Offset(offset).Limit(limit).Find(&items).Error; err != nil {
+		return nil, 0, err
+	}
+	return items, total, nil
 }
 
 func (r *applicationRepo) ListByCitizen(citizenUserID string, page, limit int) ([]models.Application, int64, error) {
@@ -136,6 +163,15 @@ func (r *applicationRepo) CreateAttachments(appID string, atts []models.Applicat
 		atts[i].ApplicationID = appID
 	}
 	return r.db.Create(&atts).Error
+}
+
+func (r *applicationRepo) UpdateAssignedStaff(applicationID string, assignedStaffUserID *string, updatedBy string) error {
+	return r.db.Model(&models.Application{}).
+		Where("id = ? AND deleted_at IS NULL", applicationID).
+		Updates(map[string]interface{}{
+			"assigned_staff_user_id": assignedStaffUserID,
+			"updated_at":             time.Now(),
+		}).Error
 }
 
 func isApplicationCodeConflict(err error) bool {

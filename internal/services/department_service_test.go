@@ -48,7 +48,7 @@ func (r *fakeDepartmentRepo) SoftDelete(_ string, _ string) error { return r.del
 var _ repositories.DepartmentRepository = (*fakeDepartmentRepo)(nil)
 
 func newDeptSvc(repo *fakeDepartmentRepo) *DepartmentService {
-	return NewDepartmentService(repo)
+	return NewDepartmentService(repo, nil)
 }
 
 // --- ListDepartments ---

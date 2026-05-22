@@ -1,0 +1,40 @@
+{{ if .Flash }}
+<div id="admin-toast"
+     class="fixed right-4 top-4 z-50 w-[min(24rem,calc(100vw-2rem))] rounded-lg border bg-white shadow-lg transition-opacity duration-300
+       {{ if eq (index .Flash "Type") "success" }}border-green-200{{ else }}border-red-200{{ end }}"
+     role="status"
+     aria-live="polite">
+  <div class="flex items-start gap-3 p-4">
+    <div class="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-full
+      {{ if eq (index .Flash "Type") "success" }}bg-green-50 text-green-600{{ else }}bg-red-50 text-red-600{{ end }}">
+      {{ if eq (index .Flash "Type") "success" }}
+      <i data-lucide="check" class="h-4 w-4"></i>
+      {{ else }}
+      <i data-lucide="circle-alert" class="h-4 w-4"></i>
+      {{ end }}
+    </div>
+    <div class="min-w-0 flex-1">
+      <div class="text-sm font-medium text-gray-900">
+        {{ if eq (index .Flash "Type") "success" }}{{ t "ui.msg.success" }}{{ else }}{{ t "ui.msg.error" }}{{ end }}
+      </div>
+      <div class="mt-1 text-sm text-gray-600">{{ index .Flash "Message" }}</div>
+    </div>
+    <button type="button"
+            class="rounded p-1 text-gray-400 hover:bg-gray-100 hover:text-gray-600"
+            aria-label="Close"
+            onclick="this.closest('#admin-toast').remove()">
+      <i data-lucide="x" class="h-4 w-4"></i>
+    </button>
+  </div>
+</div>
+<script>
+  window.setTimeout(function () {
+    var toast = document.getElementById('admin-toast');
+    if (!toast) { return; }
+    toast.classList.add('opacity-0');
+    window.setTimeout(function () {
+      if (toast && toast.parentNode) { toast.parentNode.removeChild(toast); }
+    }, 300);
+  }, 4000);
+</script>
+{{ end }}

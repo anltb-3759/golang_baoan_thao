@@ -37,11 +37,11 @@ func newAdminEcho() *echo.Echo {
 // --- fake admin user service ---
 
 type fakeAdminUserSvc struct {
-	users    []models.User
-	total    int64
-	user     *models.User
-	listErr  error
-	getErr   error
+	users     []models.User
+	total     int64
+	user      *models.User
+	listErr   error
+	getErr    error
 	createErr error
 	updateErr error
 	blockErr  error

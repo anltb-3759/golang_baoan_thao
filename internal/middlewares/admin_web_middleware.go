@@ -8,8 +8,6 @@ import (
 	"github.com/labstack/echo/v5"
 )
 
-// AdminWebMiddleware uses the refresh_token cookie (not the Authorization header) and
-// redirects to /admin/login on failure instead of returning a JSON 401.
 func AdminWebMiddleware(next echo.HandlerFunc) echo.HandlerFunc {
 	return func(c *echo.Context) error {
 		cookie, err := c.Cookie("refresh_token")
@@ -27,7 +25,6 @@ func AdminWebMiddleware(next echo.HandlerFunc) echo.HandlerFunc {
 	}
 }
 
-// AdminWebRequireRoles redirects to /admin/login instead of returning JSON 403.
 func AdminWebRequireRoles(roles ...models.UserRole) echo.MiddlewareFunc {
 	return func(next echo.HandlerFunc) echo.HandlerFunc {
 		return func(c *echo.Context) error {

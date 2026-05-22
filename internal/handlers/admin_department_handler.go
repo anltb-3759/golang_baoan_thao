@@ -22,17 +22,28 @@ type DepartmentService interface {
 	DeleteDepartment(id string, deletedBy string) error
 }
 
-type AdminDepartmentHandler struct {
-	svc     DepartmentService
-	userSvc AdminUserService
+type StaffProfileService interface {
+	ListStaffByDepartment(deptID string, page, limit int) ([]models.StaffProfile, int64, error)
+	AssignStaffToDepartment(userID string, deptID string, updatedBy string) error
+	RemoveStaffFromDepartment(userID string, updatedBy string) error
 }
 
-func NewAdminDepartmentHandler(svc DepartmentService, userSvc AdminUserService) *AdminDepartmentHandler {
-	return &AdminDepartmentHandler{svc: svc, userSvc: userSvc}
+type AdminDepartmentHandler struct {
+	svc        DepartmentService
+	userSvc    AdminUserService
+	profileSvc StaffProfileService
+}
+
+func NewAdminDepartmentHandler(svc DepartmentService, userSvc AdminUserService, profileSvc StaffProfileService) *AdminDepartmentHandler {
+	return &AdminDepartmentHandler{svc: svc, userSvc: userSvc, profileSvc: profileSvc}
 }
 
 func deptFlashURL(flash, msg string) string {
 	return "/admin/departments?" + url.Values{"flash": {flash}, "msg": {msg}}.Encode()
+}
+
+func deptStaffFlashURL(deptID, flash, msg string) string {
+	return "/admin/departments/" + deptID + "/staff?" + url.Values{"flash": {flash}, "msg": {msg}}.Encode()
 }
 
 func (h *AdminDepartmentHandler) ListDepartments(c *echo.Context) error {
@@ -184,6 +195,14 @@ func derefStr(s *string) string {
 	return *s
 }
 
+func departmentIDParam(c *echo.Context) (string, error) {
+	id := c.Param("id")
+	if id == "" || id == ":id" {
+		return "", echo.NewHTTPError(http.StatusNotFound, "department.not_found")
+	}
+	return id, nil
+}
+
 func (h *AdminDepartmentHandler) listStaffUsers() ([]models.User, error) {
 	users, _, err := h.userSvc.ListUsers(repositories.UserFilter{}, 1, 1000)
 	if err != nil {
@@ -196,4 +215,109 @@ func (h *AdminDepartmentHandler) listStaffUsers() ([]models.User, error) {
 		}
 	}
 	return staff, nil
+}
+
+func (h *AdminDepartmentHandler) ListDepartmentStaff(c *echo.Context) error {
+	if h.profileSvc == nil {
+		return echo.NewHTTPError(http.StatusInternalServerError, "service.unavailable")
+	}
+	id, err := departmentIDParam(c)
+	if err != nil {
+		return err
+	}
+	page, limit := parsePagination(c)
+	// load department to get leader info
+	dept, err := h.svc.GetDepartment(id)
+	if err != nil {
+		return err
+	}
+
+	profiles, total, err := h.profileSvc.ListStaffByDepartment(id, page, limit)
+	if err != nil {
+		return err
+	}
+
+	var leaderProfile *models.StaffProfile
+	filtered := make([]models.StaffProfile, 0, len(profiles))
+	for _, p := range profiles {
+		if dept != nil && dept.LeaderUserID != nil && p.UserID == *dept.LeaderUserID {
+			// capture leader's profile for separate display and remove from list
+			leaderProfile = &p
+			continue
+		}
+		filtered = append(filtered, p)
+	}
+
+	// adjust total if leader was present in this page
+	if leaderProfile != nil && total > 0 {
+		total = total - 1
+	}
+
+	data := map[string]interface{}{
+		"Title":         configs.T(c, "ui.departments.staff_list_title", nil),
+		"CurrentPath":   "/admin/departments",
+		"CurrentUser":   adminCurrentUser(c),
+		"DepartmentID":  id,
+		"LeaderUser":    dept.LeaderUser,
+		"LeaderProfile": leaderProfile,
+		"StaffProfiles": filtered,
+		"Pagination":    utils.NewPagination(page, limit, total),
+		"Flash":         flashFromQuery(c),
+	}
+	return c.Render(http.StatusOK, "admin/pages/departments/staff_list.html", data)
+}
+
+func (h *AdminDepartmentHandler) ShowAssignStaffForm(c *echo.Context) error {
+	staffUsers, err := h.listStaffUsers()
+	if err != nil {
+		return err
+	}
+	id, err := departmentIDParam(c)
+	if err != nil {
+		return err
+	}
+	data := map[string]interface{}{
+		"Title":        configs.T(c, "ui.departments.assign_staff_title", nil),
+		"CurrentPath":  "/admin/departments",
+		"CurrentUser":  adminCurrentUser(c),
+		"DepartmentID": id,
+		"StaffUsers":   staffUsers,
+	}
+	return c.Render(http.StatusOK, "admin/pages/departments/assign_staff_form.html", data)
+}
+
+func (h *AdminDepartmentHandler) AssignStaffToDept(c *echo.Context) error {
+	if h.profileSvc == nil {
+		return echo.NewHTTPError(http.StatusInternalServerError, "service.unavailable")
+	}
+	deptID, err := departmentIDParam(c)
+	if err != nil {
+		return err
+	}
+	userID := c.FormValue("user_id")
+	if userID == "" {
+		return echo.NewHTTPError(http.StatusBadRequest, "validation.invalid")
+	}
+	if err := h.profileSvc.AssignStaffToDepartment(userID, deptID, actorID(c)); err != nil {
+		return echo.NewHTTPError(http.StatusInternalServerError, "common.internal_error")
+	}
+	return c.Redirect(http.StatusSeeOther, deptStaffFlashURL(deptID, "success", configs.T(c, "ui.msg.department_staff_assigned", nil)))
+}
+
+func (h *AdminDepartmentHandler) RemoveStaffFromDept(c *echo.Context) error {
+	if h.profileSvc == nil {
+		return echo.NewHTTPError(http.StatusInternalServerError, "service.unavailable")
+	}
+	userID := c.Param("user_id")
+	deptID, err := departmentIDParam(c)
+	if err != nil {
+		return err
+	}
+	if userID == "" {
+		return echo.NewHTTPError(http.StatusBadRequest, "validation.invalid")
+	}
+	if err := h.profileSvc.RemoveStaffFromDepartment(userID, actorID(c)); err != nil {
+		return echo.NewHTTPError(http.StatusInternalServerError, "common.internal_error")
+	}
+	return c.Redirect(http.StatusSeeOther, deptStaffFlashURL(deptID, "success", configs.T(c, "ui.msg.department_staff_removed", nil)))
 }

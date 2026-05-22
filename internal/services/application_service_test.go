@@ -89,6 +89,18 @@ func (r *fakeAppRepo) ListStatusLogsByCitizen(_, _ string, _, _ int, _ *time.Tim
 func (r *fakeAppRepo) CreateAttachments(_ string, _ []models.ApplicationAttachment) error {
 	return r.createAttErr
 }
+func (r *fakeAppRepo) AdminList(page, limit int) ([]models.Application, int64, error) {
+	return r.apps, r.total, r.listErr
+}
+func (r *fakeAppRepo) GetByID(id string) (*models.Application, error) {
+	if r.app != nil && r.app.ID == id {
+		return r.app, r.getErr
+	}
+	return nil, r.getErr
+}
+func (r *fakeAppRepo) UpdateAssignedStaff(applicationID string, assignedStaffUserID *string, updatedBy string) error {
+	return nil
+}
 
 type fakeStorage struct {
 	pubURL  string

@@ -47,7 +47,9 @@
               <div class="mt-1 text-xs text-gray-500">{{ .Description }}</div>
             </td>
             <td class="px-4 py-3 font-mono text-xs text-indigo-600">{{ .Code }}</td>
-            <td class="px-4 py-3 text-sm text-gray-700">{{ .Category }}</td>
+            <td class="px-4 py-3 text-sm text-gray-700">
+              {{ if .Category }}{{ .Category.Name }}{{ else }}<span class="text-gray-400">-</span>{{ end }}
+            </td>
             <td class="px-4 py-3 text-sm text-gray-700">
               {{ if .ResponsibleDepartment }}
                 <div class="font-medium text-gray-900">{{ .ResponsibleDepartment.Name }}</div>

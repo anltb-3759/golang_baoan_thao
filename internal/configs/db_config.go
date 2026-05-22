@@ -28,6 +28,7 @@ func InitDB() *gorm.DB {
 		&models.User{},
 		&models.CitizenProfile{},
 		&models.Department{},
+		&models.Category{},
 		&models.StaffProfile{},
 		&models.ServiceType{},
 		&models.Application{},

@@ -32,6 +32,9 @@ func (r *fakeAppServiceTypeRepo) GetByID(ctx context.Context, _ string) (*models
 func (r *fakeAppServiceTypeRepo) GetByIDForAdmin(ctx context.Context, _ string) (*models.ServiceType, error) {
 	return r.st, r.err
 }
+func (r *fakeAppServiceTypeRepo) ListCategories(ctx context.Context) ([]models.Category, error) {
+	return nil, nil
+}
 func (r *fakeAppServiceTypeRepo) ListDepartments(ctx context.Context) ([]models.Department, error) {
 	return nil, nil
 }

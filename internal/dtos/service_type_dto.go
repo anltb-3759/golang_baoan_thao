@@ -3,7 +3,7 @@ package dtos
 type ServiceTypeFormRequest struct {
 	Name                    string `form:"name" json:"name" validate:"required"`
 	Code                    string `form:"code" json:"code" validate:"required"`
-	Category                string `form:"category" json:"category" validate:"required"`
+	CategoryID              string `form:"category_id" json:"category_id"`
 	Description             string `form:"description" json:"description"`
 	RequiredDocuments       string `form:"required_documents" json:"required_documents"`
 	FormSchema              string `form:"form_schema" json:"form_schema"`

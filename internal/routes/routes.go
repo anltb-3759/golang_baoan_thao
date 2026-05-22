@@ -8,15 +8,16 @@ import (
 )
 
 type ApiHandler struct {
-	AuthHandler              *handlers.AuthHandler
-	AdminAuthHandler         *handlers.AdminAuthHandler
-	AdminDashboardHandler    *handlers.AdminDashboardHandler
-	AdminUserHandler         *handlers.AdminUserHandler
-	AdminDepartmentHandler   *handlers.AdminDepartmentHandler
-	AdminCategoryHandler     *handlers.AdminCategoryHandler
-	ServiceCatalogHandler    *handlers.ServiceCatalogHandler
-	CitizenProfileHandler    *handlers.CitizenProfileHandler
-	ApplicationHandler       *handlers.ApplicationHandler
+	AdminAuthHandler        *handlers.AdminAuthHandler
+	AdminDashboardHandler   *handlers.AdminDashboardHandler
+	AdminUserHandler        *handlers.AdminUserHandler
+	AdminDepartmentHandler  *handlers.AdminDepartmentHandler
+	AdminCategoryHandler    *handlers.AdminCategoryHandler
+	AdminApplicationHandler *handlers.AdminApplicationHandler
+	AuthHandler             *handlers.AuthHandler
+	CitizenProfileHandler   *handlers.CitizenProfileHandler
+	ServiceCatalogHandler   *handlers.ServiceCatalogHandler
+	ApplicationHandler      *handlers.ApplicationHandler
 }
 
 func SetupRoutes(e *echo.Echo, handler *ApiHandler) {
@@ -52,9 +53,12 @@ func SetupRoutes(e *echo.Echo, handler *ApiHandler) {
 	users.POST("/:id/unblock", handler.AdminUserHandler.UnblockUser)
 	users.POST("/:id/delete", handler.AdminUserHandler.DeleteUser)
 
-	// Departments (Super Admin only)
+	// Department list (Manager + Super Admin)
+	deptList := admin.Group("/departments", middlewares.AdminWebRequireRoles(models.UserRoleManager, models.UserRoleSuperAdmin))
+	deptList.GET("", handler.AdminDepartmentHandler.ListDepartments)
+
+	// Departments admin actions (Super Admin only)
 	depts := admin.Group("/departments", middlewares.AdminWebRequireRoles(models.UserRoleSuperAdmin))
-	depts.GET("", handler.AdminDepartmentHandler.ListDepartments)
 	depts.GET("/new", handler.AdminDepartmentHandler.ShowCreateForm)
 	depts.POST("", handler.AdminDepartmentHandler.CreateDepartment)
 	depts.GET("/:id/edit", handler.AdminDepartmentHandler.ShowEditForm)
@@ -69,6 +73,19 @@ func SetupRoutes(e *echo.Echo, handler *ApiHandler) {
 	cats.GET("/:id/edit", handler.AdminCategoryHandler.ShowEditForm)
 	cats.POST("/:id/edit", handler.AdminCategoryHandler.UpdateCategory)
 	cats.POST("/:id/delete", handler.AdminCategoryHandler.DeleteCategory)
+	// Department staff management (Manager + Super Admin)
+	deptStaff := admin.Group("/departments/:id/staff", middlewares.AdminWebRequireRoles(models.UserRoleManager, models.UserRoleSuperAdmin))
+	deptStaff.GET("", handler.AdminDepartmentHandler.ListDepartmentStaff)
+	deptStaff.GET("/assign", handler.AdminDepartmentHandler.ShowAssignStaffForm)
+	deptStaff.POST("/assign", handler.AdminDepartmentHandler.AssignStaffToDept)
+	deptStaff.POST("/:user_id/remove", handler.AdminDepartmentHandler.RemoveStaffFromDept)
+
+	// Admin applications (manager+)
+	apps := admin.Group("/applications", middlewares.AdminWebRequireRoles(models.UserRoleManager))
+	apps.GET("", handler.AdminApplicationHandler.ListApplications)
+	apps.GET("/:id", handler.AdminApplicationHandler.ShowApplication)
+	apps.GET("/:id/assign", handler.AdminApplicationHandler.ShowAssignForm)
+	apps.POST("/:id/assign", handler.AdminApplicationHandler.AssignToStaff)
 
 	api := e.Group("/api")
 

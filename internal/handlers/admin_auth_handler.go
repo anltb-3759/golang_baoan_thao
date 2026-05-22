@@ -3,6 +3,7 @@ package handlers
 import (
 	"errors"
 	"net/http"
+	"net/url"
 	"time"
 
 	"github.com/awesome-academy/golang_baoan_thao/internal/configs"
@@ -25,6 +26,7 @@ func (h *AdminAuthHandler) ShowLoginPage(c *echo.Context) error {
 	data := map[string]interface{}{
 		"FullPage": true,
 		"Title":    configs.T(c, "ui.form.admin_login", nil),
+		"Flash":    flashFromQuery(c),
 	}
 	return c.Render(http.StatusOK, "admin/pages/auth/login.html", data)
 }
@@ -85,7 +87,7 @@ func (h *AdminAuthHandler) WebLogout(c *echo.Context) error {
 		Secure:   false,
 		SameSite: http.SameSiteLaxMode,
 	})
-	return c.Redirect(http.StatusSeeOther, "/admin/login")
+	return c.Redirect(http.StatusSeeOther, "/admin/login?"+url.Values{"flash": {"success"}, "msg": {configs.T(c, "auth.logout_success", nil)}}.Encode())
 }
 
 // SetLocale handles language switching by setting a cookie and redirecting back.

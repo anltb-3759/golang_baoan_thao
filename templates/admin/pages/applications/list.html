@@ -1,0 +1,33 @@
+{{ define "content" }}
+<div class="max-w-4xl">
+  <header class="mb-6 flex items-center justify-between">
+    <div>
+      <h1 class="text-xl font-semibold text-gray-900">{{ .Title }}</h1>
+    </div>
+  </header>
+
+  <section class="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+    {{ if .Applications }}
+    <ul class="space-y-3">
+      {{ range .Applications }}
+      <li class="flex items-center justify-between">
+        <div>
+          <div class="font-medium"><a href="/admin/applications/{{ .ID }}">{{ .ApplicationCode }}</a></div>
+          <div class="text-sm text-gray-500">{{ .ServiceType.Name }} — {{ .CitizenUser.Name }}</div>
+          <div class="text-sm text-gray-500">
+            {{ t "ui.applications.detail.assigned_staff" }}:
+            {{ if .AssignedStaffUser }}{{ .AssignedStaffUser.Name }}{{ else }}{{ t "ui.applications.detail.unassigned" }}{{ end }}
+          </div>
+        </div>
+        <div class="text-sm text-gray-700">{{ .SubmittedAt }}</div>
+      </li>
+      {{ end }}
+    </ul>
+    {{ else }}
+    <div class="text-sm text-gray-500">{{ t "ui.applications.empty" }}</div>
+    {{ end }}
+  </section>
+</div>
+{{ end }}
+
+{{ template "base" . }}

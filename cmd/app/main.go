@@ -65,7 +65,8 @@ func main() {
 	adminAuthHandler := handlers.NewAdminAuthHandler(authService)
 
 	serviceCatalogSvc := services.NewServiceCatalogService(serviceCatalogRepo)
-	serviceCatalogHandler := handlers.NewServiceCatalogHandler(serviceCatalogSvc)
+	adminUserSvc := services.NewAdminUserService(userRepo)
+	serviceCatalogHandler := handlers.NewServiceCatalogHandler(serviceCatalogSvc, adminUserSvc)
 
 	citizenProfileSvc := services.NewCitizenProfileService(userRepo, citizenProfileRepo, applicationRepo)
 	citizenProfileHandler := handlers.NewCitizenProfileHandler(citizenProfileSvc)
@@ -78,13 +79,20 @@ func main() {
 	applicationSvc := services.NewApplicationService(applicationRepo, serviceCatalogRepo, userRepo, storage, mailer)
 	applicationHandler := handlers.NewApplicationHandler(applicationSvc)
 
-	adminUserSvc := services.NewAdminUserService(userRepo)
 	adminUserHandler := handlers.NewAdminUserHandler(adminUserSvc)
 	adminDashboardHandler := handlers.NewAdminDashboardHandler()
 
 	departmentRepo := repositories.NewDepartmentRepo(db)
-	departmentSvc := services.NewDepartmentService(departmentRepo)
-	adminDepartmentHandler := handlers.NewAdminDepartmentHandler(departmentSvc, adminUserSvc)
+	staffProfileRepo := repositories.NewStaffProfileRepo(db)
+	departmentSvc := services.NewDepartmentService(departmentRepo, staffProfileRepo)
+	staffProfileSvc := services.NewStaffProfileService(staffProfileRepo, userRepo)
+	adminDepartmentHandler := handlers.NewAdminDepartmentHandler(departmentSvc, adminUserSvc, staffProfileSvc)
+
+	// application assignment service + admin handler
+	applicationAssignmentRepo := repositories.NewApplicationAssignmentRepo(db)
+	applicationAssignmentSvc := services.NewApplicationAssignmentService(applicationRepo, applicationAssignmentRepo, userRepo)
+	adminApplicationSvc := services.NewAdminApplicationService(applicationRepo, applicationAssignmentSvc)
+	adminApplicationHandler := handlers.NewAdminApplicationHandler(adminApplicationSvc, adminUserSvc, staffProfileSvc)
 
 	categoryRepo := repositories.NewCategoryRepo(db)
 	categorySvc := services.NewCategoryService(categoryRepo)
@@ -92,15 +100,16 @@ func main() {
 
 	docs.SetupSwaggerRoutes(e)
 	routes.SetupRoutes(e, &routes.ApiHandler{
-		AuthHandler:            authHandler,
-		AdminAuthHandler:       adminAuthHandler,
-		AdminDashboardHandler:  adminDashboardHandler,
-		AdminUserHandler:       adminUserHandler,
-		AdminDepartmentHandler: adminDepartmentHandler,
-		AdminCategoryHandler:   adminCategoryHandler,
-		ServiceCatalogHandler:  serviceCatalogHandler,
-		CitizenProfileHandler:  citizenProfileHandler,
-		ApplicationHandler:     applicationHandler,
+		AuthHandler:             authHandler,
+		AdminAuthHandler:        adminAuthHandler,
+		AdminDashboardHandler:   adminDashboardHandler,
+		AdminUserHandler:        adminUserHandler,
+		AdminDepartmentHandler:  adminDepartmentHandler,
+		AdminApplicationHandler: adminApplicationHandler,
+		ServiceCatalogHandler:   serviceCatalogHandler,
+		CitizenProfileHandler:   citizenProfileHandler,
+		ApplicationHandler:      applicationHandler,
+		AdminCategoryHandler:    adminCategoryHandler,
 	})
 
 	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)

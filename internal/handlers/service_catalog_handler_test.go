@@ -7,9 +7,12 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
+	"strings"
 	"testing"
 
 	"github.com/awesome-academy/golang_baoan_thao/internal/configs"
+	"github.com/awesome-academy/golang_baoan_thao/internal/dtos"
 	"github.com/awesome-academy/golang_baoan_thao/internal/handlers"
 	"github.com/awesome-academy/golang_baoan_thao/internal/models"
 	"github.com/awesome-academy/golang_baoan_thao/internal/repositories"
@@ -25,6 +28,34 @@ import (
 type mockServiceCatalogSvc struct {
 	mock.Mock
 }
+
+type mockAdminUserSvc struct {
+	mock.Mock
+}
+
+func (m *mockAdminUserSvc) ListUsers(filter repositories.UserFilter, page, limit int) ([]models.User, int64, error) {
+	args := m.Called(filter, page, limit)
+	if args.Get(0) == nil {
+		return nil, 0, args.Error(1)
+	}
+	return args.Get(0).([]models.User), args.Get(1).(int64), args.Error(2)
+}
+func (m *mockAdminUserSvc) GetUser(id string) (*models.User, error) {
+	args := m.Called(id)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).(*models.User), args.Error(1)
+}
+func (m *mockAdminUserSvc) CreateUser(req *dtos.AdminCreateUserRequest, createdBy string) (*models.User, error) {
+	return nil, nil
+}
+func (m *mockAdminUserSvc) UpdateUser(id string, req *dtos.AdminUpdateUserRequest, updatedBy string) (*models.User, error) {
+	return nil, nil
+}
+func (m *mockAdminUserSvc) BlockUser(id string, updatedBy string) error   { return nil }
+func (m *mockAdminUserSvc) UnblockUser(id string, updatedBy string) error { return nil }
+func (m *mockAdminUserSvc) DeleteUser(id string, deletedBy string) error  { return nil }
 
 func (m *mockServiceCatalogSvc) List(ctx context.Context, filter repositories.ListFilter) (*repositories.ListResult, error) {
 	args := m.Called(ctx, filter)
@@ -99,7 +130,9 @@ func makeRequest(e *echo.Echo, method, target string) (*echo.Context, *httptest.
 
 func TestListServices_Success(t *testing.T) {
 	svc := new(mockServiceCatalogSvc)
-	h := handlers.NewServiceCatalogHandler(svc)
+	userSvc := new(mockAdminUserSvc)
+	userSvc.On("ListUsers", mock.Anything, mock.Anything, mock.Anything).Return([]models.User{}, int64(0), nil)
+	h := handlers.NewServiceCatalogHandler(svc, userSvc)
 	e := newTestEcho()
 
 	filter := repositories.ListFilter{Category: "", Search: "", Page: 1, Limit: 20}
@@ -125,7 +158,9 @@ func TestListServices_Success(t *testing.T) {
 
 func TestListServices_WithQueryParams(t *testing.T) {
 	svc := new(mockServiceCatalogSvc)
-	h := handlers.NewServiceCatalogHandler(svc)
+	userSvc := new(mockAdminUserSvc)
+	userSvc.On("ListUsers", mock.Anything, mock.Anything, mock.Anything).Return([]models.User{}, int64(0), nil)
+	h := handlers.NewServiceCatalogHandler(svc, userSvc)
 	e := newTestEcho()
 
 	filter := repositories.ListFilter{Category: "hanh_chinh_cong", Search: "CCCD", Page: 2, Limit: 5}
@@ -141,7 +176,9 @@ func TestListServices_WithQueryParams(t *testing.T) {
 
 func TestListServices_InvalidPageFallsBackToDefault(t *testing.T) {
 	svc := new(mockServiceCatalogSvc)
-	h := handlers.NewServiceCatalogHandler(svc)
+	userSvc := new(mockAdminUserSvc)
+	userSvc.On("ListUsers", mock.Anything, mock.Anything, mock.Anything).Return([]models.User{}, int64(0), nil)
+	h := handlers.NewServiceCatalogHandler(svc, userSvc)
 	e := newTestEcho()
 
 	// page=-5 → clamped to 1; limit=999 → clamped to 20
@@ -158,7 +195,9 @@ func TestListServices_InvalidPageFallsBackToDefault(t *testing.T) {
 
 func TestListServices_ServiceError(t *testing.T) {
 	svc := new(mockServiceCatalogSvc)
-	h := handlers.NewServiceCatalogHandler(svc)
+	userSvc := new(mockAdminUserSvc)
+	userSvc.On("ListUsers", mock.Anything, mock.Anything, mock.Anything).Return([]models.User{}, int64(0), nil)
+	h := handlers.NewServiceCatalogHandler(svc, userSvc)
 	e := newTestEcho()
 
 	filter := repositories.ListFilter{Page: 1, Limit: 20}
@@ -174,7 +213,9 @@ func TestListServices_ServiceError(t *testing.T) {
 
 func TestGetService_Success(t *testing.T) {
 	svc := new(mockServiceCatalogSvc)
-	h := handlers.NewServiceCatalogHandler(svc)
+	userSvc := new(mockAdminUserSvc)
+	userSvc.On("ListUsers", mock.Anything, mock.Anything, mock.Anything).Return([]models.User{}, int64(0), nil)
+	h := handlers.NewServiceCatalogHandler(svc, userSvc)
 	e := newTestEcho()
 
 	id := "some-uuid"
@@ -192,7 +233,9 @@ func TestGetService_Success(t *testing.T) {
 
 func TestGetService_NotFound(t *testing.T) {
 	svc := new(mockServiceCatalogSvc)
-	h := handlers.NewServiceCatalogHandler(svc)
+	userSvc := new(mockAdminUserSvc)
+	userSvc.On("ListUsers", mock.Anything, mock.Anything, mock.Anything).Return([]models.User{}, int64(0), nil)
+	h := handlers.NewServiceCatalogHandler(svc, userSvc)
 	e := newTestEcho()
 
 	svc.On("GetByID", mock.Anything, "bad-id").Return(nil, gorm.ErrRecordNotFound)
@@ -210,7 +253,9 @@ func TestGetService_NotFound(t *testing.T) {
 
 func TestGetService_InternalError(t *testing.T) {
 	svc := new(mockServiceCatalogSvc)
-	h := handlers.NewServiceCatalogHandler(svc)
+	userSvc := new(mockAdminUserSvc)
+	userSvc.On("ListUsers", mock.Anything, mock.Anything, mock.Anything).Return([]models.User{}, int64(0), nil)
+	h := handlers.NewServiceCatalogHandler(svc, userSvc)
 	e := newTestEcho()
 
 	svc.On("GetByID", mock.Anything, "some-id").Return(nil, errors.New("unexpected db error"))
@@ -236,7 +281,9 @@ func (r *stubRenderer) Render(_ *echo.Context, w io.Writer, _ string, _ any) err
 
 func TestShowServiceType_Success(t *testing.T) {
 	svc := new(mockServiceCatalogSvc)
-	h := handlers.NewServiceCatalogHandler(svc)
+	userSvc := new(mockAdminUserSvc)
+	userSvc.On("ListUsers", mock.Anything, mock.Anything, mock.Anything).Return([]models.User{}, int64(0), nil)
+	h := handlers.NewServiceCatalogHandler(svc, userSvc)
 	e := newTestEcho()
 	e.Renderer = &stubRenderer{}
 
@@ -258,7 +305,9 @@ func TestShowServiceType_Success(t *testing.T) {
 
 func TestShowServiceType_NotFound(t *testing.T) {
 	svc := new(mockServiceCatalogSvc)
-	h := handlers.NewServiceCatalogHandler(svc)
+	userSvc := new(mockAdminUserSvc)
+	userSvc.On("ListUsers", mock.Anything, mock.Anything, mock.Anything).Return([]models.User{}, int64(0), nil)
+	h := handlers.NewServiceCatalogHandler(svc, userSvc)
 	e := newTestEcho()
 	e.Renderer = &stubRenderer{}
 
@@ -279,7 +328,9 @@ func TestShowServiceType_NotFound(t *testing.T) {
 
 func TestShowServiceType_InternalError(t *testing.T) {
 	svc := new(mockServiceCatalogSvc)
-	h := handlers.NewServiceCatalogHandler(svc)
+	userSvc := new(mockAdminUserSvc)
+	userSvc.On("ListUsers", mock.Anything, mock.Anything, mock.Anything).Return([]models.User{}, int64(0), nil)
+	h := handlers.NewServiceCatalogHandler(svc, userSvc)
 	e := newTestEcho()
 	e.Renderer = &stubRenderer{}
 
@@ -295,4 +346,61 @@ func TestShowServiceType_InternalError(t *testing.T) {
 	var he *echo.HTTPError
 	assert.True(t, errors.As(err, &he))
 	assert.Equal(t, http.StatusInternalServerError, he.Code)
+}
+
+func TestCreateServiceType_InvalidStaff(t *testing.T) {
+	svc := new(mockServiceCatalogSvc)
+	userSvc := new(mockAdminUserSvc)
+	e := newTestEcho()
+	e.Renderer = &stubRenderer{}
+
+	// userSvc returns not found for provided staff id
+	userSvc.On("GetUser", "bad-staff").Return(nil, errors.New("not found"))
+	userSvc.On("ListUsers", mock.Anything, mock.Anything, mock.Anything).Return([]models.User{}, int64(0), nil)
+
+	h := handlers.NewServiceCatalogHandler(svc, userSvc)
+
+	form := url.Values{}
+	form.Set("name", "Svc")
+	form.Set("code", "SVC1")
+	form.Set("responsible_staff_user_id", "bad-staff")
+
+	req := httptest.NewRequest(http.MethodPost, "/admin/service-types", strings.NewReader(form.Encode()))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	rec := httptest.NewRecorder()
+	c := e.NewContext(req, rec)
+	c.Set("user", &configs.JwtCustomClaims{ID: "admin-1", Email: "admin@test.com", Role: "super_admin"})
+
+	err := h.CreateServiceType(c)
+	assert.Error(t, err)
+}
+
+func TestUpdateServiceType_InvalidStaff(t *testing.T) {
+	svc := new(mockServiceCatalogSvc)
+	userSvc := new(mockAdminUserSvc)
+	e := newTestEcho()
+	e.Renderer = &stubRenderer{}
+
+	st := &models.ServiceType{ID: "st1", Name: "S", Code: "C"}
+	svc.On("GetByIDForAdmin", mock.Anything, "st1").Return(st, nil)
+
+	userSvc.On("GetUser", "bad-staff").Return(nil, errors.New("not found"))
+	userSvc.On("ListUsers", mock.Anything, mock.Anything, mock.Anything).Return([]models.User{}, int64(0), nil)
+
+	h := handlers.NewServiceCatalogHandler(svc, userSvc)
+
+	form := url.Values{}
+	form.Set("name", "Svc")
+	form.Set("code", "SVC1")
+	form.Set("responsible_staff_user_id", "bad-staff")
+
+	req := httptest.NewRequest(http.MethodPost, "/admin/service-types/st1", strings.NewReader(form.Encode()))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	rec := httptest.NewRecorder()
+	c := e.NewContext(req, rec)
+	c.SetPathValues(echo.PathValues{{Name: "id", Value: "st1"}})
+	c.Set("user", &configs.JwtCustomClaims{ID: "admin-1", Email: "admin@test.com", Role: "super_admin"})
+
+	err := h.UpdateServiceType(c)
+	assert.Error(t, err)
 }

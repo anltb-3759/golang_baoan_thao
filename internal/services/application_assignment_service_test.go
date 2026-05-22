@@ -1,0 +1,111 @@
+package services
+
+import (
+	"errors"
+	"testing"
+	"time"
+
+	"github.com/awesome-academy/golang_baoan_thao/internal/models"
+	"github.com/awesome-academy/golang_baoan_thao/internal/repositories"
+	"github.com/stretchr/testify/assert"
+	"gorm.io/gorm"
+)
+
+type fakeAppRepoForAssign struct {
+	app *models.Application
+	err error
+}
+
+func (r *fakeAppRepoForAssign) GetByID(id string) (*models.Application, error) {
+	return r.app, r.err
+}
+func (r *fakeAppRepoForAssign) UpdateAssignedStaff(applicationID string, assignedStaffUserID *string, updatedBy string) error {
+	return nil
+}
+
+// embed other methods to satisfy interface
+func (r *fakeAppRepoForAssign) CreateWithAttachments(app *models.Application, atts []models.ApplicationAttachment, notif *models.Notification, codeGen func() string) error {
+	return nil
+}
+func (r *fakeAppRepoForAssign) ListByCitizen(citizenUserID string, page, limit int) ([]models.Application, int64, error) {
+	return nil, 0, nil
+}
+func (r *fakeAppRepoForAssign) ListStatusLogsByCitizen(appID, citizenUserID string, page, limit int, since *time.Time) ([]models.ApplicationStatusLog, int64, error) {
+	return nil, 0, nil
+}
+func (r *fakeAppRepoForAssign) CreateAttachments(appID string, atts []models.ApplicationAttachment) error {
+	return nil
+}
+func (r *fakeAppRepoForAssign) AdminList(page, limit int) ([]models.Application, int64, error) {
+	return nil, 0, nil
+}
+func (r *fakeAppRepoForAssign) GetByIDForCitizen(id, citizenUserID string) (*models.Application, error) {
+	return r.app, r.err
+}
+
+type fakeAssignRepo struct{ created bool }
+
+func (r *fakeAssignRepo) Create(a *models.ApplicationAssignment) (*models.ApplicationAssignment, error) {
+	r.created = true
+	a.ID = "a1"
+	a.CreatedAt = time.Now()
+	return a, nil
+}
+func (r *fakeAssignRepo) ListByApplication(applicationID string) ([]models.ApplicationAssignment, error) {
+	return nil, nil
+}
+
+type fakeUserRepoAssign struct{ u *models.User }
+
+func (r *fakeUserRepoAssign) FindByID(id string) (*models.User, error) {
+	if r.u == nil {
+		return nil, nil
+	}
+	return r.u, nil
+}
+
+// other user repo methods
+func (r *fakeUserRepoAssign) FindByEmail(email string) (*models.User, error) {
+	return nil, nil
+}
+func (r *fakeUserRepoAssign) Create(user *models.User) (*models.User, error) {
+	return nil, nil
+}
+func (r *fakeUserRepoAssign) CreateInTx(tx *gorm.DB, user *models.User) error {
+	return nil
+}
+func (r *fakeUserRepoAssign) Update(user *models.User) error {
+	return nil
+}
+func (r *fakeUserRepoAssign) List(filter repositories.UserFilter, offset, limit int) ([]models.User, int64, error) {
+	return nil, 0, nil
+}
+func (r *fakeUserRepoAssign) UpdateStatus(id string, status models.UserStatus, updatedBy string) error {
+	return nil
+}
+func (r *fakeUserRepoAssign) SoftDelete(id string, deletedBy string) error {
+	return nil
+}
+
+func TestAssignApplication_AssignAndRecord(t *testing.T) {
+	app := &models.Application{ID: "app1", AssignedStaffUserID: nil}
+	appRepo := &fakeAppRepoForAssign{app: app}
+	assignRepo := &fakeAssignRepo{}
+	userRepo := &fakeUserRepoAssign{u: &models.User{ID: "u1", Name: "Staff"}}
+
+	svc := NewApplicationAssignmentService(appRepo, assignRepo, userRepo)
+	err := svc.AssignApplicationToStaff("app1", ptrStr("u1"), "admin-1")
+	assert.NoError(t, err)
+	assert.True(t, assignRepo.created)
+}
+
+func TestAssignApplication_ApplicationNotFound(t *testing.T) {
+	appRepo := &fakeAppRepoForAssign{app: nil, err: errors.New("not found")}
+	assignRepo := &fakeAssignRepo{}
+	userRepo := &fakeUserRepoAssign{u: &models.User{ID: "u1"}}
+	svc := NewApplicationAssignmentService(appRepo, assignRepo, userRepo)
+	err := svc.AssignApplicationToStaff("appX", ptrStr("u1"), "admin-1")
+	assert.Error(t, err)
+}
+
+func ptrStr(s string) *string { return &s }

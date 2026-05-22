@@ -44,8 +44,26 @@ func (s *fakeDeptSvc) DeleteDepartment(_ string, _ string) error { return s.dele
 
 var _ DepartmentService = (*fakeDeptSvc)(nil)
 
+type fakeStaffProfileSvc struct {
+	listErr error
+}
+
+func (s *fakeStaffProfileSvc) ListStaffByDepartment(_ string, _, _ int) ([]models.StaffProfile, int64, error) {
+	return nil, 0, s.listErr
+}
+
+func (s *fakeStaffProfileSvc) AssignStaffToDepartment(_ string, _ string, _ string) error {
+	return nil
+}
+
+func (s *fakeStaffProfileSvc) RemoveStaffFromDepartment(_ string, _ string) error {
+	return nil
+}
+
+var _ StaffProfileService = (*fakeStaffProfileSvc)(nil)
+
 func newDeptHandler(deptSvc *fakeDeptSvc, userSvc *fakeAdminUserSvc) *AdminDepartmentHandler {
-	return NewAdminDepartmentHandler(deptSvc, userSvc)
+	return NewAdminDepartmentHandler(deptSvc, userSvc, nil)
 }
 
 // --- ListDepartments ---
@@ -268,4 +286,19 @@ func TestAdminDeptHandler_DeleteDepartment_Error(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Equal(t, http.StatusSeeOther, rec.Code)
 	assert.Contains(t, rec.Header().Get("Location"), "flash=error")
+}
+
+func TestAdminDeptHandler_ListDepartmentStaff_RejectsPlaceholderID(t *testing.T) {
+	_ = configs.LoadI18nMessages("../../locales")
+	e := newAdminEcho()
+	h := NewAdminDepartmentHandler(&fakeDeptSvc{}, &fakeAdminUserSvc{}, &fakeStaffProfileSvc{})
+
+	c, _ := newAdminCtx(e, http.MethodGet, "/admin/departments/:id/staff", "", "")
+	c.SetPathValues(echo.PathValues{{Name: "id", Value: ":id"}})
+
+	err := h.ListDepartmentStaff(c)
+	assert.Error(t, err)
+	if httpErr, ok := err.(*echo.HTTPError); ok {
+		assert.Equal(t, http.StatusNotFound, httpErr.Code)
+	}
 }

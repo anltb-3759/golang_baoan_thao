@@ -4,11 +4,13 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
-  <title>{{ if .Title }}{{ .Title }} - Admin Portal{{ else }}Admin Portal{{ end }}</title>
+  <title>{{ if .Title }}{{ .Title }} - {{ t "ui.page.admin_portal_short" }}{{ else }}{{ t "ui.page.admin_portal_short" }}{{ end }}</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://unpkg.com/lucide@latest"></script>
+  <link href="https://cdn.jsdelivr.net/npm/tom-select/dist/css/tom-select.css" rel="stylesheet">
 </head>
 <body class="min-h-screen bg-gray-50 font-sans text-gray-900">
+  {{ template "admin/partials/toast.html" . }}
   {{ if .FullPage }}
     <main class="min-h-screen">
       {{ block "content" . }}{{ end }}
@@ -35,6 +37,19 @@
 
   <script>
     if (window.lucide) { lucide.createIcons(); }
+  </script>
+  <script src="https://cdn.jsdelivr.net/npm/tom-select/dist/js/tom-select.complete.min.js"></script>
+  <script>
+    document.addEventListener('DOMContentLoaded', function(){
+      try {
+        document.querySelectorAll('select.tom-select').forEach(function(el){
+          if (!el.classList.contains('ts-initialized')) {
+            new TomSelect(el, {create: false, maxOptions: 1000});
+            el.classList.add('ts-initialized');
+          }
+        })
+      } catch(e) { console.warn('Tom Select init error', e); }
+    })
   </script>
 </body>
 </html>

@@ -18,6 +18,7 @@ func newMockApplicationRepo(t *testing.T) (ApplicationRepository, sqlmock.Sqlmoc
 	if err != nil {
 		t.Fatalf("create sqlmock: %v", err)
 	}
+	mock.MatchExpectationsInOrder(false)
 	db, err := gorm.Open(postgres.New(postgres.Config{
 		Conn:                 sqlDB,
 		PreferSimpleProtocol: true,
@@ -119,6 +120,43 @@ func TestApplicationRepoGetByIDForCitizenNotFound(t *testing.T) {
 	_, err := repo.GetByIDForCitizen("bad-id", "u1")
 	if !errors.Is(err, gorm.ErrRecordNotFound) {
 		t.Fatalf("expected ErrRecordNotFound, got %v", err)
+	}
+}
+
+func TestApplicationRepoGetByIDPreloadsCitizenUser(t *testing.T) {
+	repo, mock, cleanup := newMockApplicationRepo(t)
+	defer cleanup()
+
+	appRows := sqlmock.NewRows([]string{"id", "application_code", "citizen_user_id", "service_type_id", "assigned_staff_user_id"}).
+		AddRow("app1", "APP-1", "citizen-1", "service-1", nil)
+	mock.ExpectQuery(regexp.QuoteMeta(`SELECT * FROM "applications" WHERE id = $1 AND deleted_at IS NULL ORDER BY "applications"."id" LIMIT $2`)).
+		WithArgs("app1", 1).
+		WillReturnRows(appRows)
+
+	attachRows := sqlmock.NewRows([]string{"id", "application_id"})
+	mock.ExpectQuery(regexp.QuoteMeta(`SELECT * FROM "application_attachments" WHERE "application_attachments"."application_id" = $1`)).
+		WithArgs("app1").
+		WillReturnRows(attachRows)
+
+	serviceRows := sqlmock.NewRows([]string{"id", "name"}).AddRow("service-1", "Service A")
+	mock.ExpectQuery(regexp.QuoteMeta(`SELECT * FROM "service_types" WHERE "service_types"."id" = $1`)).
+		WithArgs("service-1").
+		WillReturnRows(serviceRows)
+
+	citizenRows := sqlmock.NewRows([]string{"id", "name", "email"}).AddRow("citizen-1", "Citizen A", "citizen@example.com")
+	mock.ExpectQuery(regexp.QuoteMeta(`SELECT * FROM "users" WHERE "users"."id" = $1`)).
+		WithArgs("citizen-1").
+		WillReturnRows(citizenRows)
+
+	app, err := repo.GetByID("app1")
+	if err != nil {
+		t.Fatalf("expected nil error, got %v", err)
+	}
+	if app == nil {
+		t.Fatal("expected app, got nil")
+	}
+	if app.CitizenUser.Name != "Citizen A" {
+		t.Fatalf("expected citizen name %q, got %q", "Citizen A", app.CitizenUser.Name)
 	}
 }
 

@@ -12,19 +12,12 @@
          class="px-2.5 py-1 rounded text-xs font-medium transition
            {{ if eq (currentLocale) "en" }}bg-indigo-600 text-white{{ else }}bg-gray-100 text-gray-600 hover:bg-gray-200{{ end }}">EN</a>
     </div>
-    <!-- User dropdown -->
-    <div class="relative group">
-      <button class="flex items-center gap-2 text-sm text-gray-700 hover:text-gray-900 px-3 py-1.5 rounded-md hover:bg-gray-50">
-        <i data-lucide="user-circle" class="h-4 w-4"></i>
-        {{ if .CurrentUser }}{{ .CurrentUser.Email }}{{ end }}
-        <i data-lucide="chevron-down" class="h-3 w-3"></i>
-      </button>
-      <div class="absolute right-0 mt-1 w-40 bg-white rounded-lg shadow-lg border border-gray-200 py-1 hidden group-hover:block">
-        <a href="/admin/logout" class="flex items-center gap-2 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50">
-          <i data-lucide="log-out" class="h-3.5 w-3.5"></i>
-          {{ t "ui.form.logout" }}
-        </a>
-      </div>
-    </div>
+    <!-- Current user label -->
+    {{ if .CurrentUser }}
+    <span class="flex items-center gap-1.5 text-sm text-gray-600">
+      <i data-lucide="user-circle" class="h-4 w-4"></i>
+      {{ .CurrentUser.Email }}
+    </span>
+    {{ end }}
   </div>
 </header>

@@ -592,3 +592,147 @@ func TestAdminDashboardHandler_ShowDashboard(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Equal(t, http.StatusOK, rec.Code)
 }
+
+// --- ExportCSV ---
+
+type fakeUserImportSvc struct {
+	errs []string
+}
+
+func (s *fakeUserImportSvc) ImportStaff(_ []services.StaffImportRow, _ string) []string {
+	return s.errs
+}
+
+func newUserHandlerWithImport(userSvc *fakeAdminUserSvc, importSvc *fakeUserImportSvc) *AdminUserHandler {
+	return NewAdminUserHandler(userSvc).WithImportExport(importSvc)
+}
+
+func TestAdminUserHandler_ExportCSV_OK(t *testing.T) {
+	_ = configs.LoadI18nMessages("../../locales")
+	e := newAdminEcho()
+	users := []models.User{{ID: "u1", Name: "Test", Email: "t@t.com", Role: "staff", Status: "active"}}
+	h := newUserHandlerWithImport(&fakeAdminUserSvc{users: users, total: 1}, &fakeUserImportSvc{})
+
+	c, rec := newAdminCtx(e, http.MethodGet, "/admin/users/export/staff", "", "")
+	err := h.ExportStaff(c)
+	assert.NoError(t, err)
+	assert.Equal(t, "text/csv; charset=utf-8", rec.Header().Get("Content-Type"))
+	assert.Contains(t, rec.Body.String(), "t@t.com")
+}
+
+func TestAdminUserHandler_ExportCSV_Empty(t *testing.T) {
+	_ = configs.LoadI18nMessages("../../locales")
+	e := newAdminEcho()
+	h := newUserHandlerWithImport(&fakeAdminUserSvc{}, &fakeUserImportSvc{})
+
+	c, rec := newAdminCtx(e, http.MethodGet, "/admin/users/export/citizens", "", "")
+	err := h.ExportCitizens(c)
+	assert.NoError(t, err)
+	assert.Contains(t, rec.Body.String(), "ho_ten")
+}
+
+// --- ImportCSV ---
+
+func TestAdminUserHandler_ImportCSV_NoFile(t *testing.T) {
+	_ = configs.LoadI18nMessages("../../locales")
+	e := newAdminEcho()
+	h := newUserHandlerWithImport(&fakeAdminUserSvc{}, &fakeUserImportSvc{})
+
+	req := httptest.NewRequest(http.MethodPost, "/admin/users/import", nil)
+	rec := httptest.NewRecorder()
+	c := e.NewContext(req, rec)
+	c.Set("user", superAdminClaims())
+
+	err := h.ImportCSV(c)
+	assert.Error(t, err)
+}
+
+func TestAdminUserHandler_ImportCSV_WithErrors(t *testing.T) {
+	_ = configs.LoadI18nMessages("../../locales")
+	e := newAdminEcho()
+	importSvc := &fakeUserImportSvc{errs: []string{"Dòng 2: Vai trò không hợp lệ"}}
+	h := newUserHandlerWithImport(&fakeAdminUserSvc{}, importSvc)
+
+	body, ct := newMultipartCSV("ho_ten,email,so_cccd,so_dien_thoai,vai_tro,ma_phong_ban\nTest,t@t.com,123456789012,,bad_role,\n")
+	req := httptest.NewRequest(http.MethodPost, "/admin/users/import", body)
+	req.Header.Set("Content-Type", ct)
+	rec := httptest.NewRecorder()
+	c := e.NewContext(req, rec)
+	c.Set("user", superAdminClaims())
+
+	err := h.ImportCSV(c)
+	assert.NoError(t, err)
+	assert.Equal(t, http.StatusUnprocessableEntity, rec.Code)
+}
+
+func TestAdminUserHandler_ImportCSV_Success(t *testing.T) {
+	_ = configs.LoadI18nMessages("../../locales")
+	e := newAdminEcho()
+	h := newUserHandlerWithImport(&fakeAdminUserSvc{}, &fakeUserImportSvc{})
+
+	body, ct := newMultipartCSV("ho_ten,email,so_cccd,so_dien_thoai,vai_tro,ma_phong_ban\nNguyễn A,a@a.com,123456789012,,staff,\n")
+	req := httptest.NewRequest(http.MethodPost, "/admin/users/import", body)
+	req.Header.Set("Content-Type", ct)
+	rec := httptest.NewRecorder()
+	c := e.NewContext(req, rec)
+	c.Set("user", superAdminClaims())
+
+	err := h.ImportCSV(c)
+	assert.NoError(t, err)
+	assert.Equal(t, http.StatusSeeOther, rec.Code)
+}
+
+// --- ExportCSV error break ---
+
+func TestAdminUserHandler_ExportCSV_Error(t *testing.T) {
+	_ = configs.LoadI18nMessages("../../locales")
+	e := newAdminEcho()
+	h := newUserHandlerWithImport(&fakeAdminUserSvc{listErr: errors.New("db error")}, &fakeUserImportSvc{})
+
+	c, rec := newAdminCtx(e, http.MethodGet, "/admin/users/export/staff", "", "")
+	err := h.ExportStaff(c)
+	assert.NoError(t, err)
+	assert.Contains(t, rec.Body.String(), "ho_ten")
+}
+
+// --- extractFieldErrors ---
+
+func TestExtractFieldErrors_NonValidatorError(t *testing.T) {
+	e := newTestEcho()
+	req := httptest.NewRequest(http.MethodGet, "/", nil)
+	c := e.NewContext(req, httptest.NewRecorder())
+	result := extractFieldErrors(c, errors.New("plain error"))
+	assert.Nil(t, result)
+}
+
+func TestExtractFieldErrors_ValidatorError(t *testing.T) {
+	_ = configs.LoadI18nMessages("../../locales")
+	e := newAdminEcho()
+	req := httptest.NewRequest(http.MethodGet, "/", nil)
+	c := e.NewContext(req, httptest.NewRecorder())
+	ve := &configs.ValidatorError{
+		Messages: []configs.ValidatorMessage{
+			{Field: "Name", Key: "validation.required", Params: map[string]string{}},
+		},
+	}
+	result := extractFieldErrors(c, ve)
+	assert.NotNil(t, result)
+	assert.Contains(t, result, "Name")
+}
+
+// --- UpdateUser GetUser error ---
+
+func TestAdminUserHandler_UpdateUser_GetError(t *testing.T) {
+	_ = configs.LoadI18nMessages("../../locales")
+	e := newAdminEcho()
+	svc := &fakeAdminUserSvc{getErr: errors.New("not found")}
+	h := NewAdminUserHandler(svc)
+
+	form := url.Values{"name": {"Name"}, "role": {"citizen"}}
+	c, rec := newFormCtx(e, http.MethodPost, "/admin/users/bad/edit", form)
+	c.SetPathValues(echo.PathValues{{Name: "id", Value: "bad"}})
+	err := h.UpdateUser(c)
+	assert.NoError(t, err)
+	assert.Equal(t, http.StatusSeeOther, rec.Code)
+	assert.Contains(t, rec.Header().Get("Location"), "flash=error")
+}

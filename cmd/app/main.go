@@ -98,6 +98,12 @@ func main() {
 	categorySvc := services.NewCategoryService(categoryRepo)
 	adminCategoryHandler := handlers.NewAdminCategoryHandler(categorySvc)
 
+	importExportSvc := services.NewImportExportService(db, departmentRepo, userRepo, citizenProfileRepo, serviceCatalogRepo, staffProfileRepo)
+	adminCitizenHandler := handlers.NewAdminCitizenHandler(citizenProfileRepo, importExportSvc)
+	adminUserHandler = adminUserHandler.WithImportExport(importExportSvc).WithDeptAndStaffRepos(departmentRepo, staffProfileRepo)
+	adminDepartmentHandler = adminDepartmentHandler.WithImportExport(importExportSvc)
+	serviceCatalogHandler = serviceCatalogHandler.WithImportExport(importExportSvc)
+
 	docs.SetupSwaggerRoutes(e)
 	routes.SetupRoutes(e, &routes.ApiHandler{
 		AuthHandler:             authHandler,
@@ -106,6 +112,7 @@ func main() {
 		AdminUserHandler:        adminUserHandler,
 		AdminDepartmentHandler:  adminDepartmentHandler,
 		AdminApplicationHandler: adminApplicationHandler,
+		AdminCitizenHandler:     adminCitizenHandler,
 		ServiceCatalogHandler:   serviceCatalogHandler,
 		CitizenProfileHandler:   citizenProfileHandler,
 		ApplicationHandler:      applicationHandler,

@@ -51,6 +51,54 @@
       } catch(e) { console.warn('Tom Select init error', e); }
     })
   </script>
+  <script>
+  (function () {
+    function toggleImportExportMenu() {
+      var dd = document.getElementById('import-export-dropdown');
+      if (!dd) return;
+      dd.classList.toggle('hidden');
+    }
+
+    function openImportModal() {
+      var dd = document.getElementById('import-export-dropdown');
+      if (dd) dd.classList.add('hidden');
+      var modal = document.getElementById('import-modal');
+      if (!modal) return;
+      modal.classList.remove('hidden');
+      document.body.style.overflow = 'hidden';
+      if (window.lucide) lucide.createIcons();
+    }
+
+    function closeImportModal() {
+      var modal = document.getElementById('import-modal');
+      if (!modal) return;
+      modal.classList.add('hidden');
+      document.body.style.overflow = '';
+    }
+
+    document.addEventListener('click', function (e) {
+      var menu = document.getElementById('import-export-menu');
+      if (!menu) return;
+      if (!menu.contains(e.target)) {
+        var dd = document.getElementById('import-export-dropdown');
+        if (dd) dd.classList.add('hidden');
+      }
+    });
+
+    var backdrop = document.getElementById('import-modal-backdrop');
+    if (backdrop) { backdrop.addEventListener('click', closeImportModal); }
+
+    document.addEventListener('keydown', function (e) {
+      if (e.key === 'Escape') closeImportModal();
+    });
+
+    window.toggleImportExportMenu = toggleImportExportMenu;
+    window.openImportModal = openImportModal;
+    window.closeImportModal = closeImportModal;
+
+    if (document.querySelector('#import-modal .text-red-600')) { openImportModal(); }
+  })();
+  </script>
 </body>
 </html>
 {{ end }}

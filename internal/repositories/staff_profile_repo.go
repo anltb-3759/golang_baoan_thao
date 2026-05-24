@@ -13,6 +13,7 @@ type StaffProfileRepository interface {
 	ListByDepartment(deptID string, offset, limit int) ([]models.StaffProfile, int64, error)
 	UpdateDepartment(userID string, deptID *string, updatedBy string) error
 	Create(profile *models.StaffProfile) (*models.StaffProfile, error)
+	CreateInTx(tx *gorm.DB, profile *models.StaffProfile) error
 }
 
 type staffProfileRepo struct {
@@ -68,4 +69,8 @@ func (r *staffProfileRepo) Create(profile *models.StaffProfile) (*models.StaffPr
 		return nil, err
 	}
 	return profile, nil
+}
+
+func (r *staffProfileRepo) CreateInTx(tx *gorm.DB, profile *models.StaffProfile) error {
+	return tx.Create(profile).Error
 }

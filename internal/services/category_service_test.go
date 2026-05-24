@@ -167,6 +167,23 @@ func TestCategoryService_UpdateCategory_CodeChange_Conflict(t *testing.T) {
 	assert.ErrorIs(t, err, ErrCategoryCodeExists)
 }
 
+func TestCategoryService_UpdateCategory_FindError(t *testing.T) {
+	repoErr := errors.New("db error")
+	svc := newCatSvc(&fakeCategoryRepo{findErr: repoErr})
+	req := &dtos.CategoryUpdateRequest{Name: "X", Code: "x"}
+	_, err := svc.UpdateCategory("c1", req, "actor")
+	assert.ErrorIs(t, err, repoErr)
+}
+
+func TestCategoryService_UpdateCategory_CodeChange_FindCodeError(t *testing.T) {
+	c := &models.Category{ID: "c1", Code: "old"}
+	codeErr := errors.New("code lookup failed")
+	svc := newCatSvc(&fakeCategoryRepo{cat: c, codeErr: codeErr})
+	req := &dtos.CategoryUpdateRequest{Name: "Cat", Code: "new"}
+	_, err := svc.UpdateCategory("c1", req, "actor")
+	assert.ErrorIs(t, err, codeErr)
+}
+
 func TestCategoryService_UpdateCategory_NotFound(t *testing.T) {
 	svc := newCatSvc(&fakeCategoryRepo{cat: nil})
 	req := &dtos.CategoryUpdateRequest{Name: "X", Code: "x"}

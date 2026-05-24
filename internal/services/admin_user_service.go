@@ -2,6 +2,7 @@ package services
 
 import (
 	"errors"
+	"os"
 	"time"
 
 	"github.com/awesome-academy/golang_baoan_thao/internal/dtos"
@@ -9,6 +10,13 @@ import (
 	"github.com/awesome-academy/golang_baoan_thao/internal/repositories"
 	"golang.org/x/crypto/bcrypt"
 )
+
+func defaultAdminPassword() string {
+	if p := os.Getenv("DEFAULT_ADMIN_PASSWORD"); p != "" {
+		return p
+	}
+	return "Aa@123456"
+}
 
 var ErrUserNotFoundAdmin = errors.New("admin.user_not_found")
 
@@ -45,7 +53,11 @@ func (s *AdminUserService) CreateUser(req *dtos.AdminCreateUserRequest, createdB
 		return nil, ErrEmailAlreadyExists
 	}
 
-	hash, err := bcrypt.GenerateFromPassword([]byte(req.Password), bcrypt.DefaultCost)
+	password := req.Password
+	if password == "" {
+		password = defaultAdminPassword()
+	}
+	hash, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
 	if err != nil {
 		return nil, err
 	}

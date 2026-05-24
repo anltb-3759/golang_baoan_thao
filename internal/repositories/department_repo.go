@@ -17,6 +17,7 @@ type DepartmentRepository interface {
 	FindByID(id string) (*models.Department, error)
 	FindByCode(code string) (*models.Department, error)
 	Create(dept *models.Department) (*models.Department, error)
+	CreateInTx(tx *gorm.DB, dept *models.Department) error
 	Update(dept *models.Department) error
 	List(filter DepartmentFilter, offset, limit int) ([]models.Department, int64, error)
 	SoftDelete(id string, deletedBy string) error
@@ -84,6 +85,10 @@ func (r *DepartmentRepo) List(filter DepartmentFilter, offset, limit int) ([]mod
 		return nil, 0, err
 	}
 	return depts, total, nil
+}
+
+func (r *DepartmentRepo) CreateInTx(tx *gorm.DB, dept *models.Department) error {
+	return tx.Create(dept).Error
 }
 
 func (r *DepartmentRepo) SoftDelete(id string, deletedBy string) error {

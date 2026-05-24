@@ -28,6 +28,7 @@ type ServiceTypeRepository interface {
 	ListDepartments(ctx context.Context) ([]models.Department, error)
 	ListCategories(ctx context.Context) ([]models.Category, error)
 	Create(ctx context.Context, st *models.ServiceType) error
+	CreateInTx(tx *gorm.DB, st *models.ServiceType) error
 	Update(ctx context.Context, st *models.ServiceType) error
 	Delete(ctx context.Context, id string) error
 	CountApplications(ctx context.Context, serviceTypeID string) (int64, error)
@@ -123,6 +124,10 @@ func (r *serviceTypeRepo) ListCategories(ctx context.Context) ([]models.Category
 
 func (r *serviceTypeRepo) Create(ctx context.Context, st *models.ServiceType) error {
 	return r.db.WithContext(ctx).Create(st).Error
+}
+
+func (r *serviceTypeRepo) CreateInTx(tx *gorm.DB, st *models.ServiceType) error {
+	return tx.Create(st).Error
 }
 
 func (r *serviceTypeRepo) Update(ctx context.Context, st *models.ServiceType) error {

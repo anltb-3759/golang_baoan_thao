@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"encoding/csv"
 	"errors"
 	"net/http"
 	"net/url"
@@ -22,6 +23,10 @@ type DepartmentService interface {
 	DeleteDepartment(id string, deletedBy string) error
 }
 
+type DepartmentImportExportService interface {
+	ImportDepartments(rows []services.DepartmentImportRow, createdBy string) []string
+}
+
 type StaffProfileService interface {
 	ListStaffByDepartment(deptID string, page, limit int) ([]models.StaffProfile, int64, error)
 	AssignStaffToDepartment(userID string, deptID string, updatedBy string) error
@@ -29,13 +34,19 @@ type StaffProfileService interface {
 }
 
 type AdminDepartmentHandler struct {
-	svc        DepartmentService
-	userSvc    AdminUserService
+	svc       DepartmentService
+	userSvc   AdminUserService
 	profileSvc StaffProfileService
+	importSvc DepartmentImportExportService
 }
 
 func NewAdminDepartmentHandler(svc DepartmentService, userSvc AdminUserService, profileSvc StaffProfileService) *AdminDepartmentHandler {
 	return &AdminDepartmentHandler{svc: svc, userSvc: userSvc, profileSvc: profileSvc}
+}
+
+func (h *AdminDepartmentHandler) WithImportExport(svc DepartmentImportExportService) *AdminDepartmentHandler {
+	h.importSvc = svc
+	return h
 }
 
 func deptFlashURL(flash, msg string) string {
@@ -57,13 +68,15 @@ func (h *AdminDepartmentHandler) ListDepartments(c *echo.Context) error {
 	}
 
 	data := map[string]interface{}{
-		"Title":       configs.T(c, "ui.departments.title", nil),
-		"CurrentPath": "/admin/departments",
-		"CurrentUser": adminCurrentUser(c),
-		"Departments": depts,
-		"Pagination":  utils.NewPagination(page, limit, total),
-		"Search":      search,
-		"Flash":       flashFromQuery(c),
+		"Title":        configs.T(c, "ui.departments.title", nil),
+		"CurrentPath":  "/admin/departments",
+		"CurrentUser":  adminCurrentUser(c),
+		"Departments":  depts,
+		"Pagination":   utils.NewPagination(page, limit, total),
+		"Search":       search,
+		"ImportAction":   "/admin/departments/import",
+		"TemplateAction": "/admin/departments/template",
+		"Flash":          flashFromQuery(c),
 	}
 	return c.Render(http.StatusOK, "admin/pages/departments/list.html", data)
 }
@@ -161,6 +174,81 @@ func (h *AdminDepartmentHandler) DeleteDepartment(c *echo.Context) error {
 		return c.Redirect(http.StatusSeeOther, deptFlashURL("error", configs.T(c, "ui.msg.department_delete_failed", nil)))
 	}
 	return c.Redirect(http.StatusSeeOther, deptFlashURL("success", configs.T(c, "ui.msg.department_deleted", nil)))
+}
+
+// DownloadTemplate handles GET /admin/departments/template
+func (h *AdminDepartmentHandler) DownloadTemplate(c *echo.Context) error {
+	return writeXLSXTemplate(c, "template_phong_ban.xlsx", []XLSXColumn{
+		{Header: "ten", Hint: "Tên phòng ban. VD: Phòng Công nghệ thông tin"},
+		{Header: "mo_ta", Hint: "Mô tả (tùy chọn). VD: Phụ trách hạ tầng CNTT"},
+		{Header: "ma_code", Hint: "Mã phòng ban, viết liền không dấu. VD: IT"},
+	})
+}
+
+// ExportCSV handles GET /admin/departments/export
+func (h *AdminDepartmentHandler) ExportCSV(c *echo.Context) error {
+	setCSVHeaders(c, "phong_ban.csv")
+	writeCSVBOM(c)
+
+	w := csv.NewWriter(c.Response())
+	_ = w.Write([]string{"ten", "mo_ta", "ma_code"})
+
+	batchSize := 1000
+	for page := 1; ; page++ {
+		depts, _, err := h.svc.ListDepartments(repositories.DepartmentFilter{}, page, batchSize)
+		if err != nil {
+			break
+		}
+		for _, d := range depts {
+			_ = w.Write([]string{d.Name, d.Address, d.Code})
+		}
+		if len(depts) < batchSize {
+			break
+		}
+	}
+	w.Flush()
+	return nil
+}
+
+// ImportCSV handles POST /admin/departments/import
+func (h *AdminDepartmentHandler) ImportCSV(c *echo.Context) error {
+	if h.importSvc == nil {
+		return echo.NewHTTPError(http.StatusNotImplemented, "Chức năng import chưa được kích hoạt")
+	}
+	dataRows, err := parseUploadedCSV(c)
+	if err != nil {
+		return err
+	}
+
+	importRows := make([]services.DepartmentImportRow, 0, len(dataRows))
+	for _, cols := range dataRows {
+		importRows = append(importRows, services.DepartmentImportRow{
+			Ten:    safeCol(cols, 0),
+			MoTa:   safeCol(cols, 1),
+			MaCode: safeCol(cols, 2),
+		})
+	}
+
+	errs := h.importSvc.ImportDepartments(importRows, actorID(c))
+	if len(errs) > 0 {
+		search := c.QueryParam("search")
+		depts, total, _ := h.svc.ListDepartments(repositories.DepartmentFilter{Search: search}, 1, 20)
+		data := map[string]interface{}{
+			"Title":        configs.T(c, "ui.departments.title", nil),
+			"CurrentPath":  "/admin/departments",
+			"CurrentUser":  adminCurrentUser(c),
+			"Departments":  depts,
+			"Pagination":   utils.NewPagination(1, 20, total),
+			"Search":       search,
+			"ImportErrors":  errs,
+			"ImportAction":  "/admin/departments/import",
+			"TemplateAction": "/admin/departments/template",
+			"Flash":         flashFromQuery(c),
+		}
+		return c.Render(http.StatusUnprocessableEntity, "admin/pages/departments/list.html", data)
+	}
+
+	return c.Redirect(http.StatusSeeOther, deptFlashURL("success", configs.T(c, "ui.msg.import_success", nil)))
 }
 
 func (h *AdminDepartmentHandler) renderFormErrors(c *echo.Context, isEdit bool, dept *models.Department, req interface{}, fieldErrors map[string]string, globalError string) error {

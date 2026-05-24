@@ -1,9 +1,11 @@
 package handlers
 
 import (
+	"encoding/csv"
 	"errors"
 	"net/http"
 	"net/url"
+	"time"
 
 	"github.com/awesome-academy/golang_baoan_thao/internal/configs"
 	"github.com/awesome-academy/golang_baoan_thao/internal/dtos"
@@ -24,12 +26,30 @@ type AdminUserService interface {
 	DeleteUser(id string, deletedBy string) error
 }
 
+type StaffImportExportService interface {
+	ImportStaff(rows []services.StaffImportRow, createdBy string) []string
+}
+
 type AdminUserHandler struct {
-	svc AdminUserService
+	svc       AdminUserService
+	importSvc StaffImportExportService
+	deptRepo  repositories.DepartmentRepository
+	staffRepo repositories.StaffProfileRepository
 }
 
 func NewAdminUserHandler(svc AdminUserService) *AdminUserHandler {
 	return &AdminUserHandler{svc: svc}
+}
+
+func (h *AdminUserHandler) WithImportExport(svc StaffImportExportService) *AdminUserHandler {
+	h.importSvc = svc
+	return h
+}
+
+func (h *AdminUserHandler) WithDeptAndStaffRepos(deptRepo repositories.DepartmentRepository, staffRepo repositories.StaffProfileRepository) *AdminUserHandler {
+	h.deptRepo = deptRepo
+	h.staffRepo = staffRepo
+	return h
 }
 
 func adminCurrentUser(c *echo.Context) *configs.JwtCustomClaims {
@@ -81,14 +101,16 @@ func (h *AdminUserHandler) ListUsers(c *echo.Context) error {
 	}
 
 	data := map[string]interface{}{
-		"Title":       configs.T(c, "ui.users.title", nil),
-		"CurrentPath": "/admin/users",
-		"CurrentUser": adminCurrentUser(c),
-		"Users":       users,
-		"Pagination":  utils.NewPagination(page, limit, total),
-		"Search":      search,
-		"RoleFilter":  role,
-		"Flash":       flashFromQuery(c),
+		"Title":        configs.T(c, "ui.users.title", nil),
+		"CurrentPath":  "/admin/users",
+		"CurrentUser":  adminCurrentUser(c),
+		"Users":        users,
+		"Pagination":   utils.NewPagination(page, limit, total),
+		"Search":       search,
+		"RoleFilter":   role,
+		"ImportAction":   "/admin/users/import",
+		"TemplateAction": "/admin/users/template",
+		"Flash":          flashFromQuery(c),
 	}
 	return c.Render(http.StatusOK, "admin/pages/users/list.html", data)
 }
@@ -147,12 +169,27 @@ func (h *AdminUserHandler) ShowEditForm(c *echo.Context) error {
 		return c.Redirect(http.StatusSeeOther, adminFlashURL("error", configs.T(c, "auth.user_not_found", nil)))
 	}
 
+	var depts []models.Department
+	if h.deptRepo != nil {
+		depts, _, _ = h.deptRepo.List(repositories.DepartmentFilter{}, 0, 1000)
+	}
+
+	currentDeptID := ""
+	if h.staffRepo != nil {
+		if sp, _ := h.staffRepo.FindByUserID(id); sp != nil && sp.DepartmentID != nil {
+			currentDeptID = *sp.DepartmentID
+		}
+	}
+
 	data := map[string]interface{}{
-		"Title":       configs.T(c, "ui.users.form.edit_title", nil),
-		"CurrentPath": "/admin/users",
-		"CurrentUser": adminCurrentUser(c),
-		"IsEdit":      true,
-		"User":        user,
+		"Title":         configs.T(c, "ui.users.form.edit_title", nil),
+		"CurrentPath":   "/admin/users",
+		"CurrentUser":   adminCurrentUser(c),
+		"IsEdit":        true,
+		"User":          user,
+		"Departments":   depts,
+		"CurrentDeptID": currentDeptID,
+		"Flash":         flashFromQuery(c),
 	}
 	return c.Render(http.StatusOK, "admin/pages/users/form.html", data)
 }
@@ -175,6 +212,25 @@ func (h *AdminUserHandler) UpdateUser(c *echo.Context) error {
 
 	if _, err := h.svc.UpdateUser(id, req, actorID(c)); err != nil {
 		return h.renderFormErrors(c, true, user, req, nil, configs.T(c, "common.internal_error", nil))
+	}
+
+	if h.staffRepo != nil {
+		var deptID *string
+		if req.DepartmentID != "" {
+			deptID = &req.DepartmentID
+		}
+		sp, _ := h.staffRepo.FindByUserID(id)
+		if sp == nil {
+			now := time.Now()
+			_, _ = h.staffRepo.Create(&models.StaffProfile{
+				UserID:       id,
+				DepartmentID: deptID,
+				CreatedAt:    now,
+				UpdatedAt:    now,
+			})
+		} else {
+			_ = h.staffRepo.UpdateDepartment(id, deptID, actorID(c))
+		}
 	}
 
 	return c.Redirect(http.StatusSeeOther, adminFlashURL("success", configs.T(c, "ui.msg.user_updated", nil)))
@@ -202,6 +258,105 @@ func (h *AdminUserHandler) DeleteUser(c *echo.Context) error {
 		return c.Redirect(http.StatusSeeOther, adminFlashURL("error", configs.T(c, "ui.msg.delete_failed", nil)))
 	}
 	return c.Redirect(http.StatusSeeOther, adminFlashURL("success", configs.T(c, "ui.msg.user_deleted", nil)))
+}
+
+// DownloadTemplate handles GET /admin/users/template
+func (h *AdminUserHandler) DownloadTemplate(c *echo.Context) error {
+	return writeXLSXTemplate(c, "template_can_bo.xlsx", []XLSXColumn{
+		{Header: "ho_ten", Hint: "Họ và tên đầy đủ. VD: Trần Thị B"},
+		{Header: "email", Hint: "Email hợp lệ. VD: tranthib@email.com"},
+		{Header: "so_cccd", Hint: "12 chữ số (không bắt buộc). VD: 012345678901"},
+		{Header: "so_dien_thoai", Hint: "Số điện thoại. VD: 0901234567"},
+		{Header: "vai_tro", Hint: "staff | manager | super_admin (hoặc: cán bộ | quản lý)"},
+		{Header: "ma_phong_ban", Hint: "Mã phòng ban (tùy chọn). VD: IT"},
+	})
+}
+
+// ExportCitizens handles GET /admin/users/export/citizens
+func (h *AdminUserHandler) ExportCitizens(c *echo.Context) error {
+	setCSVHeaders(c, "cong_dan.csv")
+	writeCSVBOM(c)
+	w := csv.NewWriter(c.Response())
+	_ = w.Write([]string{"ho_ten", "email", "so_dien_thoai", "dia_chi", "trang_thai"})
+	h.exportUserRows(c, w, repositories.UserFilter{Role: string(models.UserRoleCitizen)})
+	w.Flush()
+	return nil
+}
+
+func (h *AdminUserHandler) ExportStaff(c *echo.Context) error {
+	setCSVHeaders(c, "can_bo.csv")
+	writeCSVBOM(c)
+	w := csv.NewWriter(c.Response())
+	_ = w.Write([]string{"ho_ten", "email", "so_dien_thoai", "dia_chi", "vai_tro", "trang_thai"})
+	h.exportUserRows(c, w, repositories.UserFilter{Roles: []string{
+		string(models.UserRoleStaff),
+		string(models.UserRoleManager),
+		string(models.UserRoleSuperAdmin),
+	}})
+	w.Flush()
+	return nil
+}
+
+func (h *AdminUserHandler) exportUserRows(c *echo.Context, w *csv.Writer, filter repositories.UserFilter) {
+	batchSize := 1000
+	for page := 1; ; page++ {
+		users, _, err := h.svc.ListUsers(filter, page, batchSize)
+		if err != nil {
+			break
+		}
+		for _, u := range users {
+			_ = w.Write([]string{u.Name, u.Email, u.Phone, u.Address, string(u.Role), string(u.Status)})
+		}
+		if len(users) < batchSize {
+			break
+		}
+	}
+}
+
+// ImportCSV handles POST /admin/users/import
+func (h *AdminUserHandler) ImportCSV(c *echo.Context) error {
+	if h.importSvc == nil {
+		return echo.NewHTTPError(http.StatusNotImplemented, "Chức năng import chưa được kích hoạt")
+	}
+	dataRows, err := parseUploadedCSV(c)
+	if err != nil {
+		return err
+	}
+
+	importRows := make([]services.StaffImportRow, 0, len(dataRows))
+	for _, cols := range dataRows {
+		importRows = append(importRows, services.StaffImportRow{
+			HoTen:       safeCol(cols, 0),
+			Email:       safeCol(cols, 1),
+			SoCCCD:      safeCol(cols, 2),
+			SoDienThoai: safeCol(cols, 3),
+			VaiTro:      safeCol(cols, 4),
+			MaPhongBan:  safeCol(cols, 5),
+		})
+	}
+
+	errs := h.importSvc.ImportStaff(importRows, actorID(c))
+	if len(errs) > 0 {
+		search := c.QueryParam("search")
+		role := c.QueryParam("role")
+		users, total, _ := h.svc.ListUsers(repositories.UserFilter{Search: search, Role: role}, 1, 20)
+		data := map[string]interface{}{
+			"Title":          configs.T(c, "ui.users.title", nil),
+			"CurrentPath":    "/admin/users",
+			"CurrentUser":    adminCurrentUser(c),
+			"Users":          users,
+			"Pagination":     utils.NewPagination(1, 20, total),
+			"Search":         search,
+			"RoleFilter":     role,
+			"ImportErrors":   errs,
+			"ImportAction":   "/admin/users/import",
+			"TemplateAction": "/admin/users/template",
+			"Flash":          flashFromQuery(c),
+		}
+		return c.Render(http.StatusUnprocessableEntity, "admin/pages/users/list.html", data)
+	}
+
+	return c.Redirect(http.StatusSeeOther, adminFlashURL("success", configs.T(c, "ui.msg.import_success", nil)))
 }
 
 func (h *AdminUserHandler) renderFormErrors(c *echo.Context, isEdit bool, user *models.User, req interface{}, fieldErrors map[string]string, globalError string) error {

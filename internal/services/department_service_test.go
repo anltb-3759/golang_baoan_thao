@@ -8,6 +8,7 @@ import (
 	"github.com/awesome-academy/golang_baoan_thao/internal/models"
 	"github.com/awesome-academy/golang_baoan_thao/internal/repositories"
 	"github.com/stretchr/testify/assert"
+	"gorm.io/gorm"
 )
 
 // --- fakeDepartmentRepo ---
@@ -44,11 +45,33 @@ func (r *fakeDepartmentRepo) List(_ repositories.DepartmentFilter, _, _ int) ([]
 	return r.depts, r.total, nil
 }
 func (r *fakeDepartmentRepo) SoftDelete(_ string, _ string) error { return r.deleteErr }
+func (r *fakeDepartmentRepo) CreateInTx(_ *gorm.DB, d *models.Department) error {
+	if r.createErr != nil {
+		return r.createErr
+	}
+	return nil
+}
 
 var _ repositories.DepartmentRepository = (*fakeDepartmentRepo)(nil)
 
+type fakeStaffRepo struct{}
+
+func (r *fakeStaffRepo) FindByUserID(_ string) (*models.StaffProfile, error)           { return nil, nil }
+func (r *fakeStaffRepo) ListByDepartment(_ string, _, _ int) ([]models.StaffProfile, int64, error) {
+	return nil, 0, nil
+}
+func (r *fakeStaffRepo) UpdateDepartment(_ string, _ *string, _ string) error { return nil }
+func (r *fakeStaffRepo) Create(p *models.StaffProfile) (*models.StaffProfile, error)  { return p, nil }
+func (r *fakeStaffRepo) CreateInTx(_ *gorm.DB, _ *models.StaffProfile) error          { return nil }
+
+var _ repositories.StaffProfileRepository = (*fakeStaffRepo)(nil)
+
 func newDeptSvc(repo *fakeDepartmentRepo) *DepartmentService {
 	return NewDepartmentService(repo, nil)
+}
+
+func newDeptSvcWithStaff(repo *fakeDepartmentRepo) *DepartmentService {
+	return NewDepartmentService(repo, &fakeStaffRepo{})
 }
 
 // --- ListDepartments ---
@@ -111,6 +134,14 @@ func TestDepartmentService_CreateDepartment_WithLeader(t *testing.T) {
 	assert.Equal(t, "user-1", *dept.LeaderUserID)
 }
 
+func TestDepartmentService_CreateDepartment_WithLeaderAndStaffRepo(t *testing.T) {
+	svc := newDeptSvcWithStaff(&fakeDepartmentRepo{codeDept: nil})
+	req := &dtos.DepartmentCreateRequest{Name: "IT", Code: "IT001", LeaderUserID: "user-1"}
+	dept, err := svc.CreateDepartment(req, "actor")
+	assert.NoError(t, err)
+	assert.Equal(t, "user-1", *dept.LeaderUserID)
+}
+
 func TestDepartmentService_CreateDepartment_CodeExists(t *testing.T) {
 	existing := &models.Department{Code: "IT001"}
 	svc := newDeptSvc(&fakeDepartmentRepo{codeDept: existing})
@@ -155,6 +186,15 @@ func TestDepartmentService_UpdateDepartment_CodeChange_Unique(t *testing.T) {
 	assert.Equal(t, "NEW", result.Code)
 }
 
+func TestDepartmentService_UpdateDepartment_CodeChange_FindCodeError(t *testing.T) {
+	d := &models.Department{ID: "d1", Code: "OLD"}
+	codeErr := errors.New("code lookup failed")
+	svc := newDeptSvc(&fakeDepartmentRepo{dept: d, codeErr: codeErr})
+	req := &dtos.DepartmentUpdateRequest{Name: "Dept", Code: "NEW"}
+	_, err := svc.UpdateDepartment("d1", req, "actor")
+	assert.ErrorIs(t, err, codeErr)
+}
+
 func TestDepartmentService_UpdateDepartment_CodeChange_Conflict(t *testing.T) {
 	d := &models.Department{ID: "d1", Code: "OLD"}
 	existing := &models.Department{ID: "d2", Code: "NEW"}
@@ -186,6 +226,15 @@ func TestDepartmentService_UpdateDepartment_SaveError(t *testing.T) {
 	req := &dtos.DepartmentUpdateRequest{Name: "X", Code: "OLD"}
 	_, err := svc.UpdateDepartment("d1", req, "actor")
 	assert.ErrorIs(t, err, saveErr)
+}
+
+func TestDepartmentService_UpdateDepartment_WithLeaderAndStaffRepo(t *testing.T) {
+	d := &models.Department{ID: "d1", Code: "OLD"}
+	svc := newDeptSvcWithStaff(&fakeDepartmentRepo{dept: d})
+	req := &dtos.DepartmentUpdateRequest{Name: "IT", Code: "OLD", LeaderUserID: "user-1"}
+	result, err := svc.UpdateDepartment("d1", req, "actor")
+	assert.NoError(t, err)
+	assert.Equal(t, "user-1", *result.LeaderUserID)
 }
 
 func TestDepartmentService_UpdateDepartment_ClearLeader(t *testing.T) {

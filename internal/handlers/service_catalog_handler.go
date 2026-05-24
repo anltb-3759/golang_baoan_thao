@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"context"
+	"encoding/csv"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -47,13 +48,23 @@ type serviceTypeFormData struct {
 	IsActive                bool
 }
 
+type ServiceTypeImportExportService interface {
+	ImportServiceTypes(rows []services.ServiceTypeImportRow, createdBy string) []string
+}
+
 type ServiceCatalogHandler struct {
-	svc     serviceCatalogSvc
-	userSvc AdminUserService
+	svc       serviceCatalogSvc
+	userSvc   AdminUserService
+	importSvc ServiceTypeImportExportService
 }
 
 func NewServiceCatalogHandler(svc serviceCatalogSvc, userSvc AdminUserService) *ServiceCatalogHandler {
 	return &ServiceCatalogHandler{svc: svc, userSvc: userSvc}
+}
+
+func (h *ServiceCatalogHandler) WithImportExport(svc ServiceTypeImportExportService) *ServiceCatalogHandler {
+	h.importSvc = svc
+	return h
 }
 
 func serviceTypeFormFromModel(st *models.ServiceType) serviceTypeFormData {
@@ -277,12 +288,14 @@ func (h *ServiceCatalogHandler) ListServiceTypesAdmin(c *echo.Context) error {
 	}
 
 	return c.Render(http.StatusOK, "admin/pages/service-types/list.html", map[string]any{
-		"ServiceTypes": result.Items,
-		"Pagination":   utils.NewPagination(page, limit, result.Total),
-		"Search":       search,
-		"Flash":        flash,
-		"CurrentPath":  "/admin/service-types",
-		"CurrentUser":  adminCurrentUser(c),
+		"ServiceTypes":   result.Items,
+		"Pagination":     utils.NewPagination(page, limit, result.Total),
+		"Search":         search,
+		"Flash":          flash,
+		"CurrentPath":    "/admin/service-types",
+		"CurrentUser":    adminCurrentUser(c),
+		"ImportAction":   "/admin/service-types/import",
+		"TemplateAction": "/admin/service-types/template",
 	})
 }
 
@@ -588,6 +601,97 @@ func (h *ServiceCatalogHandler) UpdateServiceType(c *echo.Context) error {
 	}
 
 	return c.Redirect(http.StatusSeeOther, serviceTypeFlashURL("success", configs.T(c, "service_type.updated", nil)))
+}
+
+// DownloadTemplate handles GET /admin/service-types/template.
+func (h *ServiceCatalogHandler) DownloadTemplate(c *echo.Context) error {
+	return writeXLSXTemplate(c, "template_loai_dich_vu.xlsx", []XLSXColumn{
+		{Header: "ten", Hint: "Tên loại dịch vụ. VD: Cấp giấy phép xây dựng"},
+		{Header: "mo_ta", Hint: "Mô tả dịch vụ (tùy chọn)"},
+		{Header: "thoi_gian_xu_ly_ngay", Hint: "Thời gian xử lý (số nguyên, ngày). VD: 15"},
+		{Header: "phi", Hint: "Lệ phí (số thực, đồng). VD: 50000"},
+		{Header: "ma_phong_ban", Hint: "Mã phòng ban phụ trách (tùy chọn). VD: QLDT"},
+	})
+}
+
+// ExportCSV handles GET /admin/service-types/export.
+func (h *ServiceCatalogHandler) ExportCSV(c *echo.Context) error {
+	setCSVHeaders(c, "loai_dich_vu.csv")
+	writeCSVBOM(c)
+
+	w := csv.NewWriter(c.Response())
+	_ = w.Write([]string{"ten", "mo_ta", "thoi_gian_xu_ly_ngay", "phi", "ma_phong_ban"})
+
+	batchSize := 1000
+	for page := 1; ; page++ {
+		result, err := h.svc.List(c.Request().Context(), repositories.ListFilter{
+			Page: page, Limit: batchSize, IncludeInactive: true,
+		})
+		if err != nil {
+			break
+		}
+		for _, st := range result.Items {
+			pt := ""
+			if st.ProcessingTime != nil {
+				pt = strconv.Itoa(*st.ProcessingTime)
+			}
+			deptCode := ""
+			if st.ResponsibleDepartment != nil {
+				deptCode = st.ResponsibleDepartment.Code
+			}
+			_ = w.Write([]string{st.Name, st.Description, pt, fmt.Sprintf("%.2f", st.Fee), deptCode})
+		}
+		if len(result.Items) < batchSize {
+			break
+		}
+	}
+	w.Flush()
+	return nil
+}
+
+// ImportCSV handles POST /admin/service-types/import.
+func (h *ServiceCatalogHandler) ImportCSV(c *echo.Context) error {
+	if h.importSvc == nil {
+		return echo.NewHTTPError(http.StatusNotImplemented, "Chức năng import chưa được kích hoạt")
+	}
+	dataRows, err := parseUploadedCSV(c)
+	if err != nil {
+		return err
+	}
+
+	importRows := make([]services.ServiceTypeImportRow, 0, len(dataRows))
+	for _, cols := range dataRows {
+		importRows = append(importRows, services.ServiceTypeImportRow{
+			Ten:              safeCol(cols, 0),
+			MoTa:             safeCol(cols, 1),
+			ThoiGianXuLyNgay: safeCol(cols, 2),
+			Phi:              safeCol(cols, 3),
+			MaPhongBan:       safeCol(cols, 4),
+		})
+	}
+
+	errs := h.importSvc.ImportServiceTypes(importRows, actorID(c))
+	if len(errs) > 0 {
+		page, limit := parsePagination(c)
+		search := c.QueryParam("search")
+		result, _ := h.svc.List(c.Request().Context(), repositories.ListFilter{
+			Search: search, Page: page, Limit: limit, IncludeInactive: true,
+		})
+		flash := flashFromQuery(c)
+		return c.Render(http.StatusUnprocessableEntity, "admin/pages/service-types/list.html", map[string]any{
+			"ServiceTypes": result.Items,
+			"Pagination":   utils.NewPagination(page, limit, result.Total),
+			"Search":       search,
+			"Flash":          flash,
+			"CurrentPath":    "/admin/service-types",
+			"CurrentUser":    adminCurrentUser(c),
+			"ImportErrors":   errs,
+			"ImportAction":   "/admin/service-types/import",
+			"TemplateAction": "/admin/service-types/template",
+		})
+	}
+
+	return c.Redirect(http.StatusSeeOther, serviceTypeFlashURL("success", configs.T(c, "ui.msg.import_success", nil)))
 }
 
 // DeleteServiceType handles POST /admin/service-types/:id/delete.

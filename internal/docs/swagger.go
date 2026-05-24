@@ -23,7 +23,12 @@ const openAPISpec = `{
     { "name": "Auth",            "description": "Register, login, token refresh, logout" },
     { "name": "Citizen Profile", "description": "Citizen's own profile (view & update)" },
     { "name": "Applications",    "description": "Submit and track public-service applications" },
-    { "name": "Service Catalog", "description": "Browse available service types" }
+    { "name": "Service Catalog", "description": "Browse available service types" },
+    { "name": "Admin — Citizens",      "description": "Admin: list, export and import citizen accounts" },
+    { "name": "Admin — Departments",   "description": "Admin: export and import departments" },
+    { "name": "Admin — Staff",         "description": "Admin: export and import staff accounts" },
+    { "name": "Admin — Service Types", "description": "Admin: export and import service types" },
+    { "name": "Admin — Applications",  "description": "Admin: export applications" }
   ],
   "paths": {
     "/api/auth/register": {
@@ -359,6 +364,234 @@ const openAPISpec = `{
             "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ServiceListResponse" } } }
           },
           "401": { "$ref": "#/components/responses/Unauthorized" }
+        }
+      }
+    },
+    "/admin/citizens": {
+      "get": {
+        "tags": ["Admin — Citizens"],
+        "summary": "List all citizen accounts",
+        "description": "Returns a paginated list of citizens with their application count. Admin / manager / staff access only.",
+        "security": [{ "BearerAuth": [] }],
+        "parameters": [
+          { "name": "page",  "in": "query", "schema": { "type": "integer", "minimum": 1, "default": 1 } },
+          { "name": "limit", "in": "query", "schema": { "type": "integer", "minimum": 1, "maximum": 500, "default": 20 } }
+        ],
+        "responses": {
+          "200": { "description": "Citizen list page (HTML)", "content": { "text/html": { "schema": { "type": "string" } } } },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "403": { "$ref": "#/components/responses/Forbidden" }
+        }
+      }
+    },
+    "/admin/citizens/export": {
+      "get": {
+        "tags": ["Admin — Citizens"],
+        "summary": "Export all citizens as CSV",
+        "description": "Streams all citizen rows (so_cccd, ho_ten, email, so_dien_thoai, dia_chi, ngay_sinh, tong_ho_so) as a UTF-8 BOM CSV file. Filename: citizens.csv.",
+        "security": [{ "BearerAuth": [] }],
+        "responses": {
+          "200": {
+            "description": "CSV file download",
+            "headers": {
+              "Content-Disposition": { "schema": { "type": "string", "example": "attachment; filename=\"citizens.csv\"" } }
+            },
+            "content": { "text/csv": { "schema": { "type": "string", "format": "binary" } } }
+          },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "403": { "$ref": "#/components/responses/Forbidden" }
+        }
+      }
+    },
+    "/admin/citizens/import": {
+      "post": {
+        "tags": ["Admin — Citizens"],
+        "summary": "Import citizens from CSV",
+        "description": "Accepts a multipart/form-data upload with field 'file' containing a CSV. Expected columns: so_cccd, ho_ten, email. All rows are imported atomically — if any row fails validation the entire import is rolled back and errors are returned. Initial password is set to the citizen's CCCD number.",
+        "security": [{ "BearerAuth": [] }],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "type": "object",
+                "required": ["file"],
+                "properties": {
+                  "file": { "type": "string", "format": "binary", "description": "CSV file with header row: so_cccd,ho_ten,email" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "303": { "description": "Import successful — redirects back to /admin/citizens" },
+          "400": { "description": "No file uploaded or CSV is empty", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } } } },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "403": { "$ref": "#/components/responses/Forbidden" },
+          "422": { "description": "One or more rows failed validation — full list of per-row errors returned, no data saved", "content": { "text/html": { "schema": { "type": "string" } } } }
+        }
+      }
+    },
+    "/admin/departments/export": {
+      "get": {
+        "tags": ["Admin — Departments"],
+        "summary": "Export all departments as CSV",
+        "description": "Streams all departments (ten, mo_ta, ma_code) as a UTF-8 BOM CSV file. Filename: departments.csv.",
+        "security": [{ "BearerAuth": [] }],
+        "responses": {
+          "200": {
+            "description": "CSV file download",
+            "headers": {
+              "Content-Disposition": { "schema": { "type": "string", "example": "attachment; filename=\"departments.csv\"" } }
+            },
+            "content": { "text/csv": { "schema": { "type": "string", "format": "binary" } } }
+          },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "403": { "$ref": "#/components/responses/Forbidden" }
+        }
+      }
+    },
+    "/admin/departments/import": {
+      "post": {
+        "tags": ["Admin — Departments"],
+        "summary": "Import departments from CSV",
+        "description": "Accepts a multipart/form-data upload. Expected CSV columns: ten, mo_ta, ma_code. All rows imported atomically.",
+        "security": [{ "BearerAuth": [] }],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "type": "object",
+                "required": ["file"],
+                "properties": {
+                  "file": { "type": "string", "format": "binary", "description": "CSV file with header row: ten,mo_ta,ma_code" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "303": { "description": "Import successful — redirects back to /admin/departments" },
+          "400": { "description": "No file uploaded or CSV is empty", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } } } },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "403": { "$ref": "#/components/responses/Forbidden" },
+          "422": { "description": "Validation errors — no data saved", "content": { "text/html": { "schema": { "type": "string" } } } }
+        }
+      }
+    },
+    "/admin/users/export": {
+      "get": {
+        "tags": ["Admin — Staff"],
+        "summary": "Export all staff accounts as CSV",
+        "description": "Streams all staff users (ho_ten, email, so_dien_thoai, dia_chi, vai_tro, trang_thai) as a UTF-8 BOM CSV file. Filename: users.csv.",
+        "security": [{ "BearerAuth": [] }],
+        "responses": {
+          "200": {
+            "description": "CSV file download",
+            "headers": {
+              "Content-Disposition": { "schema": { "type": "string", "example": "attachment; filename=\"users.csv\"" } }
+            },
+            "content": { "text/csv": { "schema": { "type": "string", "format": "binary" } } }
+          },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "403": { "$ref": "#/components/responses/Forbidden" }
+        }
+      }
+    },
+    "/admin/users/import": {
+      "post": {
+        "tags": ["Admin — Staff"],
+        "summary": "Import staff accounts from CSV",
+        "description": "Accepts a multipart/form-data upload. Expected CSV columns: ho_ten, email, so_cccd, so_dien_thoai, vai_tro, ma_phong_ban. Valid roles: staff, manager, super_admin. Default password: Aa@123456.",
+        "security": [{ "BearerAuth": [] }],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "type": "object",
+                "required": ["file"],
+                "properties": {
+                  "file": { "type": "string", "format": "binary", "description": "CSV file with header row: ho_ten,email,so_cccd,so_dien_thoai,vai_tro,ma_phong_ban" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "303": { "description": "Import successful — redirects back to /admin/users" },
+          "400": { "description": "No file uploaded or CSV is empty", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } } } },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "403": { "$ref": "#/components/responses/Forbidden" },
+          "422": { "description": "Validation errors — no data saved", "content": { "text/html": { "schema": { "type": "string" } } } }
+        }
+      }
+    },
+    "/admin/service-types/export": {
+      "get": {
+        "tags": ["Admin — Service Types"],
+        "summary": "Export all service types as CSV",
+        "description": "Streams all service types (ten, mo_ta, thoi_gian_xu_ly_ngay, phi, ma_phong_ban) as a UTF-8 BOM CSV file. Filename: service_types.csv.",
+        "security": [{ "BearerAuth": [] }],
+        "responses": {
+          "200": {
+            "description": "CSV file download",
+            "headers": {
+              "Content-Disposition": { "schema": { "type": "string", "example": "attachment; filename=\"service_types.csv\"" } }
+            },
+            "content": { "text/csv": { "schema": { "type": "string", "format": "binary" } } }
+          },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "403": { "$ref": "#/components/responses/Forbidden" }
+        }
+      }
+    },
+    "/admin/service-types/import": {
+      "post": {
+        "tags": ["Admin — Service Types"],
+        "summary": "Import service types from CSV",
+        "description": "Accepts a multipart/form-data upload. Expected CSV columns: ten, mo_ta, thoi_gian_xu_ly_ngay, phi, ma_phong_ban. Service code is auto-generated from the name.",
+        "security": [{ "BearerAuth": [] }],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "type": "object",
+                "required": ["file"],
+                "properties": {
+                  "file": { "type": "string", "format": "binary", "description": "CSV file with header row: ten,mo_ta,thoi_gian_xu_ly_ngay,phi,ma_phong_ban" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "303": { "description": "Import successful — redirects back to /admin/service-types" },
+          "400": { "description": "No file uploaded or CSV is empty", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } } } },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "403": { "$ref": "#/components/responses/Forbidden" },
+          "422": { "description": "Validation errors — no data saved", "content": { "text/html": { "schema": { "type": "string" } } } }
+        }
+      }
+    },
+    "/admin/applications/export": {
+      "get": {
+        "tags": ["Admin — Applications"],
+        "summary": "Export all applications as CSV",
+        "description": "Streams all applications (ma_ho_so, ten_cong_dan, loai_dich_vu, phong_ban, trang_thai, ngay_nop, ngay_hoan_thanh, can_bo_xu_ly) as a UTF-8 BOM CSV file. Filename: applications.csv.",
+        "security": [{ "BearerAuth": [] }],
+        "responses": {
+          "200": {
+            "description": "CSV file download",
+            "headers": {
+              "Content-Disposition": { "schema": { "type": "string", "example": "attachment; filename=\"applications.csv\"" } }
+            },
+            "content": { "text/csv": { "schema": { "type": "string", "format": "binary" } } }
+          },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "403": { "$ref": "#/components/responses/Forbidden" }
         }
       }
     },

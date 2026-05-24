@@ -1,10 +1,12 @@
 package handlers_test
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
 	"io"
+	"mime/multipart"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -16,6 +18,7 @@ import (
 	"github.com/awesome-academy/golang_baoan_thao/internal/handlers"
 	"github.com/awesome-academy/golang_baoan_thao/internal/models"
 	"github.com/awesome-academy/golang_baoan_thao/internal/repositories"
+	"github.com/awesome-academy/golang_baoan_thao/internal/services"
 	"github.com/go-playground/validator/v10"
 	"github.com/labstack/echo/v5"
 	"github.com/stretchr/testify/assert"
@@ -403,4 +406,621 @@ func TestUpdateServiceType_InvalidStaff(t *testing.T) {
 
 	err := h.UpdateServiceType(c)
 	assert.Error(t, err)
+}
+
+// --- helpers ---
+
+func newAdminCtxExt(e *echo.Echo, method, path string) (*echo.Context, *httptest.ResponseRecorder) {
+	req := httptest.NewRequest(method, path, nil)
+	rec := httptest.NewRecorder()
+	c := e.NewContext(req, rec)
+	c.Set("user", &configs.JwtCustomClaims{ID: "admin-1", Email: "admin@test.com", Role: "super_admin"})
+	return c, rec
+}
+
+func newFormCtxExt(e *echo.Echo, method, path string, values url.Values) (*echo.Context, *httptest.ResponseRecorder) {
+	req := httptest.NewRequest(method, path, strings.NewReader(values.Encode()))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	rec := httptest.NewRecorder()
+	c := e.NewContext(req, rec)
+	c.Set("user", &configs.JwtCustomClaims{ID: "admin-1", Email: "admin@test.com", Role: "super_admin"})
+	return c, rec
+}
+
+func newMultipartCSVExt(content string) (*bytes.Buffer, string) {
+	body := &bytes.Buffer{}
+	w := multipart.NewWriter(body)
+	fw, _ := w.CreateFormFile("file", "test.csv")
+	_, _ = fw.Write([]byte(content))
+	w.Close()
+	return body, w.FormDataContentType()
+}
+
+func setupAdminEcho() *echo.Echo {
+	e := newTestEcho()
+	e.Renderer = &stubRenderer{}
+	return e
+}
+
+func defaultMockSetup(svc *mockServiceCatalogSvc, userSvc *mockAdminUserSvc) {
+	svc.On("ListDepartments", mock.Anything).Return([]models.Department{}, nil)
+	userSvc.On("ListUsers", mock.Anything, mock.Anything, mock.Anything).Return([]models.User{}, int64(0), nil)
+}
+
+// --- AdminLanding ---
+
+func TestAdminLanding_Redirect(t *testing.T) {
+	svc := new(mockServiceCatalogSvc)
+	userSvc := new(mockAdminUserSvc)
+	h := handlers.NewServiceCatalogHandler(svc, userSvc)
+	e := setupAdminEcho()
+
+	c, rec := newAdminCtxExt(e, http.MethodGet, "/admin")
+	err := h.AdminLanding(c)
+	assert.NoError(t, err)
+	assert.Equal(t, http.StatusSeeOther, rec.Code)
+	assert.Equal(t, "/admin/service-types", rec.Header().Get("Location"))
+}
+
+// --- ListServiceTypesAdmin ---
+
+func TestListServiceTypesAdmin_OK(t *testing.T) {
+	svc := new(mockServiceCatalogSvc)
+	userSvc := new(mockAdminUserSvc)
+	h := handlers.NewServiceCatalogHandler(svc, userSvc)
+	e := setupAdminEcho()
+
+	svc.On("List", mock.Anything, mock.MatchedBy(func(f repositories.ListFilter) bool {
+		return f.IncludeInactive
+	})).Return(&repositories.ListResult{Items: []models.ServiceType{{Name: "ST1"}}, Total: 1}, nil)
+
+	c, rec := newAdminCtxExt(e, http.MethodGet, "/admin/service-types")
+	err := h.ListServiceTypesAdmin(c)
+	assert.NoError(t, err)
+	assert.Equal(t, http.StatusOK, rec.Code)
+}
+
+func TestListServiceTypesAdmin_Error(t *testing.T) {
+	svc := new(mockServiceCatalogSvc)
+	userSvc := new(mockAdminUserSvc)
+	h := handlers.NewServiceCatalogHandler(svc, userSvc)
+	e := setupAdminEcho()
+
+	svc.On("List", mock.Anything, mock.Anything).Return(nil, errors.New("db error"))
+
+	c, _ := newAdminCtxExt(e, http.MethodGet, "/admin/service-types")
+	err := h.ListServiceTypesAdmin(c)
+	assert.Error(t, err)
+}
+
+func TestListServiceTypesAdmin_FlashFromSuccess(t *testing.T) {
+	svc := new(mockServiceCatalogSvc)
+	userSvc := new(mockAdminUserSvc)
+	h := handlers.NewServiceCatalogHandler(svc, userSvc)
+	e := setupAdminEcho()
+
+	svc.On("List", mock.Anything, mock.Anything).Return(&repositories.ListResult{Items: []models.ServiceType{}, Total: 0}, nil)
+
+	req := httptest.NewRequest(http.MethodGet, "/admin/service-types?success=created", nil)
+	rec := httptest.NewRecorder()
+	c := e.NewContext(req, rec)
+	c.Set("user", &configs.JwtCustomClaims{ID: "a1"})
+
+	err := h.ListServiceTypesAdmin(c)
+	assert.NoError(t, err)
+}
+
+// --- CreateServiceTypeForm ---
+
+func TestCreateServiceTypeForm_OK(t *testing.T) {
+	svc := new(mockServiceCatalogSvc)
+	userSvc := new(mockAdminUserSvc)
+	defaultMockSetup(svc, userSvc)
+	h := handlers.NewServiceCatalogHandler(svc, userSvc)
+	e := setupAdminEcho()
+
+	c, rec := newAdminCtxExt(e, http.MethodGet, "/admin/service-types/new")
+	err := h.CreateServiceTypeForm(c)
+	assert.NoError(t, err)
+	assert.Equal(t, http.StatusOK, rec.Code)
+}
+
+func TestCreateServiceTypeForm_DepsError(t *testing.T) {
+	svc := new(mockServiceCatalogSvc)
+	userSvc := new(mockAdminUserSvc)
+	svc.On("ListDepartments", mock.Anything).Return(nil, errors.New("db error"))
+	userSvc.On("ListUsers", mock.Anything, mock.Anything, mock.Anything).Return([]models.User{}, int64(0), nil)
+	h := handlers.NewServiceCatalogHandler(svc, userSvc)
+	e := setupAdminEcho()
+
+	c, _ := newAdminCtxExt(e, http.MethodGet, "/admin/service-types/new")
+	err := h.CreateServiceTypeForm(c)
+	assert.Error(t, err)
+}
+
+func TestCreateServiceTypeForm_UserSvcError(t *testing.T) {
+	svc := new(mockServiceCatalogSvc)
+	userSvc := new(mockAdminUserSvc)
+	svc.On("ListDepartments", mock.Anything).Return([]models.Department{}, nil)
+	userSvc.On("ListUsers", mock.Anything, mock.Anything, mock.Anything).Return(nil, errors.New("user err"))
+	h := handlers.NewServiceCatalogHandler(svc, userSvc)
+	e := setupAdminEcho()
+
+	c, _ := newAdminCtxExt(e, http.MethodGet, "/admin/service-types/new")
+	err := h.CreateServiceTypeForm(c)
+	assert.Error(t, err)
+}
+
+// --- CreateServiceType ---
+
+func TestCreateServiceType_OK(t *testing.T) {
+	svc := new(mockServiceCatalogSvc)
+	userSvc := new(mockAdminUserSvc)
+	defaultMockSetup(svc, userSvc)
+	svc.On("Create", mock.Anything, mock.Anything).Return(nil)
+	h := handlers.NewServiceCatalogHandler(svc, userSvc)
+	e := setupAdminEcho()
+
+	form := url.Values{"name": {"Dịch vụ 1"}, "code": {"SVC001"}}
+	c, rec := newFormCtxExt(e, http.MethodPost, "/admin/service-types", form)
+	err := h.CreateServiceType(c)
+	assert.NoError(t, err)
+	assert.Equal(t, http.StatusSeeOther, rec.Code)
+}
+
+func TestCreateServiceType_ValidationError(t *testing.T) {
+	svc := new(mockServiceCatalogSvc)
+	userSvc := new(mockAdminUserSvc)
+	defaultMockSetup(svc, userSvc)
+	h := handlers.NewServiceCatalogHandler(svc, userSvc)
+	e := setupAdminEcho()
+
+	form := url.Values{"name": {""}}
+	c, rec := newFormCtxExt(e, http.MethodPost, "/admin/service-types", form)
+	err := h.CreateServiceType(c)
+	assert.NoError(t, err)
+	assert.Equal(t, http.StatusBadRequest, rec.Code)
+}
+
+func TestCreateServiceType_InvalidProcessingTime(t *testing.T) {
+	svc := new(mockServiceCatalogSvc)
+	userSvc := new(mockAdminUserSvc)
+	defaultMockSetup(svc, userSvc)
+	h := handlers.NewServiceCatalogHandler(svc, userSvc)
+	e := setupAdminEcho()
+
+	form := url.Values{"name": {"Svc"}, "code": {"S1"}, "processing_time": {"not-a-number"}}
+	c, rec := newFormCtxExt(e, http.MethodPost, "/admin/service-types", form)
+	err := h.CreateServiceType(c)
+	assert.NoError(t, err)
+	assert.Equal(t, http.StatusBadRequest, rec.Code)
+}
+
+func TestCreateServiceType_InvalidFee(t *testing.T) {
+	svc := new(mockServiceCatalogSvc)
+	userSvc := new(mockAdminUserSvc)
+	defaultMockSetup(svc, userSvc)
+	h := handlers.NewServiceCatalogHandler(svc, userSvc)
+	e := setupAdminEcho()
+
+	form := url.Values{"name": {"Svc"}, "code": {"S1"}, "fee": {"not-a-fee"}}
+	c, rec := newFormCtxExt(e, http.MethodPost, "/admin/service-types", form)
+	err := h.CreateServiceType(c)
+	assert.NoError(t, err)
+	assert.Equal(t, http.StatusBadRequest, rec.Code)
+}
+
+func TestCreateServiceType_InvalidFormSchema(t *testing.T) {
+	svc := new(mockServiceCatalogSvc)
+	userSvc := new(mockAdminUserSvc)
+	defaultMockSetup(svc, userSvc)
+	h := handlers.NewServiceCatalogHandler(svc, userSvc)
+	e := setupAdminEcho()
+
+	form := url.Values{"name": {"Svc"}, "code": {"S1"}, "form_schema": {"not-json"}}
+	c, rec := newFormCtxExt(e, http.MethodPost, "/admin/service-types", form)
+	err := h.CreateServiceType(c)
+	assert.NoError(t, err)
+	assert.Equal(t, http.StatusBadRequest, rec.Code)
+}
+
+func TestCreateServiceType_ServiceError(t *testing.T) {
+	svc := new(mockServiceCatalogSvc)
+	userSvc := new(mockAdminUserSvc)
+	defaultMockSetup(svc, userSvc)
+	svc.On("Create", mock.Anything, mock.Anything).Return(errors.New("db error"))
+	h := handlers.NewServiceCatalogHandler(svc, userSvc)
+	e := setupAdminEcho()
+
+	form := url.Values{"name": {"Svc"}, "code": {"S1"}}
+	c, rec := newFormCtxExt(e, http.MethodPost, "/admin/service-types", form)
+	err := h.CreateServiceType(c)
+	assert.NoError(t, err)
+	assert.Equal(t, http.StatusBadRequest, rec.Code)
+}
+
+func TestCreateServiceType_CodeExists(t *testing.T) {
+	svc := new(mockServiceCatalogSvc)
+	userSvc := new(mockAdminUserSvc)
+	defaultMockSetup(svc, userSvc)
+	svc.On("Create", mock.Anything, mock.Anything).Return(services.ErrServiceTypeCodeExists)
+	h := handlers.NewServiceCatalogHandler(svc, userSvc)
+	e := setupAdminEcho()
+
+	form := url.Values{"name": {"Svc"}, "code": {"S1"}}
+	c, rec := newFormCtxExt(e, http.MethodPost, "/admin/service-types", form)
+	err := h.CreateServiceType(c)
+	assert.NoError(t, err)
+	assert.Equal(t, http.StatusBadRequest, rec.Code)
+}
+
+// --- EditServiceTypeForm ---
+
+func TestEditServiceTypeForm_OK(t *testing.T) {
+	svc := new(mockServiceCatalogSvc)
+	userSvc := new(mockAdminUserSvc)
+	defaultMockSetup(svc, userSvc)
+	h := handlers.NewServiceCatalogHandler(svc, userSvc)
+	e := setupAdminEcho()
+
+	st := &models.ServiceType{ID: "st1", Name: "Svc", Code: "S1"}
+	svc.On("GetByIDForAdmin", mock.Anything, "st1").Return(st, nil)
+
+	c, rec := newAdminCtxExt(e, http.MethodGet, "/admin/service-types/st1/edit")
+	c.SetPathValues(echo.PathValues{{Name: "id", Value: "st1"}})
+	err := h.EditServiceTypeForm(c)
+	assert.NoError(t, err)
+	assert.Equal(t, http.StatusOK, rec.Code)
+}
+
+func TestEditServiceTypeForm_NotFound(t *testing.T) {
+	svc := new(mockServiceCatalogSvc)
+	userSvc := new(mockAdminUserSvc)
+	svc.On("GetByIDForAdmin", mock.Anything, "bad").Return(nil, gorm.ErrRecordNotFound)
+	h := handlers.NewServiceCatalogHandler(svc, userSvc)
+	e := setupAdminEcho()
+
+	c, _ := newAdminCtxExt(e, http.MethodGet, "/admin/service-types/bad/edit")
+	c.SetPathValues(echo.PathValues{{Name: "id", Value: "bad"}})
+	err := h.EditServiceTypeForm(c)
+	assert.Error(t, err)
+}
+
+func TestEditServiceTypeForm_DepsError(t *testing.T) {
+	svc := new(mockServiceCatalogSvc)
+	userSvc := new(mockAdminUserSvc)
+	st := &models.ServiceType{ID: "st1", Name: "Svc", Code: "S1"}
+	svc.On("GetByIDForAdmin", mock.Anything, "st1").Return(st, nil)
+	svc.On("ListDepartments", mock.Anything).Return(nil, errors.New("db error"))
+	userSvc.On("ListUsers", mock.Anything, mock.Anything, mock.Anything).Return([]models.User{}, int64(0), nil)
+	h := handlers.NewServiceCatalogHandler(svc, userSvc)
+	e := setupAdminEcho()
+
+	c, _ := newAdminCtxExt(e, http.MethodGet, "/admin/service-types/st1/edit")
+	c.SetPathValues(echo.PathValues{{Name: "id", Value: "st1"}})
+	err := h.EditServiceTypeForm(c)
+	assert.Error(t, err)
+}
+
+// --- UpdateServiceType ---
+
+func TestUpdateServiceType_OK(t *testing.T) {
+	svc := new(mockServiceCatalogSvc)
+	userSvc := new(mockAdminUserSvc)
+	defaultMockSetup(svc, userSvc)
+	st := &models.ServiceType{ID: "st1", Name: "Old", Code: "O1"}
+	svc.On("GetByIDForAdmin", mock.Anything, "st1").Return(st, nil)
+	svc.On("Update", mock.Anything, mock.Anything).Return(nil)
+	h := handlers.NewServiceCatalogHandler(svc, userSvc)
+	e := setupAdminEcho()
+
+	form := url.Values{"name": {"New Svc"}, "code": {"NEW1"}}
+	c, rec := newFormCtxExt(e, http.MethodPost, "/admin/service-types/st1", form)
+	c.SetPathValues(echo.PathValues{{Name: "id", Value: "st1"}})
+	err := h.UpdateServiceType(c)
+	assert.NoError(t, err)
+	assert.Equal(t, http.StatusSeeOther, rec.Code)
+}
+
+func TestUpdateServiceType_NotFound(t *testing.T) {
+	svc := new(mockServiceCatalogSvc)
+	userSvc := new(mockAdminUserSvc)
+	svc.On("GetByIDForAdmin", mock.Anything, "bad").Return(nil, gorm.ErrRecordNotFound)
+	h := handlers.NewServiceCatalogHandler(svc, userSvc)
+	e := setupAdminEcho()
+
+	form := url.Values{"name": {"Svc"}, "code": {"S1"}}
+	c, _ := newFormCtxExt(e, http.MethodPost, "/admin/service-types/bad", form)
+	c.SetPathValues(echo.PathValues{{Name: "id", Value: "bad"}})
+	err := h.UpdateServiceType(c)
+	assert.Error(t, err)
+}
+
+func TestUpdateServiceType_ValidationError(t *testing.T) {
+	svc := new(mockServiceCatalogSvc)
+	userSvc := new(mockAdminUserSvc)
+	defaultMockSetup(svc, userSvc)
+	st := &models.ServiceType{ID: "st1", Name: "Old", Code: "O1"}
+	svc.On("GetByIDForAdmin", mock.Anything, "st1").Return(st, nil)
+	h := handlers.NewServiceCatalogHandler(svc, userSvc)
+	e := setupAdminEcho()
+
+	form := url.Values{"name": {""}}
+	c, rec := newFormCtxExt(e, http.MethodPost, "/admin/service-types/st1", form)
+	c.SetPathValues(echo.PathValues{{Name: "id", Value: "st1"}})
+	err := h.UpdateServiceType(c)
+	assert.NoError(t, err)
+	assert.Equal(t, http.StatusBadRequest, rec.Code)
+}
+
+func TestUpdateServiceType_ModelError(t *testing.T) {
+	svc := new(mockServiceCatalogSvc)
+	userSvc := new(mockAdminUserSvc)
+	defaultMockSetup(svc, userSvc)
+	st := &models.ServiceType{ID: "st1", Name: "Old", Code: "O1"}
+	svc.On("GetByIDForAdmin", mock.Anything, "st1").Return(st, nil)
+	h := handlers.NewServiceCatalogHandler(svc, userSvc)
+	e := setupAdminEcho()
+
+	form := url.Values{"name": {"Svc"}, "code": {"S1"}, "processing_time": {"bad"}}
+	c, rec := newFormCtxExt(e, http.MethodPost, "/admin/service-types/st1", form)
+	c.SetPathValues(echo.PathValues{{Name: "id", Value: "st1"}})
+	err := h.UpdateServiceType(c)
+	assert.NoError(t, err)
+	assert.Equal(t, http.StatusBadRequest, rec.Code)
+}
+
+func TestUpdateServiceType_ServiceError(t *testing.T) {
+	svc := new(mockServiceCatalogSvc)
+	userSvc := new(mockAdminUserSvc)
+	defaultMockSetup(svc, userSvc)
+	st := &models.ServiceType{ID: "st1", Name: "Old", Code: "O1"}
+	svc.On("GetByIDForAdmin", mock.Anything, "st1").Return(st, nil)
+	svc.On("Update", mock.Anything, mock.Anything).Return(errors.New("db error"))
+	h := handlers.NewServiceCatalogHandler(svc, userSvc)
+	e := setupAdminEcho()
+
+	form := url.Values{"name": {"New Svc"}, "code": {"NEW1"}}
+	c, rec := newFormCtxExt(e, http.MethodPost, "/admin/service-types/st1", form)
+	c.SetPathValues(echo.PathValues{{Name: "id", Value: "st1"}})
+	err := h.UpdateServiceType(c)
+	assert.NoError(t, err)
+	assert.Equal(t, http.StatusBadRequest, rec.Code)
+}
+
+func TestUpdateServiceType_CodeExists(t *testing.T) {
+	svc := new(mockServiceCatalogSvc)
+	userSvc := new(mockAdminUserSvc)
+	defaultMockSetup(svc, userSvc)
+	st := &models.ServiceType{ID: "st1", Name: "Old", Code: "O1"}
+	svc.On("GetByIDForAdmin", mock.Anything, "st1").Return(st, nil)
+	svc.On("Update", mock.Anything, mock.Anything).Return(services.ErrServiceTypeCodeExists)
+	h := handlers.NewServiceCatalogHandler(svc, userSvc)
+	e := setupAdminEcho()
+
+	form := url.Values{"name": {"New Svc"}, "code": {"NEW1"}}
+	c, rec := newFormCtxExt(e, http.MethodPost, "/admin/service-types/st1", form)
+	c.SetPathValues(echo.PathValues{{Name: "id", Value: "st1"}})
+	err := h.UpdateServiceType(c)
+	assert.NoError(t, err)
+	assert.Equal(t, http.StatusBadRequest, rec.Code)
+}
+
+// --- ExportCSV ---
+
+type mockServiceTypeImportSvc struct {
+	errs []string
+}
+
+func (m *mockServiceTypeImportSvc) ImportServiceTypes(_ []services.ServiceTypeImportRow, _ string) []string {
+	return m.errs
+}
+
+func TestServiceCatalogHandler_ExportCSV_OK(t *testing.T) {
+	svc := new(mockServiceCatalogSvc)
+	userSvc := new(mockAdminUserSvc)
+	h := handlers.NewServiceCatalogHandler(svc, userSvc)
+	e := setupAdminEcho()
+
+	pt := 5
+	svc.On("List", mock.Anything, mock.Anything).Return(&repositories.ListResult{
+		Items: []models.ServiceType{{Name: "Svc1", Description: "Desc", ProcessingTime: &pt, Fee: 100.0}},
+		Total: 1,
+	}, nil)
+
+	c, rec := newAdminCtxExt(e, http.MethodGet, "/admin/service-types/export")
+	err := h.ExportCSV(c)
+	assert.NoError(t, err)
+	assert.Equal(t, "text/csv; charset=utf-8", rec.Header().Get("Content-Type"))
+	assert.Contains(t, rec.Body.String(), "Svc1")
+}
+
+func TestServiceCatalogHandler_ExportCSV_Empty(t *testing.T) {
+	svc := new(mockServiceCatalogSvc)
+	userSvc := new(mockAdminUserSvc)
+	h := handlers.NewServiceCatalogHandler(svc, userSvc)
+	e := setupAdminEcho()
+
+	svc.On("List", mock.Anything, mock.Anything).Return(&repositories.ListResult{Items: []models.ServiceType{}, Total: 0}, nil)
+
+	c, rec := newAdminCtxExt(e, http.MethodGet, "/admin/service-types/export")
+	err := h.ExportCSV(c)
+	assert.NoError(t, err)
+	assert.Contains(t, rec.Body.String(), "ten")
+}
+
+func TestServiceCatalogHandler_ExportCSV_Error(t *testing.T) {
+	svc := new(mockServiceCatalogSvc)
+	userSvc := new(mockAdminUserSvc)
+	h := handlers.NewServiceCatalogHandler(svc, userSvc)
+	e := setupAdminEcho()
+
+	svc.On("List", mock.Anything, mock.Anything).Return(nil, errors.New("db error"))
+
+	c, rec := newAdminCtxExt(e, http.MethodGet, "/admin/service-types/export")
+	err := h.ExportCSV(c)
+	assert.NoError(t, err)
+	assert.Contains(t, rec.Body.String(), "ten")
+}
+
+func TestServiceCatalogHandler_ExportCSV_WithDept(t *testing.T) {
+	svc := new(mockServiceCatalogSvc)
+	userSvc := new(mockAdminUserSvc)
+	h := handlers.NewServiceCatalogHandler(svc, userSvc)
+	e := setupAdminEcho()
+
+	dept := &models.Department{Code: "IT001"}
+	svc.On("List", mock.Anything, mock.Anything).Return(&repositories.ListResult{
+		Items: []models.ServiceType{{Name: "Svc", ResponsibleDepartment: dept}},
+		Total: 1,
+	}, nil)
+
+	c, rec := newAdminCtxExt(e, http.MethodGet, "/admin/service-types/export")
+	err := h.ExportCSV(c)
+	assert.NoError(t, err)
+	assert.Contains(t, rec.Body.String(), "IT001")
+}
+
+// --- ImportCSV ---
+
+func TestServiceCatalogHandler_ImportCSV_NoFile(t *testing.T) {
+	svc := new(mockServiceCatalogSvc)
+	userSvc := new(mockAdminUserSvc)
+	h := handlers.NewServiceCatalogHandler(svc, userSvc).WithImportExport(&mockServiceTypeImportSvc{})
+	e := setupAdminEcho()
+
+	req := httptest.NewRequest(http.MethodPost, "/admin/service-types/import", nil)
+	rec := httptest.NewRecorder()
+	c := e.NewContext(req, rec)
+	c.Set("user", &configs.JwtCustomClaims{ID: "a1"})
+
+	err := h.ImportCSV(c)
+	assert.Error(t, err)
+}
+
+func TestServiceCatalogHandler_ImportCSV_WithErrors(t *testing.T) {
+	svc := new(mockServiceCatalogSvc)
+	userSvc := new(mockAdminUserSvc)
+	svc.On("List", mock.Anything, mock.Anything).Return(&repositories.ListResult{Items: []models.ServiceType{}, Total: 0}, nil)
+	importSvc := &mockServiceTypeImportSvc{errs: []string{"Dòng 2: lỗi"}}
+	h := handlers.NewServiceCatalogHandler(svc, userSvc).WithImportExport(importSvc)
+	e := setupAdminEcho()
+
+	body, ct := newMultipartCSVExt("ten,mo_ta\nSvc,Desc\n")
+	req := httptest.NewRequest(http.MethodPost, "/admin/service-types/import", body)
+	req.Header.Set("Content-Type", ct)
+	rec := httptest.NewRecorder()
+	c := e.NewContext(req, rec)
+	c.Set("user", &configs.JwtCustomClaims{ID: "a1"})
+
+	err := h.ImportCSV(c)
+	assert.NoError(t, err)
+	assert.Equal(t, http.StatusUnprocessableEntity, rec.Code)
+}
+
+func TestServiceCatalogHandler_ImportCSV_Success(t *testing.T) {
+	svc := new(mockServiceCatalogSvc)
+	userSvc := new(mockAdminUserSvc)
+	h := handlers.NewServiceCatalogHandler(svc, userSvc).WithImportExport(&mockServiceTypeImportSvc{})
+	e := setupAdminEcho()
+
+	body, ct := newMultipartCSVExt("ten,mo_ta\nCấp hộ khẩu,Mô tả\n")
+	req := httptest.NewRequest(http.MethodPost, "/admin/service-types/import", body)
+	req.Header.Set("Content-Type", ct)
+	rec := httptest.NewRecorder()
+	c := e.NewContext(req, rec)
+	c.Set("user", &configs.JwtCustomClaims{ID: "a1"})
+
+	err := h.ImportCSV(c)
+	assert.NoError(t, err)
+	assert.Equal(t, http.StatusSeeOther, rec.Code)
+}
+
+// --- DeleteServiceType ---
+
+func TestDeleteServiceType_OK(t *testing.T) {
+	svc := new(mockServiceCatalogSvc)
+	userSvc := new(mockAdminUserSvc)
+	svc.On("Delete", mock.Anything, "st1").Return(nil)
+	h := handlers.NewServiceCatalogHandler(svc, userSvc)
+	e := setupAdminEcho()
+
+	c, rec := newAdminCtxExt(e, http.MethodPost, "/admin/service-types/st1/delete")
+	c.SetPathValues(echo.PathValues{{Name: "id", Value: "st1"}})
+	err := h.DeleteServiceType(c)
+	assert.NoError(t, err)
+	assert.Equal(t, http.StatusSeeOther, rec.Code)
+}
+
+func TestDeleteServiceType_NotFound(t *testing.T) {
+	svc := new(mockServiceCatalogSvc)
+	userSvc := new(mockAdminUserSvc)
+	svc.On("Delete", mock.Anything, "bad").Return(gorm.ErrRecordNotFound)
+	h := handlers.NewServiceCatalogHandler(svc, userSvc)
+	e := setupAdminEcho()
+
+	c, rec := newAdminCtxExt(e, http.MethodPost, "/admin/service-types/bad/delete")
+	c.SetPathValues(echo.PathValues{{Name: "id", Value: "bad"}})
+	err := h.DeleteServiceType(c)
+	assert.NoError(t, err)
+	assert.Equal(t, http.StatusSeeOther, rec.Code)
+}
+
+func TestDeleteServiceType_HasApplications(t *testing.T) {
+	svc := new(mockServiceCatalogSvc)
+	userSvc := new(mockAdminUserSvc)
+	svc.On("Delete", mock.Anything, "st1").Return(services.ErrServiceTypeHasApplications)
+	h := handlers.NewServiceCatalogHandler(svc, userSvc)
+	e := setupAdminEcho()
+
+	c, rec := newAdminCtxExt(e, http.MethodPost, "/admin/service-types/st1/delete")
+	c.SetPathValues(echo.PathValues{{Name: "id", Value: "st1"}})
+	err := h.DeleteServiceType(c)
+	assert.NoError(t, err)
+	assert.Equal(t, http.StatusSeeOther, rec.Code)
+}
+
+func TestDeleteServiceType_InternalError(t *testing.T) {
+	svc := new(mockServiceCatalogSvc)
+	userSvc := new(mockAdminUserSvc)
+	svc.On("Delete", mock.Anything, "st1").Return(errors.New("db error"))
+	h := handlers.NewServiceCatalogHandler(svc, userSvc)
+	e := setupAdminEcho()
+
+	c, rec := newAdminCtxExt(e, http.MethodPost, "/admin/service-types/st1/delete")
+	c.SetPathValues(echo.PathValues{{Name: "id", Value: "st1"}})
+	err := h.DeleteServiceType(c)
+	assert.NoError(t, err)
+	assert.Equal(t, http.StatusSeeOther, rec.Code)
+}
+
+// --- serviceTypeFormFromModel coverage via EditServiceTypeForm ---
+
+func TestEditServiceTypeForm_WithAllOptionalFields(t *testing.T) {
+	svc := new(mockServiceCatalogSvc)
+	userSvc := new(mockAdminUserSvc)
+	defaultMockSetup(svc, userSvc)
+	h := handlers.NewServiceCatalogHandler(svc, userSvc)
+	e := setupAdminEcho()
+
+	pt := 5
+	deptID := "dept-1"
+	staffID := "staff-1"
+	catID := "cat-1"
+	schema := []byte(`{"fields":[]}`)
+	st := &models.ServiceType{
+		ID: "st1", Name: "Svc", Code: "S1",
+		ProcessingTime:          &pt,
+		ResponsibleDepartmentID: &deptID,
+		ResponsibleStaffUserID:  &staffID,
+		CategoryID:              &catID,
+		FormSchema:              schema,
+	}
+	svc.On("GetByIDForAdmin", mock.Anything, "st1").Return(st, nil)
+
+	c, rec := newAdminCtxExt(e, http.MethodGet, "/admin/service-types/st1/edit")
+	c.SetPathValues(echo.PathValues{{Name: "id", Value: "st1"}})
+	err := h.EditServiceTypeForm(c)
+	assert.NoError(t, err)
+	assert.Equal(t, http.StatusOK, rec.Code)
 }

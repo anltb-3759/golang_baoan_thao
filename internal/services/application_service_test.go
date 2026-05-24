@@ -39,6 +39,7 @@ func (r *fakeAppServiceTypeRepo) ListDepartments(ctx context.Context) ([]models.
 	return nil, nil
 }
 func (r *fakeAppServiceTypeRepo) Create(ctx context.Context, _ *models.ServiceType) error { return nil }
+func (r *fakeAppServiceTypeRepo) CreateInTx(_ *gorm.DB, _ *models.ServiceType) error      { return nil }
 func (r *fakeAppServiceTypeRepo) Update(ctx context.Context, _ *models.ServiceType) error { return nil }
 func (r *fakeAppServiceTypeRepo) Delete(ctx context.Context, _ string) error              { return nil }
 func (r *fakeAppServiceTypeRepo) CountApplications(ctx context.Context, _ string) (int64, error) {

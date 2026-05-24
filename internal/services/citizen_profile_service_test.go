@@ -49,6 +49,12 @@ func (r *fakeProfileCitizenProfileRepo) Update(p *models.CitizenProfile) error {
 func (r *fakeProfileCitizenProfileRepo) CreateInTx(_ *gorm.DB, _ *models.CitizenProfile) error {
 	return nil
 }
+func (r *fakeProfileCitizenProfileRepo) FindByCitizenIDNumber(_ string) (*models.CitizenProfile, error) {
+	return nil, nil
+}
+func (r *fakeProfileCitizenProfileRepo) ListAllForExport(_, _ int) ([]repositories.CitizenExportRow, int64, error) {
+	return nil, 0, nil
+}
 
 type fakeProfileApplicationRepo struct {
 	apps  []models.Application

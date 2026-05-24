@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"encoding/csv"
 	"net/http"
 	"net/url"
 	"strings"
@@ -130,6 +131,57 @@ func (h *AdminApplicationHandler) assignableStaffUsers(app *models.Application) 
 	}
 
 	return users, nil
+}
+
+// ExportCSV handles GET /admin/applications/export
+func (h *AdminApplicationHandler) ExportCSV(c *echo.Context) error {
+	setCSVHeaders(c, "ho_so.csv")
+	writeCSVBOM(c)
+
+	w := csv.NewWriter(c.Response())
+	_ = w.Write([]string{
+		"ma_ho_so", "ten_cong_dan", "loai_dich_vu", "phong_ban",
+		"trang_thai", "ngay_nop", "ngay_hoan_thanh", "can_bo_xu_ly",
+	})
+
+	page := 1
+	limit := 1000
+	for {
+		apps, _, err := h.svc.ListApplications(page, limit)
+		if err != nil {
+			break
+		}
+		for _, a := range apps {
+			deptName := ""
+			if a.ServiceType.ResponsibleDepartment != nil {
+				deptName = a.ServiceType.ResponsibleDepartment.Name
+			}
+			completedAt := ""
+			if a.CompletedAt != nil {
+				completedAt = a.CompletedAt.Format("02/01/2006")
+			}
+			staffName := ""
+			if a.AssignedStaffUser != nil {
+				staffName = a.AssignedStaffUser.Name
+			}
+			_ = w.Write([]string{
+				a.ApplicationCode,
+				a.CitizenUser.Name,
+				a.ServiceType.Name,
+				deptName,
+				string(a.Status),
+				a.SubmittedAt.Format("02/01/2006"),
+				completedAt,
+				staffName,
+			})
+		}
+		if len(apps) < limit {
+			break
+		}
+		page++
+	}
+	w.Flush()
+	return nil
 }
 
 func (h *AdminApplicationHandler) AssignToStaff(c *echo.Context) error {

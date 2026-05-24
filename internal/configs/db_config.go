@@ -3,6 +3,7 @@ package configs
 import (
 	"fmt"
 	"os"
+	"time"
 
 	"github.com/awesome-academy/golang_baoan_thao/internal/models"
 	"gorm.io/driver/postgres"
@@ -19,6 +20,17 @@ func InitDB() *gorm.DB {
 	if err != nil {
 		panic(fmt.Sprintf("failed to connect database: %v", err))
 	}
+
+	sqlDB, err := db.DB()
+	if err != nil {
+		panic(fmt.Sprintf("failed to get sql.DB: %v", err))
+	}
+	// Recycle connections every 30 min so they don't outlive PostgreSQL's
+	// server-side idle timeout, avoiding stale-connection errors.
+	sqlDB.SetMaxOpenConns(20)
+	sqlDB.SetMaxIdleConns(5)
+	sqlDB.SetConnMaxLifetime(30 * time.Minute)
+	sqlDB.SetConnMaxIdleTime(5 * time.Minute)
 
 	if err := db.Exec("CREATE EXTENSION IF NOT EXISTS pgcrypto").Error; err != nil {
 		panic(fmt.Sprintf("failed to enable pgcrypto extension: %v", err))

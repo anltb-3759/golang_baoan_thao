@@ -1,5 +1,61 @@
 <script>
   if (window.lucide) { lucide.createIcons(); }
 </script>
+<script>
+(function () {
+  function toggleImportExportMenu() {
+    var dd = document.getElementById('import-export-dropdown');
+    if (!dd) return;
+    dd.classList.toggle('hidden');
+  }
+
+  function openImportModal() {
+    var dd = document.getElementById('import-export-dropdown');
+    if (dd) dd.classList.add('hidden');
+    var modal = document.getElementById('import-modal');
+    if (!modal) return;
+    modal.classList.remove('hidden');
+    document.body.style.overflow = 'hidden';
+    if (window.lucide) lucide.createIcons();
+  }
+
+  function closeImportModal() {
+    var modal = document.getElementById('import-modal');
+    if (!modal) return;
+    modal.classList.add('hidden');
+    document.body.style.overflow = '';
+  }
+
+  // close import-export dropdown when clicking outside
+  document.addEventListener('click', function (e) {
+    var menu = document.getElementById('import-export-menu');
+    if (!menu) return;
+    if (!menu.contains(e.target)) {
+      var dd = document.getElementById('import-export-dropdown');
+      if (dd) dd.classList.add('hidden');
+    }
+  });
+
+  // close import modal on backdrop click
+  var backdrop = document.getElementById('import-modal-backdrop');
+  if (backdrop) {
+    backdrop.addEventListener('click', closeImportModal);
+  }
+
+  document.addEventListener('keydown', function (e) {
+    if (e.key === 'Escape') closeImportModal();
+  });
+
+  // expose globally
+  window.toggleImportExportMenu = toggleImportExportMenu;
+  window.openImportModal = openImportModal;
+  window.closeImportModal = closeImportModal;
+
+  // auto-open modal if there are import errors on page load
+  if (document.querySelector('#import-modal .text-red-600')) {
+    openImportModal();
+  }
+})();
+</script>
 </body>
 </html>

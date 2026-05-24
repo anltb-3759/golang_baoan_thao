@@ -76,7 +76,8 @@
               <input type="password" name="password"
                      class="mt-1 w-full rounded-lg border text-sm px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-100 focus:border-indigo-500
                        {{ if and .FieldErrors (index .FieldErrors "Password") }}border-red-400 bg-red-50{{ else }}border-gray-300{{ end }}"
-                     required minlength="6" maxlength="72">
+                     minlength="6" maxlength="72"
+                     placeholder="{{ t "ui.users.form.password_placeholder" }}">
               {{ if and .FieldErrors (index .FieldErrors "Password") }}
               <p class="text-red-600 text-xs mt-1">{{ index .FieldErrors "Password" }}</p>
               {{ else }}
@@ -117,6 +118,22 @@
               <p class="text-red-600 text-xs mt-1">{{ index .FieldErrors "Address" }}</p>
               {{ end }}
             </div>
+
+            {{ if and .IsEdit .Departments }}
+            <!-- Department -->
+            <div>
+              <label class="text-sm font-medium text-gray-700">{{ t "ui.users.form.department" }}</label>
+              <select name="department_id"
+                      class="mt-1 w-full rounded-lg border border-gray-300 bg-white text-sm px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-100 focus:border-indigo-500">
+                <option value="">{{ t "ui.users.form.no_department" }}</option>
+                {{ $cur := .CurrentDeptID }}
+                {{ range .Departments }}
+                <option value="{{ .ID }}" {{ if eq $cur .ID }}selected{{ end }}>{{ .Name }}</option>
+                {{ end }}
+              </select>
+              <p class="text-xs text-gray-400 mt-1">{{ t "ui.users.form.dept_hint" }}</p>
+            </div>
+            {{ end }}
 
             <div class="flex gap-2 pt-4 border-t border-gray-100">
               <button type="submit"

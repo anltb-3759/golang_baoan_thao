@@ -12,6 +12,7 @@ import (
 type UserFilter struct {
 	Search string
 	Role   string
+	Roles  []string // multi-role IN filter; takes priority over Role when set
 }
 
 type UserRepository interface {
@@ -76,7 +77,9 @@ func (r *UserRepo) List(filter UserFilter, offset, limit int) ([]models.User, in
 		like := "%" + strings.ToLower(filter.Search) + "%"
 		q = q.Where("LOWER(name) LIKE ? OR LOWER(email) LIKE ?", like, like)
 	}
-	if filter.Role != "" {
+	if len(filter.Roles) > 0 {
+		q = q.Where("role IN ?", filter.Roles)
+	} else if filter.Role != "" {
 		q = q.Where("role = ?", filter.Role)
 	}
 

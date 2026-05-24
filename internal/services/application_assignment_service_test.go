@@ -12,15 +12,16 @@ import (
 )
 
 type fakeAppRepoForAssign struct {
-	app *models.Application
-	err error
+	app       *models.Application
+	err       error
+	updateErr error
 }
 
 func (r *fakeAppRepoForAssign) GetByID(id string) (*models.Application, error) {
 	return r.app, r.err
 }
-func (r *fakeAppRepoForAssign) UpdateAssignedStaff(applicationID string, assignedStaffUserID *string, updatedBy string) error {
-	return nil
+func (r *fakeAppRepoForAssign) UpdateAssignedStaff(_ string, _ *string, _ string) error {
+	return r.updateErr
 }
 
 // embed other methods to satisfy interface
@@ -105,6 +106,79 @@ func TestAssignApplication_ApplicationNotFound(t *testing.T) {
 	userRepo := &fakeUserRepoAssign{u: &models.User{ID: "u1"}}
 	svc := NewApplicationAssignmentService(appRepo, assignRepo, userRepo)
 	err := svc.AssignApplicationToStaff("appX", ptrStr("u1"), "admin-1")
+	assert.Error(t, err)
+}
+
+func TestAssignApplication_Transfer(t *testing.T) {
+	prevStaff := "u0"
+	app := &models.Application{ID: "app1", AssignedStaffUserID: &prevStaff}
+	appRepo := &fakeAppRepoForAssign{app: app}
+	assignRepo := &fakeAssignRepo{}
+	userRepo := &fakeUserRepoAssign{u: &models.User{ID: "u1"}}
+	svc := NewApplicationAssignmentService(appRepo, assignRepo, userRepo)
+	err := svc.AssignApplicationToStaff("app1", ptrStr("u1"), "admin-1")
+	assert.NoError(t, err)
+	assert.True(t, assignRepo.created)
+}
+
+func TestAssignApplication_Unassign(t *testing.T) {
+	prevStaff := "u0"
+	app := &models.Application{ID: "app1", AssignedStaffUserID: &prevStaff}
+	appRepo := &fakeAppRepoForAssign{app: app}
+	assignRepo := &fakeAssignRepo{}
+	userRepo := &fakeUserRepoAssign{}
+	svc := NewApplicationAssignmentService(appRepo, assignRepo, userRepo)
+	err := svc.AssignApplicationToStaff("app1", nil, "admin-1")
+	assert.NoError(t, err)
+	assert.True(t, assignRepo.created)
+}
+
+func TestAssignApplication_NoOp(t *testing.T) {
+	sameID := "u1"
+	app := &models.Application{ID: "app1", AssignedStaffUserID: &sameID}
+	appRepo := &fakeAppRepoForAssign{app: app}
+	assignRepo := &fakeAssignRepo{}
+	userRepo := &fakeUserRepoAssign{u: &models.User{ID: "u1"}}
+	svc := NewApplicationAssignmentService(appRepo, assignRepo, userRepo)
+	err := svc.AssignApplicationToStaff("app1", ptrStr("u1"), "admin-1")
+	assert.NoError(t, err)
+	assert.False(t, assignRepo.created)
+}
+
+func TestAssignApplication_UserNotFound(t *testing.T) {
+	app := &models.Application{ID: "app1", AssignedStaffUserID: nil}
+	appRepo := &fakeAppRepoForAssign{app: app}
+	assignRepo := &fakeAssignRepo{}
+	userRepo := &fakeUserRepoAssign{u: nil} // user not found
+	svc := NewApplicationAssignmentService(appRepo, assignRepo, userRepo)
+	err := svc.AssignApplicationToStaff("app1", ptrStr("missing"), "admin-1")
+	assert.ErrorIs(t, err, ErrUserNotFoundAssign)
+}
+
+type fakeAssignRepoErr struct{}
+
+func (r *fakeAssignRepoErr) Create(_ *models.ApplicationAssignment) (*models.ApplicationAssignment, error) {
+	return nil, errors.New("create error")
+}
+func (r *fakeAssignRepoErr) ListByApplication(_ string) ([]models.ApplicationAssignment, error) {
+	return nil, nil
+}
+
+func TestAssignApplication_CreateAssignmentError(t *testing.T) {
+	app := &models.Application{ID: "app1", AssignedStaffUserID: nil}
+	appRepo := &fakeAppRepoForAssign{app: app}
+	userRepo := &fakeUserRepoAssign{u: &models.User{ID: "u1"}}
+	svc := NewApplicationAssignmentService(appRepo, &fakeAssignRepoErr{}, userRepo)
+	err := svc.AssignApplicationToStaff("app1", ptrStr("u1"), "admin-1")
+	assert.Error(t, err)
+}
+
+func TestAssignApplication_UpdateAssignedStaffError(t *testing.T) {
+	app := &models.Application{ID: "app1", AssignedStaffUserID: nil}
+	appRepo := &fakeAppRepoForAssign{app: app, updateErr: errors.New("update failed")}
+	userRepo := &fakeUserRepoAssign{u: &models.User{ID: "u1"}}
+	svc := NewApplicationAssignmentService(appRepo, &fakeAssignRepo{}, userRepo)
+	err := svc.AssignApplicationToStaff("app1", ptrStr("u1"), "admin-1")
 	assert.Error(t, err)
 }
 

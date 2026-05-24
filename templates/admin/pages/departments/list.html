@@ -9,13 +9,37 @@
         <!-- Page Header -->
         <div class="flex items-center justify-between">
           <h1 class="text-xl font-semibold text-gray-900">{{ t "ui.departments.title" }}</h1>
-          {{ if and .CurrentUser (eq (printf "%s" .CurrentUser.Role) "super_admin") }}
-          <a href="/admin/departments/new"
-             class="inline-flex items-center gap-2 bg-indigo-600 text-white px-4 py-2 rounded-md text-sm hover:bg-indigo-700">
-            <i data-lucide="plus" class="h-4 w-4"></i>
-            {{ t "ui.departments.add" }}
-          </a>
-          {{ end }}
+          <div class="flex gap-2">
+            <!-- Import / Export dropdown -->
+            <div class="relative" id="import-export-menu">
+              <button onclick="toggleImportExportMenu()"
+                      class="inline-flex items-center gap-2 bg-white border border-gray-300 text-gray-700 px-4 py-2 rounded-md text-sm hover:bg-gray-50">
+                <i data-lucide="arrow-up-down" class="h-4 w-4"></i>
+                {{ t "ui.import_export.title" }}
+                <i data-lucide="chevron-down" class="h-3.5 w-3.5"></i>
+              </button>
+              <div id="import-export-dropdown"
+                   class="hidden absolute right-0 mt-1 w-52 bg-white border border-gray-200 rounded-md shadow-lg z-10">
+                {{ if and .CurrentUser (eq (printf "%s" .CurrentUser.Role) "super_admin") }}
+                <button onclick="openImportModal()"
+                        class="flex w-full items-center gap-2 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50">
+                  <i data-lucide="upload" class="h-4 w-4"></i> {{ t "ui.import_export.import_csv" }}
+                </button>
+                {{ end }}
+                <a href="/admin/departments/export"
+                   class="flex items-center gap-2 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50">
+                  <i data-lucide="download" class="h-4 w-4"></i> {{ t "ui.import_export.export_csv" }}
+                </a>
+              </div>
+            </div>
+            {{ if and .CurrentUser (eq (printf "%s" .CurrentUser.Role) "super_admin") }}
+            <a href="/admin/departments/new"
+               class="inline-flex items-center gap-2 bg-indigo-600 text-white px-4 py-2 rounded-md text-sm hover:bg-indigo-700">
+              <i data-lucide="plus" class="h-4 w-4"></i>
+              {{ t "ui.departments.add" }}
+            </a>
+            {{ end }}
+          </div>
         </div>
 
         <!-- Filter Bar -->
@@ -101,4 +125,5 @@
   </div>
 </div>
 {{ template "admin/partials/confirm-modal.html" . }}
+{{ template "admin/partials/import-modal.html" . }}
 {{ template "admin/partials/foot.html" . }}

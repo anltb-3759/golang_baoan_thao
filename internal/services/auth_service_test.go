@@ -84,6 +84,12 @@ func (r *fakeCitizenProfileRepository) CreateInTx(_ *gorm.DB, _ *models.CitizenP
 	r.created = true
 	return nil
 }
+func (r *fakeCitizenProfileRepository) FindByCitizenIDNumber(_ string) (*models.CitizenProfile, error) {
+	return nil, nil
+}
+func (r *fakeCitizenProfileRepository) ListAllForExport(_, _ int) ([]repositories.CitizenExportRow, int64, error) {
+	return nil, 0, nil
+}
 
 // --- helpers ---
 
@@ -220,6 +226,23 @@ func TestAuthServiceLoginReturnsUserNotFound(t *testing.T) {
 	}
 	if user != nil || token != "" || refreshToken != "" {
 		t.Fatalf("expected empty login result, got user=%#v token=%q refresh=%q", user, token, refreshToken)
+	}
+}
+
+func TestAuthServiceLoginReturnsUserBlocked(t *testing.T) {
+	t.Setenv("JWT_SECRET", "test-secret")
+	passwordHash, _ := bcrypt.GenerateFromPassword([]byte("123456"), bcrypt.DefaultCost)
+	service := newAuthService(
+		&fakeUserRepository{findByEmailUser: &models.User{
+			ID:           "u1",
+			PasswordHash: string(passwordHash),
+			Status:       models.UserStatusBlocked,
+		}},
+		&fakeCitizenProfileRepository{},
+	)
+	_, _, _, err := service.Login(&dtos.LoginRequest{Email: "u@e.com", Password: "123456"})
+	if !errors.Is(err, ErrUserBlocked) {
+		t.Fatalf("expected ErrUserBlocked, got %v", err)
 	}
 }
 

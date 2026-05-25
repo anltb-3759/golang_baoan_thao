@@ -58,14 +58,16 @@ func main() {
 	citizenProfileRepo := repositories.NewCitizenProfileRepository(db)
 	applicationRepo := repositories.NewApplicationRepository(db)
 	serviceCatalogRepo := repositories.NewServiceTypeRepository(db)
+	activityLogRepo := repositories.NewActivityLogRepository(db)
+	activityLogSvc := services.NewActivityLogService(activityLogRepo)
 
 	// Auth
 	authService := services.NewAuthService(db, userRepo, citizenProfileRepo)
-	authHandler := handlers.NewAuthHandler(authService)
-	adminAuthHandler := handlers.NewAdminAuthHandler(authService)
+	authHandler := handlers.NewAuthHandler(authService).WithActivityLogger(activityLogSvc)
+	adminAuthHandler := handlers.NewAdminAuthHandler(authService).WithActivityLogger(activityLogSvc)
 
-	serviceCatalogSvc := services.NewServiceCatalogService(serviceCatalogRepo)
-	adminUserSvc := services.NewAdminUserService(userRepo)
+	serviceCatalogSvc := services.NewServiceCatalogService(serviceCatalogRepo, activityLogSvc)
+	adminUserSvc := services.NewAdminUserService(userRepo, activityLogSvc)
 	serviceCatalogHandler := handlers.NewServiceCatalogHandler(serviceCatalogSvc, adminUserSvc)
 
 	citizenProfileSvc := services.NewCitizenProfileService(userRepo, citizenProfileRepo, applicationRepo)
@@ -76,7 +78,7 @@ func main() {
 	smtpCfg := services.LoadSMTPConfigFromEnv()
 	mailer := services.NewSMTPMailer(smtpCfg)
 
-	applicationSvc := services.NewApplicationService(applicationRepo, serviceCatalogRepo, userRepo, storage, mailer)
+	applicationSvc := services.NewApplicationService(applicationRepo, serviceCatalogRepo, userRepo, storage, mailer, activityLogSvc)
 	applicationHandler := handlers.NewApplicationHandler(applicationSvc)
 
 	adminUserHandler := handlers.NewAdminUserHandler(adminUserSvc)
@@ -84,19 +86,20 @@ func main() {
 
 	departmentRepo := repositories.NewDepartmentRepo(db)
 	staffProfileRepo := repositories.NewStaffProfileRepo(db)
-	departmentSvc := services.NewDepartmentService(departmentRepo, staffProfileRepo)
+	departmentSvc := services.NewDepartmentService(departmentRepo, staffProfileRepo, activityLogSvc)
 	staffProfileSvc := services.NewStaffProfileService(staffProfileRepo, userRepo)
 	adminDepartmentHandler := handlers.NewAdminDepartmentHandler(departmentSvc, adminUserSvc, staffProfileSvc)
 
 	// application assignment service + admin handler
 	applicationAssignmentRepo := repositories.NewApplicationAssignmentRepo(db)
-	applicationAssignmentSvc := services.NewApplicationAssignmentService(applicationRepo, applicationAssignmentRepo, userRepo)
-	adminApplicationSvc := services.NewAdminApplicationService(applicationRepo, applicationAssignmentSvc, storage)
+	applicationAssignmentSvc := services.NewApplicationAssignmentService(applicationRepo, applicationAssignmentRepo, userRepo, activityLogSvc)
+	adminApplicationSvc := services.NewAdminApplicationService(applicationRepo, applicationAssignmentSvc, storage, activityLogSvc)
 	adminApplicationHandler := handlers.NewAdminApplicationHandler(adminApplicationSvc, adminUserSvc, staffProfileSvc)
 
 	categoryRepo := repositories.NewCategoryRepo(db)
-	categorySvc := services.NewCategoryService(categoryRepo)
+	categorySvc := services.NewCategoryService(categoryRepo, activityLogSvc)
 	adminCategoryHandler := handlers.NewAdminCategoryHandler(categorySvc)
+	adminLogHandler := handlers.NewAdminLogHandler(activityLogSvc)
 
 	importExportSvc := services.NewImportExportService(db, departmentRepo, userRepo, citizenProfileRepo, serviceCatalogRepo, staffProfileRepo)
 	adminCitizenHandler := handlers.NewAdminCitizenHandler(citizenProfileRepo, importExportSvc)
@@ -112,6 +115,7 @@ func main() {
 		AdminUserHandler:        adminUserHandler,
 		AdminDepartmentHandler:  adminDepartmentHandler,
 		AdminApplicationHandler: adminApplicationHandler,
+		AdminLogHandler:         adminLogHandler,
 		AdminCitizenHandler:     adminCitizenHandler,
 		ServiceCatalogHandler:   serviceCatalogHandler,
 		CitizenProfileHandler:   citizenProfileHandler,

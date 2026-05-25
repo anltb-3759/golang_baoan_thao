@@ -1,6 +1,7 @@
 package services
 
 import (
+	"encoding/json"
 	"errors"
 	"testing"
 	"time"
@@ -52,6 +53,11 @@ func (r *fakeAdminAppRepo) GetByIDForCitizen(_, _ string) (*models.Application, 
 func newAdminAppSvc(repo *fakeAdminAppRepo) *AdminApplicationService {
 	assignSvc := NewApplicationAssignmentService(repo, &fakeAssignRepo{}, &fakeUserRepoAssign{})
 	return NewAdminApplicationService(repo, assignSvc, nil)
+}
+
+func newAdminAppSvcWithLogger(repo *fakeAdminAppRepo, logger activityLogger) *AdminApplicationService {
+	assignSvc := NewApplicationAssignmentService(repo, &fakeAssignRepo{}, &fakeUserRepoAssign{})
+	return NewAdminApplicationService(repo, assignSvc, nil, logger)
 }
 
 func TestAdminApplicationService_ListApplications_OK(t *testing.T) {
@@ -109,12 +115,33 @@ func TestAdminApplicationService_AssignToStaff_Unassign(t *testing.T) {
 func TestAdminApplicationService_ProcessApplication_OK(t *testing.T) {
 	prevStatus := models.ApplicationStatusReceived
 	repo := &fakeAdminAppRepo{app: &models.Application{ID: "app1", Status: prevStatus}}
-	svc := newAdminAppSvc(repo)
+	logger := &fakeActivityLogger{}
+	svc := newAdminAppSvcWithLogger(repo, logger)
 
-	err := svc.ProcessApplication("app1", models.ApplicationStatusProcessing, "Đang xử lý", nil, "admin-1")
+	err := svc.ProcessApplication("app1", models.ApplicationStatusProcessing, "processing", nil, "admin-1")
 	assert.NoError(t, err)
 	assert.Equal(t, models.ApplicationStatusProcessing, repo.processStatus)
-	assert.Equal(t, "Đang xử lý", repo.processNote)
+	assert.Equal(t, "processing", repo.processNote)
+	if assert.Len(t, logger.entries, 1) {
+		assert.Equal(t, "application.status_update", logger.entries[0].Action)
+		var metadata map[string]any
+		assert.NoError(t, json.Unmarshal(logger.entries[0].MetadataJSON, &metadata))
+		changes, ok := metadata["changes"].(map[string]any)
+		assert.True(t, ok)
+		status, ok := changes["status"].(map[string]any)
+		assert.True(t, ok)
+		assert.Equal(t, string(models.ApplicationStatusReceived), status["before"])
+		assert.Equal(t, string(models.ApplicationStatusProcessing), status["after"])
+	}
+}
+
+func TestAdminApplicationService_ProcessApplication_LogFailureDoesNotBreakMainFlow(t *testing.T) {
+	prevStatus := models.ApplicationStatusReceived
+	repo := &fakeAdminAppRepo{app: &models.Application{ID: "app1", Status: prevStatus}}
+	svc := newAdminAppSvcWithLogger(repo, &fakeActivityLogger{err: errors.New("log failed")})
+
+	err := svc.ProcessApplication("app1", models.ApplicationStatusProcessing, "ok", nil, "admin-1")
+	assert.NoError(t, err)
 }
 
 func TestAdminApplicationService_ProcessApplication_InvalidTransition(t *testing.T) {

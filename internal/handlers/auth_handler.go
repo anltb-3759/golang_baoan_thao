@@ -23,6 +23,7 @@ func cookieSecure() bool {
 
 type AuthHandler struct {
 	authService AuthService
+	logger      ActivityLogger
 }
 
 type AuthService interface {
@@ -30,8 +31,24 @@ type AuthService interface {
 	Login(reqData *dtos.LoginRequest) (*models.User, string, string, error)
 }
 
+type ActivityLogger interface {
+	Log(log *models.ActivityLog) error
+}
+
 func NewAuthHandler(authService AuthService) *AuthHandler {
 	return &AuthHandler{authService: authService}
+}
+
+func (h *AuthHandler) WithActivityLogger(logger ActivityLogger) *AuthHandler {
+	h.logger = logger
+	return h
+}
+
+func (h *AuthHandler) writeActivityLog(log *models.ActivityLog) {
+	if h.logger == nil || log == nil {
+		return
+	}
+	_ = h.logger.Log(log)
 }
 
 func (h *AuthHandler) Register(c *echo.Context) error {
@@ -80,6 +97,9 @@ func (h *AuthHandler) Login(c *echo.Context) error {
 			return err
 		}
 	}
+	if user == nil {
+		return echo.NewHTTPError(http.StatusInternalServerError, "common.internal_error")
+	}
 
 	c.SetCookie(&http.Cookie{
 		Name:     "refresh_token",
@@ -89,6 +109,15 @@ func (h *AuthHandler) Login(c *echo.Context) error {
 		HttpOnly: true,
 		Secure:   cookieSecure(),
 		SameSite: http.SameSiteLaxMode,
+	})
+
+	h.writeActivityLog(&models.ActivityLog{
+		ActorUserID: &user.ID,
+		Action:      "auth.login",
+		EntityType:  "user",
+		EntityID:    &user.ID,
+		Description: "Citizen login successful",
+		Result:      "success",
 	})
 
 	return c.JSON(http.StatusOK, utils.Map{
@@ -123,6 +152,14 @@ func (h *AuthHandler) RefreshTokenHandler(c *echo.Context) error {
 }
 
 func (h *AuthHandler) Logout(c *echo.Context) error {
+	var actorUserID *string
+	cookie, err := c.Cookie("refresh_token")
+	if err == nil {
+		claims, parseErr := configs.ParseToken(cookie.Value, configs.RefreshTokenType)
+		if parseErr == nil && claims.ID != "" {
+			actorUserID = &claims.ID
+		}
+	}
 	c.SetCookie(&http.Cookie{
 		Name:     "refresh_token",
 		Value:    "",
@@ -132,6 +169,15 @@ func (h *AuthHandler) Logout(c *echo.Context) error {
 		HttpOnly: true,
 		Secure:   cookieSecure(),
 		SameSite: http.SameSiteLaxMode,
+	})
+
+	h.writeActivityLog(&models.ActivityLog{
+		ActorUserID: actorUserID,
+		Action:      "auth.logout",
+		EntityType:  "user",
+		EntityID:    actorUserID,
+		Description: "Citizen logout successful",
+		Result:      "success",
 	})
 
 	return c.JSON(http.StatusOK, utils.Map{

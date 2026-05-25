@@ -42,6 +42,8 @@ func CustomHTTPErrorHandler(c *echo.Context, err error) {
 
 	path := c.Request().URL.Path
 	isAdminWeb := strings.HasPrefix(path, "/admin") && !strings.HasPrefix(path, "/admin/api")
+	isCitizenWeb := strings.HasPrefix(path, "/citizen") ||
+		path == "/" || path == "/login" || path == "/register" || path == "/logout"
 
 	if c.Request().Method == http.MethodHead {
 		c.NoContent(code)
@@ -57,6 +59,21 @@ func CustomHTTPErrorHandler(c *echo.Context, err error) {
 			"Message": T(c, messageKey, nil),
 		}
 		if renderErr := c.Render(code, "admin/pages/error.html", data); renderErr != nil {
+			c.JSON(code, map[string]interface{}{"errors": errorDetails, "code": code})
+		}
+		return
+	}
+
+	if isCitizenWeb {
+		headingKey, messageKey := adminErrorKeys(code)
+		data := map[string]interface{}{
+			"Title":    T(c, headingKey, nil),
+			"Code":     code,
+			"Heading":  T(c, headingKey, nil),
+			"Message":  T(c, messageKey, nil),
+			"FullPage": true,
+		}
+		if renderErr := c.Render(code, "citizen/pages/error.html", data); renderErr != nil {
 			c.JSON(code, map[string]interface{}{"errors": errorDetails, "code": code})
 		}
 		return

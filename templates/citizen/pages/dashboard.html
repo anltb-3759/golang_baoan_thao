@@ -1,0 +1,50 @@
+{{ define "content" }}
+<div class="space-y-6">
+  <div>
+    <h1 class="text-2xl font-semibold text-gray-900">{{ t "ui.citizen.dashboard.title" }}</h1>
+    {{ if .CurrentUser }}
+    <p class="mt-1 text-sm text-gray-600">{{ t "ui.citizen.dashboard.greeting" }} <span class="font-medium text-gray-900">{{ .CurrentUser.Email }}</span></p>
+    {{ end }}
+  </div>
+
+  <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+    <a href="/citizen/services" class="rounded-xl border border-gray-200 bg-white p-5 hover:border-indigo-300 hover:shadow-sm transition">
+      <div class="flex items-center gap-3">
+        <span class="inline-flex h-9 w-9 items-center justify-center rounded-lg bg-indigo-50 text-indigo-600">
+          <i data-lucide="layers" class="h-5 w-5"></i>
+        </span>
+        <div>
+          <div class="text-sm font-medium text-gray-900">{{ t "ui.nav.citizen.services" }}</div>
+          <div class="text-xs text-gray-500">{{ t "ui.citizen.dashboard.services_hint" }}</div>
+        </div>
+      </div>
+    </a>
+
+    <a href="/citizen/applications" class="rounded-xl border border-gray-200 bg-white p-5 hover:border-indigo-300 hover:shadow-sm transition">
+      <div class="flex items-center gap-3">
+        <span class="inline-flex h-9 w-9 items-center justify-center rounded-lg bg-indigo-50 text-indigo-600">
+          <i data-lucide="file-text" class="h-5 w-5"></i>
+        </span>
+        <div>
+          <div class="text-sm font-medium text-gray-900">{{ t "ui.nav.citizen.my_applications" }}</div>
+          <div class="text-xs text-gray-500">{{ t "ui.citizen.dashboard.applications_hint" }}</div>
+        </div>
+      </div>
+    </a>
+
+    <a href="/citizen/notifications" class="rounded-xl border border-gray-200 bg-white p-5 hover:border-indigo-300 hover:shadow-sm transition">
+      <div class="flex items-center gap-3">
+        <span class="inline-flex h-9 w-9 items-center justify-center rounded-lg bg-indigo-50 text-indigo-600">
+          <i data-lucide="bell" class="h-5 w-5"></i>
+        </span>
+        <div>
+          <div class="text-sm font-medium text-gray-900">{{ t "ui.nav.citizen.notifications" }}</div>
+          <div class="text-xs text-gray-500">{{ t "ui.citizen.dashboard.notifications_hint" }}</div>
+        </div>
+      </div>
+    </a>
+  </div>
+</div>
+{{ end }}
+
+{{ template "citizen_base" . }}

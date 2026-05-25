@@ -1,0 +1,58 @@
+{{ define "content" }}
+<div class="min-h-screen flex items-center justify-center bg-gray-50 px-4">
+  <div class="w-full max-w-md space-y-6">
+
+    <div class="flex items-center justify-between text-sm font-medium text-gray-600">
+      <div class="flex items-center gap-3">
+        <i data-lucide="landmark" class="h-5 w-5 text-indigo-600"></i>
+        {{ t "ui.page.system_name" }}
+      </div>
+      {{ template "lang_switch" . }}
+    </div>
+
+    <div class="rounded-2xl border border-gray-200 bg-white p-8 shadow-sm">
+      <div class="space-y-2 mb-6">
+        <p class="text-sm font-medium uppercase tracking-[0.2em] text-gray-500">{{ t "ui.page.citizen_portal_short" }}</p>
+        <h2 class="text-xl font-semibold text-gray-900">{{ t "ui.form.citizen_login" }}</h2>
+      </div>
+
+      {{ if .Error }}
+      <div class="mb-5 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{{ .Error }}</div>
+      {{ end }}
+
+      <form action="/login" method="post" class="space-y-5">
+        <div>
+          <label class="text-sm font-medium text-gray-700">{{ t "ui.form.email" }}</label>
+          <input name="email" type="email" value="{{ .Email }}" autocomplete="email"
+                 placeholder="{{ t "ui.form.email_placeholder" }}"
+                 class="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-900 outline-none transition focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100"
+                 required>
+        </div>
+
+        <div>
+          <label class="text-sm font-medium text-gray-700">{{ t "ui.form.password" }}</label>
+          <input name="password" type="password" autocomplete="current-password"
+                 placeholder="{{ t "ui.form.password_placeholder" }}"
+                 class="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-900 outline-none transition focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100"
+                 required>
+        </div>
+
+        <div class="flex gap-3 pt-1">
+          <button type="submit"
+                  class="inline-flex items-center justify-center gap-2 rounded-md bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700">
+            <i data-lucide="log-in" class="h-4 w-4"></i>
+            {{ t "ui.form.submit" }}
+          </button>
+          <a href="/register"
+             class="inline-flex items-center justify-center rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50">
+            {{ t "ui.cta.no_account_register" }}
+          </a>
+        </div>
+      </form>
+    </div>
+
+  </div>
+</div>
+{{ end }}
+
+{{ template "citizen_base" . }}

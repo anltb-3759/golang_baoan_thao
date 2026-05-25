@@ -1,0 +1,42 @@
+{{ define "citizen_base" }}
+<!doctype html>
+<html lang="vi">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>{{ if .Title }}{{ .Title }} - {{ t "ui.page.citizen_portal_short" }}{{ else }}{{ t "ui.page.citizen_portal_short" }}{{ end }}</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://unpkg.com/lucide@latest"></script>
+</head>
+<body class="min-h-screen bg-gray-50 font-sans text-gray-900">
+  {{ template "citizen/partials/toast.html" . }}
+  {{ if .FullPage }}
+    <main class="min-h-screen">
+      {{ block "content" . }}{{ end }}
+    </main>
+  {{ else }}
+    <div class="min-h-screen">
+      <div class="lg:flex">
+        <aside class="hidden lg:block w-56 border-r border-gray-200 bg-white">
+          {{ template "citizen/partials/sidebar.html" . }}
+        </aside>
+
+        <div class="flex-1 min-h-screen bg-gray-50">
+          <header class="sticky top-0 z-20 h-14 border-b bg-white">
+            {{ template "citizen/partials/topbar.html" . }}
+          </header>
+
+          <main class="max-w-6xl mx-auto p-6">
+            {{ block "content" . }}{{ end }}
+          </main>
+        </div>
+      </div>
+    </div>
+  {{ end }}
+
+  <script>
+    if (window.lucide) { lucide.createIcons(); }
+  </script>
+</body>
+</html>
+{{ end }}

@@ -92,9 +92,12 @@ func applicationStatusOptionsForProcess(current models.ApplicationStatus) []appl
 		return []applicationStatusOption{{Value: string(models.ApplicationStatusProcessing), Label: "processing"}}
 	case models.ApplicationStatusProcessing:
 		return []applicationStatusOption{
+			{Value: string(models.ApplicationStatusNeedMoreInfo), Label: "need_more_info"},
 			{Value: string(models.ApplicationStatusApproved), Label: "approved"},
 			{Value: string(models.ApplicationStatusRejected), Label: "rejected"},
 		}
+	case models.ApplicationStatusNeedMoreInfo:
+		return []applicationStatusOption{{Value: string(models.ApplicationStatusProcessing), Label: "processing"}}
 	default:
 		return nil
 	}
@@ -269,9 +272,10 @@ func (h *AdminApplicationHandler) ProcessApplication(c *echo.Context) error {
 	newStatus := models.ApplicationStatus(statusValue)
 	if len(applicationStatusOptionsForProcess(models.ApplicationStatusReceived)) > 0 {
 		allowed := map[string]struct{}{
-			string(models.ApplicationStatusProcessing): {},
-			string(models.ApplicationStatusApproved):   {},
-			string(models.ApplicationStatusRejected):   {},
+			string(models.ApplicationStatusProcessing):   {},
+			string(models.ApplicationStatusNeedMoreInfo): {},
+			string(models.ApplicationStatusApproved):     {},
+			string(models.ApplicationStatusRejected):     {},
 		}
 		if _, ok := allowed[statusValue]; !ok {
 			return echo.NewHTTPError(http.StatusUnprocessableEntity, "application.invalid_transition")
@@ -295,6 +299,8 @@ func mapAdminApplicationProcessError(err error) error {
 		return echo.NewHTTPError(http.StatusUnprocessableEntity, "application.invalid_transition")
 	case errors.Is(err, services.ErrAdminApplicationRejectReasonRequired):
 		return echo.NewHTTPError(http.StatusUnprocessableEntity, "application.reject_reason_required")
+	case errors.Is(err, services.ErrAdminApplicationNoteRequired):
+		return echo.NewHTTPError(http.StatusUnprocessableEntity, "application.note_required")
 	case errors.Is(err, utils.ErrDisallowedMime):
 		return echo.NewHTTPError(http.StatusUnprocessableEntity, "application.attachment_invalid_type")
 	case errors.Is(err, utils.ErrEmptyFileName), errors.Is(err, utils.ErrUnsafeFileName), errors.Is(err, utils.ErrPathEscape):

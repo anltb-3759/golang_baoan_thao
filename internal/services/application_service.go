@@ -25,17 +25,18 @@ const (
 )
 
 var (
-	ErrApplicationNotFound   = errors.New("application.not_found")
-	ErrServiceTypeNotFound   = errors.New("application.service_type_not_found")
-	ErrServiceTypeInactive   = errors.New("application.service_type_inactive")
-	ErrMissingRequiredField  = errors.New("application.missing_required_field")
-	ErrInvalidSubmittedData  = errors.New("application.invalid_submitted_data")
-	ErrInvalidFormSchema     = errors.New("application.invalid_form_schema")
-	ErrAttachmentRequired    = errors.New("application.attachment_required")
-	ErrSupplementNotAllowed  = errors.New("application.supplement_not_allowed")
-	ErrTooManyAttachments    = errors.New("application.attachment_too_many")
-	ErrAttachmentTooLarge    = errors.New("application.attachment_too_large")
-	ErrAttachmentInvalidType = errors.New("application.attachment_invalid_type")
+	ErrApplicationInvalidInput = errors.New("application.invalid_input")
+	ErrApplicationNotFound     = errors.New("application.not_found")
+	ErrServiceTypeNotFound     = errors.New("application.service_type_not_found")
+	ErrServiceTypeInactive     = errors.New("application.service_type_inactive")
+	ErrMissingRequiredField    = errors.New("application.missing_required_field")
+	ErrInvalidSubmittedData    = errors.New("application.invalid_submitted_data")
+	ErrInvalidFormSchema       = errors.New("application.invalid_form_schema")
+	ErrAttachmentRequired      = errors.New("application.attachment_required")
+	ErrSupplementNotAllowed    = errors.New("application.supplement_not_allowed")
+	ErrTooManyAttachments      = errors.New("application.attachment_too_many")
+	ErrAttachmentTooLarge      = errors.New("application.attachment_too_large")
+	ErrAttachmentInvalidType   = errors.New("application.attachment_invalid_type")
 )
 
 type ApplicationService struct {
@@ -44,6 +45,11 @@ type ApplicationService struct {
 	userRepo        repositories.UserRepository
 	storage         utils.FileStorage
 	mailer          Mailer
+	activityLogger  activityLogger
+}
+
+type activityLogger interface {
+	Log(log *models.ActivityLog) error
 }
 
 func NewApplicationService(
@@ -52,13 +58,19 @@ func NewApplicationService(
 	userRepo repositories.UserRepository,
 	storage utils.FileStorage,
 	mailer Mailer,
+	loggers ...activityLogger,
 ) *ApplicationService {
+	var logger activityLogger
+	if len(loggers) > 0 {
+		logger = loggers[0]
+	}
 	return &ApplicationService{
 		appRepo:         appRepo,
 		serviceTypeRepo: serviceTypeRepo,
 		userRepo:        userRepo,
 		storage:         storage,
 		mailer:          mailer,
+		activityLogger:  logger,
 	}
 }
 
@@ -67,8 +79,14 @@ func (s *ApplicationService) SubmitApplication(
 	req *dtos.SubmitApplicationRequest,
 	files []*multipart.FileHeader,
 ) (*dtos.ApplicationResponse, error) {
+	if req == nil {
+		return nil, ErrApplicationInvalidInput
+	}
 	st, err := s.serviceTypeRepo.GetByID(context.Background(), req.ServiceTypeID)
 	if err != nil {
+		return nil, ErrServiceTypeNotFound
+	}
+	if st == nil {
 		return nil, ErrServiceTypeNotFound
 	}
 	if !st.IsActive {
@@ -137,6 +155,19 @@ func (s *ApplicationService) SubmitApplication(
 		_ = s.storage.RemoveApplicationDir(tmpID)
 		return nil, fmt.Errorf("create application: %w", err)
 	}
+	s.logActivity(&models.ActivityLog{
+		ActorUserID: &citizenUserID,
+		Action:      "application.submit",
+		EntityType:  "application",
+		EntityID:    &app.ID,
+		Result:      "success",
+		MetadataJSON: mustJSON(map[string]any{
+			"service_type_id": app.ServiceTypeID,
+			"status":          app.Status,
+			"attachments":     len(atts),
+		}),
+		CreatedAt: now,
+	})
 
 	go func() {
 		user, err := s.userRepo.FindByID(citizenUserID)
@@ -164,6 +195,23 @@ func (s *ApplicationService) SubmitApplication(
 	return toApplicationResponse(app, st, atts), nil
 }
 
+func (s *ApplicationService) logActivity(entry *models.ActivityLog) {
+	if s.activityLogger == nil || entry == nil {
+		return
+	}
+	if err := s.activityLogger.Log(entry); err != nil {
+		log.Printf("activity log write failed for action %s: %v", entry.Action, err)
+	}
+}
+
+func mustJSON(v any) json.RawMessage {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return json.RawMessage(`{}`)
+	}
+	return b
+}
+
 func (s *ApplicationService) ListMyApplications(userID string, page, limit int) ([]models.Application, int64, error) {
 	return s.appRepo.ListByCitizen(userID, page, limit)
 }
@@ -180,7 +228,14 @@ func (s *ApplicationService) GetMyApplication(userID, appID string) (*dtos.Appli
 }
 
 func (s *ApplicationService) ListMyApplicationStatusHistory(userID, appID string, page, limit int, since *time.Time) ([]models.ApplicationStatusLog, int64, error) {
-	if _, err := s.appRepo.GetByIDForCitizen(appID, userID); err != nil {
+	app, err := s.appRepo.GetByIDForCitizen(appID, userID)
+	if err != nil {
+		if isApplicationRecordNotFound(err) {
+			return nil, 0, ErrApplicationNotFound
+		}
+		return nil, 0, fmt.Errorf("get application: %w", err)
+	}
+	if app == nil {
 		return nil, 0, ErrApplicationNotFound
 	}
 	return s.appRepo.ListStatusLogsByCitizen(appID, userID, page, limit, since)
@@ -197,6 +252,12 @@ func (s *ApplicationService) UploadMyApplicationSupplements(userID, appID string
 
 	app, err := s.appRepo.GetByIDForCitizen(appID, userID)
 	if err != nil {
+		if isApplicationRecordNotFound(err) {
+			return nil, ErrApplicationNotFound
+		}
+		return nil, fmt.Errorf("get application: %w", err)
+	}
+	if app == nil {
 		return nil, ErrApplicationNotFound
 	}
 
@@ -283,6 +344,16 @@ func validateSubmittedData(data json.RawMessage, schema json.RawMessage) error {
 		}
 	}
 	return nil
+}
+
+func isApplicationRecordNotFound(err error) bool {
+	if err == nil {
+		return false
+	}
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		return true
+	}
+	return strings.Contains(strings.ToLower(err.Error()), "record not found")
 }
 
 func validateAttachmentLimits(files []*multipart.FileHeader) error {

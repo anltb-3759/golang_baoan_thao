@@ -340,5 +340,17 @@
   "ui.citizens.col.phone": "Số điện thoại",
   "ui.citizens.col.dob": "Ngày sinh",
   "ui.citizens.col.total_apps": "Tổng hồ sơ",
-  "ui.citizens.empty": "Chưa có công dân nào."
+  "ui.citizens.empty": "Chưa có công dân nào.",
+  "ui.logs.title": "Nhật ký hệ thống",
+  "ui.logs.filter.action": "Hành động",
+  "ui.logs.filter.result": "Kết quả",
+  "ui.logs.filter.actor_user_id": "ID người thực hiện",
+  "ui.logs.cleanup.retain_days": "Xóa log cũ hơn (ngày)",
+  "ui.logs.cleanup.submit": "Dọn log",
+  "ui.logs.table.time": "Thời gian",
+  "ui.logs.table.actor": "Người thực hiện",
+  "ui.logs.table.action": "Hành động",
+  "ui.logs.table.description": "Mô tả",
+  "activity_log.cleanup.invalid_mode": "Vui lòng chọn duy nhất 1 cách dọn log hợp lệ",
+  "activity_log.cleanup.success": "Dọn log thành công"
 }

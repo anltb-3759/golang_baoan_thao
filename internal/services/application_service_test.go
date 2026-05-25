@@ -126,6 +126,16 @@ type fakeMailer struct{ sent bool }
 
 func (m *fakeMailer) Send(_, _, _ string) error { m.sent = true; return nil }
 
+type fakeActivityLogger struct {
+	entries []*models.ActivityLog
+	err     error
+}
+
+func (l *fakeActivityLogger) Log(entry *models.ActivityLog) error {
+	l.entries = append(l.entries, entry)
+	return l.err
+}
+
 // compile-time interface checks
 var _ repositories.ServiceTypeRepository = (*fakeAppServiceTypeRepo)(nil)
 var _ repositories.UserRepository = (*fakeAppUserRepo)(nil)
@@ -151,8 +161,9 @@ func newSvc(
 	uRepo *fakeAppUserRepo,
 	storage *fakeStorage,
 	mailer *fakeMailer,
+	logger ...activityLogger,
 ) *ApplicationService {
-	return NewApplicationService(appRepo, stRepo, uRepo, storage, mailer)
+	return NewApplicationService(appRepo, stRepo, uRepo, storage, mailer, logger...)
 }
 
 func activeServiceType() *models.ServiceType {
@@ -177,12 +188,14 @@ func validReq() *dtos.SubmitApplicationRequest {
 // --- SubmitApplication ---
 
 func TestSubmitApplication_Success_NoFiles(t *testing.T) {
+	logger := &fakeActivityLogger{}
 	svc := newSvc(
 		&fakeAppRepo{},
 		&fakeAppServiceTypeRepo{st: activeServiceType()},
 		&fakeAppUserRepo{user: &models.User{ID: "u1", Email: "a@b.com", Name: "An"}},
 		&fakeStorage{pubURL: "/uploads/f.pdf", mime: "application/pdf", size: 100},
 		&fakeMailer{},
+		logger,
 	)
 
 	resp, err := svc.SubmitApplication("u1", validReq(), nil)
@@ -191,12 +204,61 @@ func TestSubmitApplication_Success_NoFiles(t *testing.T) {
 	assert.NotNil(t, resp)
 	assert.NotEmpty(t, resp.ApplicationCode)
 	assert.Equal(t, "received", resp.Status)
+	if assert.Len(t, logger.entries, 1) {
+		assert.Equal(t, "application.submit", logger.entries[0].Action)
+		var metadata map[string]any
+		assert.NoError(t, json.Unmarshal(logger.entries[0].MetadataJSON, &metadata))
+		assert.Equal(t, "st-1", metadata["service_type_id"])
+		assert.Equal(t, float64(0), metadata["attachments"])
+	}
+}
+
+func TestSubmitApplication_LogFailureDoesNotBreakMainFlow(t *testing.T) {
+	svc := newSvc(
+		&fakeAppRepo{},
+		&fakeAppServiceTypeRepo{st: activeServiceType()},
+		&fakeAppUserRepo{user: &models.User{ID: "u1", Email: "a@b.com", Name: "An"}},
+		&fakeStorage{pubURL: "/uploads/f.pdf", mime: "application/pdf", size: 100},
+		&fakeMailer{},
+		&fakeActivityLogger{err: errors.New("log failed")},
+	)
+
+	resp, err := svc.SubmitApplication("u1", validReq(), nil)
+
+	assert.NoError(t, err)
+	assert.NotNil(t, resp)
 }
 
 func TestSubmitApplication_ServiceTypeNotFound(t *testing.T) {
 	svc := newSvc(
 		&fakeAppRepo{},
 		&fakeAppServiceTypeRepo{err: errors.New("not found")},
+		&fakeAppUserRepo{},
+		&fakeStorage{},
+		&fakeMailer{},
+	)
+
+	_, err := svc.SubmitApplication("u1", validReq(), nil)
+	assert.ErrorIs(t, err, ErrServiceTypeNotFound)
+}
+
+func TestSubmitApplication_NilRequest(t *testing.T) {
+	svc := newSvc(
+		&fakeAppRepo{},
+		&fakeAppServiceTypeRepo{},
+		&fakeAppUserRepo{},
+		&fakeStorage{},
+		&fakeMailer{},
+	)
+
+	_, err := svc.SubmitApplication("u1", nil, nil)
+	assert.ErrorIs(t, err, ErrApplicationInvalidInput)
+}
+
+func TestSubmitApplication_ServiceTypeNil(t *testing.T) {
+	svc := newSvc(
+		&fakeAppRepo{},
+		&fakeAppServiceTypeRepo{st: nil, err: nil},
 		&fakeAppUserRepo{},
 		&fakeStorage{},
 		&fakeMailer{},
@@ -471,6 +533,20 @@ func TestAppService_ListMyApplicationStatusHistory_NotFound(t *testing.T) {
 	assert.ErrorIs(t, err, ErrApplicationNotFound)
 }
 
+func TestAppService_ListMyApplicationStatusHistory_DBError(t *testing.T) {
+	svc := newSvc(
+		&fakeAppRepo{getErr: errors.New("db down")},
+		&fakeAppServiceTypeRepo{},
+		&fakeAppUserRepo{},
+		&fakeStorage{},
+		&fakeMailer{},
+	)
+
+	_, _, err := svc.ListMyApplicationStatusHistory("u1", "bad", 1, 10, nil)
+	assert.Error(t, err)
+	assert.NotErrorIs(t, err, ErrApplicationNotFound)
+}
+
 func TestAppService_UploadMyApplicationSupplements_Success(t *testing.T) {
 	files := []*multipart.FileHeader{{Filename: "bo-sung.pdf", Size: 1024}}
 	svc := newSvc(
@@ -526,6 +602,21 @@ func TestAppService_UploadMyApplicationSupplements_NotFound(t *testing.T) {
 
 	_, err := svc.UploadMyApplicationSupplements("u1", "missing", files)
 	assert.ErrorIs(t, err, ErrApplicationNotFound)
+}
+
+func TestAppService_UploadMyApplicationSupplements_DBError(t *testing.T) {
+	files := []*multipart.FileHeader{{Filename: "bo-sung.pdf", Size: 1024}}
+	svc := newSvc(
+		&fakeAppRepo{getErr: errors.New("db down")},
+		&fakeAppServiceTypeRepo{},
+		&fakeAppUserRepo{},
+		&fakeStorage{},
+		&fakeMailer{},
+	)
+
+	_, err := svc.UploadMyApplicationSupplements("u1", "missing", files)
+	assert.Error(t, err)
+	assert.NotErrorIs(t, err, ErrApplicationNotFound)
 }
 
 // --- validateSubmittedData ---

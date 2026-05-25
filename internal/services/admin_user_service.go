@@ -2,6 +2,7 @@ package services
 
 import (
 	"errors"
+	"log"
 	"os"
 	"time"
 
@@ -21,11 +22,16 @@ func defaultAdminPassword() string {
 var ErrUserNotFoundAdmin = errors.New("admin.user_not_found")
 
 type AdminUserService struct {
-	userRepo repositories.UserRepository
+	userRepo       repositories.UserRepository
+	activityLogger activityLogger
 }
 
-func NewAdminUserService(userRepo repositories.UserRepository) *AdminUserService {
-	return &AdminUserService{userRepo: userRepo}
+func NewAdminUserService(userRepo repositories.UserRepository, loggers ...activityLogger) *AdminUserService {
+	var logger activityLogger
+	if len(loggers) > 0 {
+		logger = loggers[0]
+	}
+	return &AdminUserService{userRepo: userRepo, activityLogger: logger}
 }
 
 func (s *AdminUserService) ListUsers(filter repositories.UserFilter, page, limit int) ([]models.User, int64, error) {
@@ -75,7 +81,23 @@ func (s *AdminUserService) CreateUser(req *dtos.AdminCreateUserRequest, createdB
 		UpdatedAt:    now,
 		CreatedBy:    &createdBy,
 	}
-	return s.userRepo.Create(user)
+	created, err := s.userRepo.Create(user)
+	if err != nil {
+		return nil, err
+	}
+	s.logActivity(&models.ActivityLog{
+		ActorUserID: &createdBy,
+		Action:      "user.create",
+		EntityType:  "user",
+		EntityID:    &created.ID,
+		Result:      "success",
+		MetadataJSON: mustJSON(map[string]any{
+			"role":   created.Role,
+			"status": created.Status,
+		}),
+		CreatedAt: now,
+	})
+	return created, nil
 }
 
 func (s *AdminUserService) UpdateUser(id string, req *dtos.AdminUpdateUserRequest, updatedBy string) (*models.User, error) {
@@ -86,6 +108,10 @@ func (s *AdminUserService) UpdateUser(id string, req *dtos.AdminUpdateUserReques
 	if user == nil {
 		return nil, ErrUserNotFoundAdmin
 	}
+	prevName := user.Name
+	prevRole := user.Role
+	prevPhone := user.Phone
+	prevAddress := user.Address
 
 	user.Name = req.Name
 	user.Role = models.UserRole(req.Role)
@@ -97,6 +123,22 @@ func (s *AdminUserService) UpdateUser(id string, req *dtos.AdminUpdateUserReques
 	if err := s.userRepo.Update(user); err != nil {
 		return nil, err
 	}
+	s.logActivity(&models.ActivityLog{
+		ActorUserID: &updatedBy,
+		Action:      "user.update",
+		EntityType:  "user",
+		EntityID:    &user.ID,
+		Result:      "success",
+		MetadataJSON: mustJSON(map[string]any{
+			"changes": map[string]any{
+				"name":    map[string]any{"before": prevName, "after": req.Name},
+				"role":    map[string]any{"before": prevRole, "after": req.Role},
+				"phone":   map[string]any{"before": prevPhone, "after": req.Phone},
+				"address": map[string]any{"before": prevAddress, "after": req.Address},
+			},
+		}),
+		CreatedAt: user.UpdatedAt,
+	})
 	return user, nil
 }
 
@@ -108,7 +150,19 @@ func (s *AdminUserService) BlockUser(id string, updatedBy string) error {
 	if user == nil {
 		return ErrUserNotFoundAdmin
 	}
-	return s.userRepo.UpdateStatus(id, models.UserStatusBlocked, updatedBy)
+	if err := s.userRepo.UpdateStatus(id, models.UserStatusBlocked, updatedBy); err != nil {
+		return err
+	}
+	now := time.Now()
+	s.logActivity(&models.ActivityLog{
+		ActorUserID: &updatedBy,
+		Action:      "user.block",
+		EntityType:  "user",
+		EntityID:    &id,
+		Result:      "success",
+		CreatedAt:   now,
+	})
+	return nil
 }
 
 func (s *AdminUserService) UnblockUser(id string, updatedBy string) error {
@@ -119,7 +173,19 @@ func (s *AdminUserService) UnblockUser(id string, updatedBy string) error {
 	if user == nil {
 		return ErrUserNotFoundAdmin
 	}
-	return s.userRepo.UpdateStatus(id, models.UserStatusActive, updatedBy)
+	if err := s.userRepo.UpdateStatus(id, models.UserStatusActive, updatedBy); err != nil {
+		return err
+	}
+	now := time.Now()
+	s.logActivity(&models.ActivityLog{
+		ActorUserID: &updatedBy,
+		Action:      "user.unblock",
+		EntityType:  "user",
+		EntityID:    &id,
+		Result:      "success",
+		CreatedAt:   now,
+	})
+	return nil
 }
 
 func (s *AdminUserService) DeleteUser(id string, deletedBy string) error {
@@ -130,5 +196,26 @@ func (s *AdminUserService) DeleteUser(id string, deletedBy string) error {
 	if user == nil {
 		return ErrUserNotFoundAdmin
 	}
-	return s.userRepo.SoftDelete(id, deletedBy)
+	if err := s.userRepo.SoftDelete(id, deletedBy); err != nil {
+		return err
+	}
+	now := time.Now()
+	s.logActivity(&models.ActivityLog{
+		ActorUserID: &deletedBy,
+		Action:      "user.delete",
+		EntityType:  "user",
+		EntityID:    &id,
+		Result:      "success",
+		CreatedAt:   now,
+	})
+	return nil
+}
+
+func (s *AdminUserService) logActivity(entry *models.ActivityLog) {
+	if s.activityLogger == nil || entry == nil {
+		return
+	}
+	if err := s.activityLogger.Log(entry); err != nil {
+		log.Printf("activity log write failed for action %s: %v", entry.Action, err)
+	}
 }

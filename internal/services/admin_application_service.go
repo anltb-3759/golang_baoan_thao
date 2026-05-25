@@ -2,6 +2,7 @@ package services
 
 import (
 	"errors"
+	"log"
 	"mime/multipart"
 	"strings"
 	"time"
@@ -16,13 +17,18 @@ var ErrAdminApplicationInvalidTransition = errors.New("application.invalid_trans
 var ErrAdminApplicationRejectReasonRequired = errors.New("application.reject_reason_required")
 
 type AdminApplicationService struct {
-	appRepo       repositories.ApplicationRepository
-	assignService *ApplicationAssignmentService
-	storage       utils.FileStorage
+	appRepo        repositories.ApplicationRepository
+	assignService  *ApplicationAssignmentService
+	storage        utils.FileStorage
+	activityLogger activityLogger
 }
 
-func NewAdminApplicationService(appRepo repositories.ApplicationRepository, assignService *ApplicationAssignmentService, storage utils.FileStorage) *AdminApplicationService {
-	return &AdminApplicationService{appRepo: appRepo, assignService: assignService, storage: storage}
+func NewAdminApplicationService(appRepo repositories.ApplicationRepository, assignService *ApplicationAssignmentService, storage utils.FileStorage, loggers ...activityLogger) *AdminApplicationService {
+	var logger activityLogger
+	if len(loggers) > 0 {
+		logger = loggers[0]
+	}
+	return &AdminApplicationService{appRepo: appRepo, assignService: assignService, storage: storage, activityLogger: logger}
 }
 
 func (s *AdminApplicationService) ListApplications(filter repositories.ApplicationFilter, page, limit int) ([]models.Application, int64, error) {
@@ -82,9 +88,6 @@ func (s *AdminApplicationService) ProcessApplication(applicationID string, newSt
 				for _, u := range savedURLs {
 					_ = s.storage.RemoveFile(u)
 				}
-				if err := s.storage.RemoveApplicationDir(app.ID); err != nil {
-					_ = err
-				}
 				return saveErr
 			}
 			savedURLs = append(savedURLs, pubURL)
@@ -109,8 +112,37 @@ func (s *AdminApplicationService) ProcessApplication(applicationID string, newSt
 		}
 		return err
 	}
+	actorID := processedBy
+	s.logActivity(&models.ActivityLog{
+		ActorUserID: &actorID,
+		Action:      "application.status_update",
+		EntityType:  "application",
+		EntityID:    &app.ID,
+		Result:      "success",
+		MetadataJSON: mustJSON(map[string]any{
+			"changes": map[string]any{
+				"status": map[string]any{
+					"before": app.Status,
+					"after":  newStatus,
+				},
+			},
+			"result_note_set":     strings.TrimSpace(resultNote) != "",
+			"rejected_reason_set": strings.TrimSpace(rejectedReason) != "",
+			"attachments":         len(attachments),
+		}),
+		CreatedAt: now,
+	})
 
 	return nil
+}
+
+func (s *AdminApplicationService) logActivity(entry *models.ActivityLog) {
+	if s.activityLogger == nil || entry == nil {
+		return
+	}
+	if err := s.activityLogger.Log(entry); err != nil {
+		log.Printf("activity log write failed for action %s: %v", entry.Action, err)
+	}
 }
 
 func isAllowedAdminTransition(current, next models.ApplicationStatus) bool {

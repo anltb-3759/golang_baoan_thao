@@ -340,5 +340,17 @@
   "ui.citizens.col.phone": "Phone",
   "ui.citizens.col.dob": "Date of birth",
   "ui.citizens.col.total_apps": "Applications",
-  "ui.citizens.empty": "No citizens found."
+  "ui.citizens.empty": "No citizens found.",
+  "ui.logs.title": "System Activity Logs",
+  "ui.logs.filter.action": "Action",
+  "ui.logs.filter.result": "Result",
+  "ui.logs.filter.actor_user_id": "Actor user ID",
+  "ui.logs.cleanup.retain_days": "Delete logs older than (days)",
+  "ui.logs.cleanup.submit": "Cleanup logs",
+  "ui.logs.table.time": "Time",
+  "ui.logs.table.actor": "Actor",
+  "ui.logs.table.action": "Action",
+  "ui.logs.table.description": "Description",
+  "activity_log.cleanup.invalid_mode": "Please choose exactly one valid cleanup mode",
+  "activity_log.cleanup.success": "Log cleanup completed successfully"
 }

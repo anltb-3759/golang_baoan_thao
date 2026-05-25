@@ -1,6 +1,7 @@
 package services
 
 import (
+	"encoding/json"
 	"errors"
 	"testing"
 	"time"
@@ -96,11 +97,24 @@ func TestAssignApplication_AssignAndRecord(t *testing.T) {
 	appRepo := &fakeAppRepoForAssign{app: app}
 	assignRepo := &fakeAssignRepo{}
 	userRepo := &fakeUserRepoAssign{u: &models.User{ID: "u1", Name: "Staff"}}
+	logger := &fakeActivityLogger{}
 
-	svc := NewApplicationAssignmentService(appRepo, assignRepo, userRepo)
+	svc := NewApplicationAssignmentService(appRepo, assignRepo, userRepo, logger)
 	err := svc.AssignApplicationToStaff("app1", ptrStr("u1"), "admin-1")
 	assert.NoError(t, err)
 	assert.True(t, assignRepo.created)
+	if assert.Len(t, logger.entries, 1) {
+		assert.Equal(t, "assignment.assign", logger.entries[0].Action)
+		assert.False(t, logger.entries[0].CreatedAt.IsZero())
+		var metadata map[string]any
+		assert.NoError(t, json.Unmarshal(logger.entries[0].MetadataJSON, &metadata))
+		changes, ok := metadata["changes"].(map[string]any)
+		assert.True(t, ok)
+		assigned, ok := changes["assigned_staff_user_id"].(map[string]any)
+		assert.True(t, ok)
+		assert.Nil(t, assigned["before"])
+		assert.Equal(t, "u1", assigned["after"])
+	}
 }
 
 func TestAssignApplication_ApplicationNotFound(t *testing.T) {
@@ -118,10 +132,23 @@ func TestAssignApplication_Transfer(t *testing.T) {
 	appRepo := &fakeAppRepoForAssign{app: app}
 	assignRepo := &fakeAssignRepo{}
 	userRepo := &fakeUserRepoAssign{u: &models.User{ID: "u1"}}
-	svc := NewApplicationAssignmentService(appRepo, assignRepo, userRepo)
+	logger := &fakeActivityLogger{}
+	svc := NewApplicationAssignmentService(appRepo, assignRepo, userRepo, logger)
 	err := svc.AssignApplicationToStaff("app1", ptrStr("u1"), "admin-1")
 	assert.NoError(t, err)
 	assert.True(t, assignRepo.created)
+	if assert.Len(t, logger.entries, 1) {
+		assert.Equal(t, "assignment.transfer", logger.entries[0].Action)
+	}
+}
+
+func TestAssignApplication_ApplicationNilWithoutError(t *testing.T) {
+	appRepo := &fakeAppRepoForAssign{app: nil, err: nil}
+	assignRepo := &fakeAssignRepo{}
+	userRepo := &fakeUserRepoAssign{u: &models.User{ID: "u1"}}
+	svc := NewApplicationAssignmentService(appRepo, assignRepo, userRepo)
+	err := svc.AssignApplicationToStaff("appX", ptrStr("u1"), "admin-1")
+	assert.ErrorIs(t, err, ErrApplicationNotFoundAssign)
 }
 
 func TestAssignApplication_Unassign(t *testing.T) {
@@ -130,10 +157,25 @@ func TestAssignApplication_Unassign(t *testing.T) {
 	appRepo := &fakeAppRepoForAssign{app: app}
 	assignRepo := &fakeAssignRepo{}
 	userRepo := &fakeUserRepoAssign{}
-	svc := NewApplicationAssignmentService(appRepo, assignRepo, userRepo)
+	logger := &fakeActivityLogger{}
+	svc := NewApplicationAssignmentService(appRepo, assignRepo, userRepo, logger)
 	err := svc.AssignApplicationToStaff("app1", nil, "admin-1")
 	assert.NoError(t, err)
 	assert.True(t, assignRepo.created)
+	if assert.Len(t, logger.entries, 1) {
+		assert.Equal(t, "assignment.unassign", logger.entries[0].Action)
+	}
+}
+
+func TestAssignApplication_LogFailureDoesNotBreakMainFlow(t *testing.T) {
+	app := &models.Application{ID: "app1", AssignedStaffUserID: nil}
+	appRepo := &fakeAppRepoForAssign{app: app}
+	assignRepo := &fakeAssignRepo{}
+	userRepo := &fakeUserRepoAssign{u: &models.User{ID: "u1", Name: "Staff"}}
+	svc := NewApplicationAssignmentService(appRepo, assignRepo, userRepo, &fakeActivityLogger{err: errors.New("log failed")})
+
+	err := svc.AssignApplicationToStaff("app1", ptrStr("u1"), "admin-1")
+	assert.NoError(t, err)
 }
 
 func TestAssignApplication_NoOp(t *testing.T) {

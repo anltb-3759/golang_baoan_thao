@@ -22,6 +22,22 @@ type fakeAuthService struct {
 	loginFn    func(reqData *dtos.LoginRequest) (*models.User, string, string, error)
 }
 
+type fakeActivityLogger struct {
+	logFn      func(log *models.ActivityLog) error
+	calls      int
+	lastLog    *models.ActivityLog
+	returnErr  error
+}
+
+func (l *fakeActivityLogger) Log(log *models.ActivityLog) error {
+	l.calls++
+	l.lastLog = log
+	if l.logFn != nil {
+		return l.logFn(log)
+	}
+	return l.returnErr
+}
+
 func (s *fakeAuthService) Register(reqData *dtos.RegisterRequest) (*models.User, error) {
 	return s.registerFn(reqData)
 }
@@ -91,6 +107,7 @@ func TestAuthHandlerRegisterMapsEmailExistsError(t *testing.T) {
 
 func TestAuthHandlerLoginReturnsTokenAndRefreshCookie(t *testing.T) {
 	e := newTestEcho()
+	logger := &fakeActivityLogger{}
 	handler := NewAuthHandler(&fakeAuthService{
 		loginFn: func(reqData *dtos.LoginRequest) (*models.User, string, string, error) {
 			if reqData.Email != "user@example.com" {
@@ -102,7 +119,7 @@ func TestAuthHandlerLoginReturnsTokenAndRefreshCookie(t *testing.T) {
 				Role:  models.UserRoleCitizen,
 			}, "access-token", "refresh-token", nil
 		},
-	})
+	}).WithActivityLogger(logger)
 	c, rec := newJSONContext(e, http.MethodPost, "/api/auth/login", `{"email":"user@example.com","password":"123456"}`)
 
 	if err := handler.Login(c); err != nil {
@@ -121,6 +138,12 @@ func TestAuthHandlerLoginReturnsTokenAndRefreshCookie(t *testing.T) {
 	}
 	if response["token"] != "access-token" {
 		t.Fatalf("expected access token in response, got %#v", response["token"])
+	}
+	if logger.calls != 1 {
+		t.Fatalf("expected 1 activity log call, got %d", logger.calls)
+	}
+	if logger.lastLog == nil || logger.lastLog.Action != "auth.login" || logger.lastLog.Result != "success" {
+		t.Fatalf("expected auth.login success log, got %#v", logger.lastLog)
 	}
 }
 
@@ -218,6 +241,19 @@ func TestAuthHandlerLoginInternalError(t *testing.T) {
 	}
 }
 
+func TestAuthHandlerLoginReturnsSafeErrorWhenUserIsNil(t *testing.T) {
+	e := newTestEcho()
+	handler := NewAuthHandler(&fakeAuthService{
+		loginFn: func(reqData *dtos.LoginRequest) (*models.User, string, string, error) {
+			return nil, "access-token", "refresh-token", nil
+		},
+	})
+	c, _ := newJSONContext(e, http.MethodPost, "/api/auth/login", `{"email":"user@example.com","password":"123456"}`)
+
+	err := handler.Login(c)
+	assertHTTPError(t, err, http.StatusInternalServerError, "common.internal_error")
+}
+
 func TestAuthHandlerRefreshTokenInvalidToken(t *testing.T) {
 	t.Setenv("JWT_SECRET", "test-secret")
 	e := newTestEcho()
@@ -300,7 +336,8 @@ func TestAuthHandlerLogoutClearsRefreshCookie(t *testing.T) {
 	}
 
 	e := newTestEcho()
-	handler := NewAuthHandler(&fakeAuthService{})
+	logger := &fakeActivityLogger{}
+	handler := NewAuthHandler(&fakeAuthService{}).WithActivityLogger(logger)
 	req := httptest.NewRequest(http.MethodPost, "/api/auth/logout", nil)
 	req.AddCookie(&http.Cookie{
 		Name:  "refresh_token",
@@ -328,6 +365,62 @@ func TestAuthHandlerLogoutClearsRefreshCookie(t *testing.T) {
 	}
 	if response["message"] != "Logout successfully" {
 		t.Fatalf("expected logout success message, got %q", response["message"])
+	}
+	if logger.calls != 1 {
+		t.Fatalf("expected 1 activity log call, got %d", logger.calls)
+	}
+	if logger.lastLog == nil || logger.lastLog.Action != "auth.logout" || logger.lastLog.Result != "success" {
+		t.Fatalf("expected auth.logout success log, got %#v", logger.lastLog)
+	}
+}
+
+func TestAuthHandlerLoginSucceedsWhenActivityLogFails(t *testing.T) {
+	e := newTestEcho()
+	logger := &fakeActivityLogger{returnErr: errors.New("log failed")}
+	handler := NewAuthHandler(&fakeAuthService{
+		loginFn: func(reqData *dtos.LoginRequest) (*models.User, string, string, error) {
+			return &models.User{ID: "user-id", Email: reqData.Email, Role: models.UserRoleCitizen}, "access-token", "refresh-token", nil
+		},
+	}).WithActivityLogger(logger)
+	c, rec := newJSONContext(e, http.MethodPost, "/api/auth/login", `{"email":"user@example.com","password":"123456"}`)
+
+	if err := handler.Login(c); err != nil {
+		t.Fatalf("expected nil error, got %v", err)
+	}
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected status %d, got %d", http.StatusOK, rec.Code)
+	}
+}
+
+func TestAuthHandlerLogoutSucceedsWhenActivityLogFails(t *testing.T) {
+	if err := configs.LoadI18nMessages("../../locales"); err != nil {
+		t.Fatalf("load i18n messages: %v", err)
+	}
+
+	t.Setenv("JWT_SECRET", "test-secret")
+	e := newTestEcho()
+	logger := &fakeActivityLogger{returnErr: errors.New("log failed")}
+	handler := NewAuthHandler(&fakeAuthService{}).WithActivityLogger(logger)
+	refreshToken, err := configs.GenerateRefreshToken(&models.User{
+		ID:    "user-id",
+		Email: "user@example.com",
+		Role:  models.UserRoleCitizen,
+	})
+	if err != nil {
+		t.Fatalf("generate refresh token: %v", err)
+	}
+
+	req := httptest.NewRequest(http.MethodPost, "/api/auth/logout", nil)
+	req.AddCookie(&http.Cookie{Name: "refresh_token", Value: refreshToken})
+	rec := httptest.NewRecorder()
+	c := e.NewContext(req, rec)
+	c.Set(configs.LocaleKey, "en")
+
+	if err := handler.Logout(c); err != nil {
+		t.Fatalf("expected nil error, got %v", err)
+	}
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected status %d, got %d", http.StatusOK, rec.Code)
 	}
 }
 

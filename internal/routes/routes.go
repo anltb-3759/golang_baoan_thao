@@ -14,6 +14,7 @@ type ApiHandler struct {
 	AdminDepartmentHandler  *handlers.AdminDepartmentHandler
 	AdminCategoryHandler    *handlers.AdminCategoryHandler
 	AdminApplicationHandler *handlers.AdminApplicationHandler
+	AdminLogHandler         *handlers.AdminLogHandler
 	AdminCitizenHandler     *handlers.AdminCitizenHandler
 	AuthHandler             *handlers.AuthHandler
 	CitizenProfileHandler   *handlers.CitizenProfileHandler
@@ -117,6 +118,14 @@ func SetupRoutes(e *echo.Echo, handler *ApiHandler) {
 	appsWrite.POST("/:id/process", handler.AdminApplicationHandler.ProcessApplication)
 	appsWrite.GET("/:id/assign", handler.AdminApplicationHandler.ShowAssignForm)
 	appsWrite.POST("/:id/assign", handler.AdminApplicationHandler.AssignToStaff)
+
+	// Activity logs: read (Manager + Super Admin)
+	logsRead := admin.Group("/logs", middlewares.AdminWebRequireRoles(models.UserRoleManager, models.UserRoleSuperAdmin))
+	logsRead.GET("", handler.AdminLogHandler.ListLogs)
+
+	// Activity logs cleanup: write (Super Admin only)
+	logsWrite := admin.Group("/logs", middlewares.AdminWebRequireRoles(models.UserRoleSuperAdmin))
+	logsWrite.POST("/cleanup", handler.AdminLogHandler.CleanupLogs)
 
 	api := e.Group("/api")
 

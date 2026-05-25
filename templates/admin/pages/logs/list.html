@@ -1,0 +1,55 @@
+{{ define "content" }}
+<div class="w-full space-y-6">
+  <div class="flex items-center justify-between mb-6">
+    <h1 class="text-xl font-semibold text-gray-900">{{ t "ui.logs.title" }}</h1>
+    {{ if .CanCleanup }}
+    <form method="post" action="/admin/logs/cleanup" class="flex items-center gap-2" onsubmit="return confirm('Bạn có chắc muốn xóa log cũ?')">
+      <input type="number" min="1" name="retain_days" placeholder="{{ t "ui.logs.cleanup.retain_days" }}" class="rounded-lg border border-gray-300 text-sm px-3 py-2 w-56">
+      <button class="bg-red-600 text-white hover:bg-red-700 px-4 py-2 rounded-md text-sm">{{ t "ui.logs.cleanup.submit" }}</button>
+    </form>
+    {{ end }}
+  </div>
+
+  {{ if .Flash }}
+  <div class="px-4 py-3 rounded-lg text-sm {{ if eq .Flash.Type "success" }}bg-green-50 text-green-700 border border-green-200{{ else }}bg-red-50 text-red-700 border border-red-200{{ end }}">
+    {{ .Flash.Message }}
+  </div>
+  {{ end }}
+
+  <form method="get" action="/admin/logs" class="flex gap-3 mb-4">
+    <input name="action" value="{{ .FilterAction }}" placeholder="{{ t "ui.logs.filter.action" }}" class="rounded-lg border border-gray-300 text-sm px-3 py-2 w-64">
+    <input name="result" value="{{ .FilterResult }}" placeholder="{{ t "ui.logs.filter.result" }}" class="rounded-lg border border-gray-300 text-sm px-3 py-2 w-48">
+    <input name="actor_user_id" value="{{ .FilterActor }}" placeholder="{{ t "ui.logs.filter.actor_user_id" }}" class="rounded-lg border border-gray-300 text-sm px-3 py-2 w-64">
+    <button class="bg-indigo-600 text-white hover:bg-indigo-700 px-4 py-2 rounded-md text-sm">{{ t "ui.common.search" }}</button>
+    <a href="/admin/logs" class="bg-white text-gray-700 border border-gray-300 hover:bg-gray-50 px-4 py-2 rounded-md text-sm">{{ t "ui.common.reset" }}</a>
+  </form>
+
+  <div class="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
+    <table class="min-w-full divide-y divide-gray-200">
+      <thead class="bg-gray-50">
+        <tr>
+          <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">{{ t "ui.logs.table.time" }}</th>
+          <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">{{ t "ui.logs.table.actor" }}</th>
+          <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">{{ t "ui.logs.table.action" }}</th>
+          <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">{{ t "ui.logs.table.description" }}</th>
+        </tr>
+      </thead>
+      <tbody class="divide-y divide-gray-200">
+        {{ range .Logs }}
+        <tr class="hover:bg-gray-50">
+          <td class="px-4 py-3 text-sm text-gray-700">{{ fmtTime .CreatedAt "15:04 02/01/2006" }}</td>
+          <td class="px-4 py-3 text-sm text-gray-700">{{ if .ActorUser }}{{ .ActorUser.Name }}{{ else }}-{{ end }}</td>
+          <td class="px-4 py-3 text-sm text-gray-700">{{ .Action }}</td>
+          <td class="px-4 py-3 text-sm text-gray-700">{{ if .Description }}{{ .Description }}{{ else }}{{ .EntityType }}{{ if .EntityID }}: {{ .EntityID }}{{ end }}{{ end }}</td>
+        </tr>
+        {{ else }}
+        <tr><td colspan="4" class="text-gray-400 text-center py-8">{{ t "ui.users.empty" }}</td></tr>
+        {{ end }}
+      </tbody>
+    </table>
+    {{ template "admin/partials/pagination.html" . }}
+  </div>
+</div>
+{{ end }}
+
+{{ template "base" . }}

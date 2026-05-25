@@ -2,6 +2,8 @@ package services
 
 import (
 	"errors"
+	"log"
+	"time"
 
 	"github.com/awesome-academy/golang_baoan_thao/internal/models"
 	"github.com/awesome-academy/golang_baoan_thao/internal/repositories"
@@ -11,18 +13,23 @@ var ErrApplicationNotFoundAssign = errors.New("application.not_found")
 var ErrUserNotFoundAssign = errors.New("user.not_found")
 
 type ApplicationAssignmentService struct {
-	appRepo    repositories.ApplicationRepository
-	assignRepo repositories.ApplicationAssignmentRepository
-	userRepo   repositories.UserRepository
+	appRepo        repositories.ApplicationRepository
+	assignRepo     repositories.ApplicationAssignmentRepository
+	userRepo       repositories.UserRepository
+	activityLogger activityLogger
 }
 
-func NewApplicationAssignmentService(appRepo repositories.ApplicationRepository, assignRepo repositories.ApplicationAssignmentRepository, userRepo repositories.UserRepository) *ApplicationAssignmentService {
-	return &ApplicationAssignmentService{appRepo: appRepo, assignRepo: assignRepo, userRepo: userRepo}
+func NewApplicationAssignmentService(appRepo repositories.ApplicationRepository, assignRepo repositories.ApplicationAssignmentRepository, userRepo repositories.UserRepository, loggers ...activityLogger) *ApplicationAssignmentService {
+	var logger activityLogger
+	if len(loggers) > 0 {
+		logger = loggers[0]
+	}
+	return &ApplicationAssignmentService{appRepo: appRepo, assignRepo: assignRepo, userRepo: userRepo, activityLogger: logger}
 }
 
 func (s *ApplicationAssignmentService) AssignApplicationToStaff(applicationID string, toStaffUserID *string, assignedBy string) error {
 	app, err := s.appRepo.GetByID(applicationID)
-	if err != nil {
+	if err != nil || app == nil {
 		return ErrApplicationNotFoundAssign
 	}
 
@@ -62,6 +69,44 @@ func (s *ApplicationAssignmentService) AssignApplicationToStaff(applicationID st
 	if err := s.appRepo.UpdateAssignedStaff(applicationID, toStaffUserID, assignedBy); err != nil {
 		return err
 	}
+	s.logAssignmentActivity(applicationID, assignedBy, action, app.AssignedStaffUserID, toStaffUserID)
 
 	return nil
+}
+
+func (s *ApplicationAssignmentService) logAssignmentActivity(applicationID, assignedBy string, action models.AssignmentAction, fromStaffUserID, toStaffUserID *string) {
+	if s.activityLogger == nil {
+		return
+	}
+	var actionName string
+	switch action {
+	case models.AssignmentActionAssigned:
+		actionName = "assignment.assign"
+	case models.AssignmentActionTransferred:
+		actionName = "assignment.transfer"
+	case models.AssignmentActionUnassigned:
+		actionName = "assignment.unassign"
+	default:
+		return
+	}
+	actorID := assignedBy
+	entry := &models.ActivityLog{
+		ActorUserID: &actorID,
+		Action:      actionName,
+		EntityType:  "application",
+		EntityID:    &applicationID,
+		Result:      "success",
+		MetadataJSON: mustJSON(map[string]any{
+			"changes": map[string]any{
+				"assigned_staff_user_id": map[string]any{
+					"before": fromStaffUserID,
+					"after":  toStaffUserID,
+				},
+			},
+		}),
+		CreatedAt: time.Now(),
+	}
+	if err := s.activityLogger.Log(entry); err != nil {
+		log.Printf("activity log write failed for action %s: %v", entry.Action, err)
+	}
 }

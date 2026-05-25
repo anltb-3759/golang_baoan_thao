@@ -8,13 +8,16 @@
 
         <!-- Page Header -->
         <div class="flex items-center justify-between">
+          {{ $isSA := and .CurrentUser (eq .CurrentUser.Role "super_admin") }}
           <h1 class="text-xl font-semibold text-gray-900">{{ t "ui.users.detail.title" }}</h1>
           <div class="flex gap-2">
+            {{ if $isSA }}
             <a href="/admin/users/{{ .User.ID }}/edit"
                class="inline-flex items-center gap-2 bg-indigo-600 text-white px-4 py-2 rounded-md text-sm hover:bg-indigo-700">
               <i data-lucide="pencil" class="h-4 w-4"></i>
               {{ t "ui.users.detail.edit" }}
             </a>
+            {{ end }}
             <a href="/admin/users"
                class="bg-white text-gray-700 border border-gray-300 px-4 py-2 rounded-md text-sm hover:bg-gray-50">
               {{ t "ui.users.detail.back" }}
@@ -77,6 +80,7 @@
           </div>
         </div>
 
+        {{ if $isSA }}
         <!-- Actions -->
         <div class="flex gap-2">
           {{ if eq (printf "%s" .User.Status) "active" }}
@@ -113,6 +117,7 @@
             </button>
           </form>
         </div>
+        {{ end }}
 
       </div>
     </main>

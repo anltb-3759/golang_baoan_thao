@@ -44,7 +44,6 @@ type serviceTypeFormData struct {
 	ProcessingTime          string
 	Fee                     string
 	ResponsibleDepartmentID string
-	ResponsibleStaffUserID  string
 	IsActive                bool
 }
 
@@ -83,10 +82,6 @@ func serviceTypeFormFromModel(st *models.ServiceType) serviceTypeFormData {
 	if st.ResponsibleDepartmentID != nil {
 		responsibleDepartmentID = *st.ResponsibleDepartmentID
 	}
-	responsibleStaffUserID := ""
-	if st.ResponsibleStaffUserID != nil {
-		responsibleStaffUserID = *st.ResponsibleStaffUserID
-	}
 
 	categoryID := ""
 	if st.CategoryID != nil {
@@ -104,7 +99,6 @@ func serviceTypeFormFromModel(st *models.ServiceType) serviceTypeFormData {
 		ProcessingTime:          processingTime,
 		Fee:                     fee,
 		ResponsibleDepartmentID: responsibleDepartmentID,
-		ResponsibleStaffUserID:  responsibleStaffUserID,
 		IsActive:                st.IsActive,
 	}
 }
@@ -120,7 +114,6 @@ func serviceTypeFormFromRequest(req *dtos.ServiceTypeFormRequest) serviceTypeFor
 		ProcessingTime:          req.ProcessingTime,
 		Fee:                     req.Fee,
 		ResponsibleDepartmentID: req.ResponsibleDepartmentID,
-		ResponsibleStaffUserID:  req.ResponsibleStaffUserID,
 		IsActive:                req.IsActive,
 	}
 	if formData.FormSchema == "" {
@@ -182,13 +175,6 @@ func serviceTypeToModel(req *dtos.ServiceTypeFormRequest, existing *models.Servi
 	} else {
 		serviceType.ResponsibleDepartmentID = nil
 	}
-	if strings.TrimSpace(req.ResponsibleStaffUserID) != "" {
-		staffID := strings.TrimSpace(req.ResponsibleStaffUserID)
-		serviceType.ResponsibleStaffUserID = &staffID
-	} else {
-		serviceType.ResponsibleStaffUserID = nil
-	}
-
 	return serviceType, nil
 }
 
@@ -305,11 +291,6 @@ func (h *ServiceCatalogHandler) CreateServiceTypeForm(c *echo.Context) error {
 	if err != nil {
 		return echo.NewHTTPError(http.StatusInternalServerError, "common.internal_error")
 	}
-	users, _, uerr := h.userSvc.ListUsers(repositories.UserFilter{Role: "staff"}, 1, 1000)
-	if uerr != nil {
-		return echo.NewHTTPError(http.StatusInternalServerError, "common.internal_error")
-	}
-
 	return c.Render(http.StatusOK, "admin/pages/service-types/form.html", map[string]any{
 		"Mode":         "create",
 		"Title":        configs.T(c, "service_type.create_title", nil),
@@ -317,7 +298,6 @@ func (h *ServiceCatalogHandler) CreateServiceTypeForm(c *echo.Context) error {
 		"ServiceType":  serviceTypeFormData{},
 		"Departments":  depts,
 		"Categories":   cats,
-		"StaffOptions": users,
 		"CurrentPath":  "/admin/service-types",
 		"CurrentUser":  adminCurrentUser(c),
 	})
@@ -330,25 +310,9 @@ func (h *ServiceCatalogHandler) CreateServiceType(c *echo.Context) error {
 		return echo.NewHTTPError(http.StatusBadRequest, "service_type.invalid_request")
 	}
 
-	// If responsible staff is provided (via form), validate right away so tests expecting
-	// an error for invalid staff receive it before other validation/rendering.
-	staffID := strings.TrimSpace(c.FormValue("responsible_staff_user_id"))
-	if staffID == "" {
-		staffID = strings.TrimSpace(req.ResponsibleStaffUserID)
-	}
-	if staffID != "" {
-		u, uerr := h.userSvc.GetUser(staffID)
-		if uerr != nil || u == nil || u.Role != models.UserRoleStaff {
-			return echo.NewHTTPError(http.StatusBadRequest, "service_type.invalid_responsible_staff")
-		}
-	}
 	if err := c.Validate(req); err != nil {
 		depts, cats, depErr := h.loadFormDeps(c.Request().Context())
 		if depErr != nil {
-			return echo.NewHTTPError(http.StatusInternalServerError, "common.internal_error")
-		}
-		users, _, uerr := h.userSvc.ListUsers(repositories.UserFilter{Role: "staff"}, 1, 1000)
-		if uerr != nil {
 			return echo.NewHTTPError(http.StatusInternalServerError, "common.internal_error")
 		}
 		return c.Render(http.StatusBadRequest, "admin/pages/service-types/form.html", map[string]any{
@@ -359,7 +323,6 @@ func (h *ServiceCatalogHandler) CreateServiceType(c *echo.Context) error {
 			"ServiceType":  serviceTypeFormFromRequest(req),
 			"Departments":  depts,
 			"Categories":   cats,
-			"StaffOptions": users,
 			"CurrentPath":  "/admin/service-types",
 			"CurrentUser":  adminCurrentUser(c),
 		})
@@ -369,10 +332,6 @@ func (h *ServiceCatalogHandler) CreateServiceType(c *echo.Context) error {
 	if err != nil {
 		depts, cats, depErr := h.loadFormDeps(c.Request().Context())
 		if depErr != nil {
-			return echo.NewHTTPError(http.StatusInternalServerError, "common.internal_error")
-		}
-		users, _, uerr := h.userSvc.ListUsers(repositories.UserFilter{Role: "staff"}, 1, 1000)
-		if uerr != nil {
 			return echo.NewHTTPError(http.StatusInternalServerError, "common.internal_error")
 		}
 		message := configs.T(c, "common.internal_error", nil)
@@ -390,7 +349,6 @@ func (h *ServiceCatalogHandler) CreateServiceType(c *echo.Context) error {
 			"ServiceType":  serviceTypeFormFromRequest(req),
 			"Departments":  depts,
 			"Categories":   cats,
-			"StaffOptions": users,
 			"CurrentPath":  "/admin/service-types",
 			"CurrentUser":  adminCurrentUser(c),
 		})
@@ -402,10 +360,6 @@ func (h *ServiceCatalogHandler) CreateServiceType(c *echo.Context) error {
 	if err := h.svc.Create(c.Request().Context(), serviceType); err != nil {
 		depts, cats, depErr := h.loadFormDeps(c.Request().Context())
 		if depErr != nil {
-			return echo.NewHTTPError(http.StatusInternalServerError, "common.internal_error")
-		}
-		users, _, uerr := h.userSvc.ListUsers(repositories.UserFilter{Role: "staff"}, 1, 1000)
-		if uerr != nil {
 			return echo.NewHTTPError(http.StatusInternalServerError, "common.internal_error")
 		}
 		message := configs.T(c, "common.internal_error", nil)
@@ -423,7 +377,6 @@ func (h *ServiceCatalogHandler) CreateServiceType(c *echo.Context) error {
 			"ServiceType":  serviceTypeFormFromRequest(req),
 			"Departments":  depts,
 			"Categories":   cats,
-			"StaffOptions": users,
 			"CurrentPath":  "/admin/service-types",
 			"CurrentUser":  adminCurrentUser(c),
 		})
@@ -447,11 +400,6 @@ func (h *ServiceCatalogHandler) EditServiceTypeForm(c *echo.Context) error {
 		return echo.NewHTTPError(http.StatusInternalServerError, "common.internal_error")
 	}
 
-	users, _, uerr := h.userSvc.ListUsers(repositories.UserFilter{Role: "staff"}, 1, 1000)
-	if uerr != nil {
-		return echo.NewHTTPError(http.StatusInternalServerError, "common.internal_error")
-	}
-
 	return c.Render(http.StatusOK, "admin/pages/service-types/form.html", map[string]any{
 		"Mode":         "edit",
 		"Title":        configs.T(c, "service_type.edit_title", nil),
@@ -459,7 +407,6 @@ func (h *ServiceCatalogHandler) EditServiceTypeForm(c *echo.Context) error {
 		"ServiceType":  serviceTypeFormFromModel(serviceType),
 		"Departments":  depts,
 		"Categories":   cats,
-		"StaffOptions": users,
 		"CurrentPath":  "/admin/service-types",
 		"CurrentUser":  adminCurrentUser(c),
 	})
@@ -497,24 +444,9 @@ func (h *ServiceCatalogHandler) UpdateServiceType(c *echo.Context) error {
 		return echo.NewHTTPError(http.StatusBadRequest, "service_type.invalid_request")
 	}
 
-	staffID := strings.TrimSpace(c.FormValue("responsible_staff_user_id"))
-	if staffID == "" {
-		staffID = strings.TrimSpace(req.ResponsibleStaffUserID)
-	}
-	if staffID != "" {
-		u, uerr := h.userSvc.GetUser(staffID)
-		if uerr != nil || u == nil || u.Role != models.UserRoleStaff {
-			return echo.NewHTTPError(http.StatusBadRequest, "service_type.invalid_responsible_staff")
-		}
-	}
-
 	if err := c.Validate(req); err != nil {
 		depts, cats, depErr := h.loadFormDeps(c.Request().Context())
 		if depErr != nil {
-			return echo.NewHTTPError(http.StatusInternalServerError, "common.internal_error")
-		}
-		users, _, uerr := h.userSvc.ListUsers(repositories.UserFilter{Role: "staff"}, 1, 1000)
-		if uerr != nil {
 			return echo.NewHTTPError(http.StatusInternalServerError, "common.internal_error")
 		}
 		data := serviceTypeFormFromRequest(req)
@@ -527,7 +459,6 @@ func (h *ServiceCatalogHandler) UpdateServiceType(c *echo.Context) error {
 			"ServiceType":  data,
 			"Departments":  depts,
 			"Categories":   cats,
-			"StaffOptions": users,
 			"CurrentPath":  "/admin/service-types",
 			"CurrentUser":  adminCurrentUser(c),
 		})
@@ -537,10 +468,6 @@ func (h *ServiceCatalogHandler) UpdateServiceType(c *echo.Context) error {
 	if err != nil {
 		depts, cats, depErr := h.loadFormDeps(c.Request().Context())
 		if depErr != nil {
-			return echo.NewHTTPError(http.StatusInternalServerError, "common.internal_error")
-		}
-		users, _, listErr := h.userSvc.ListUsers(repositories.UserFilter{Role: "staff"}, 1, 1000)
-		if listErr != nil {
 			return echo.NewHTTPError(http.StatusInternalServerError, "common.internal_error")
 		}
 		msg := configs.T(c, "common.internal_error", nil)
@@ -560,7 +487,6 @@ func (h *ServiceCatalogHandler) UpdateServiceType(c *echo.Context) error {
 			"ServiceType":  data,
 			"Departments":  depts,
 			"Categories":   cats,
-			"StaffOptions": users,
 			"CurrentPath":  "/admin/service-types",
 			"CurrentUser":  adminCurrentUser(c),
 		})
@@ -573,10 +499,6 @@ func (h *ServiceCatalogHandler) UpdateServiceType(c *echo.Context) error {
 	if err := h.svc.Update(c.Request().Context(), updated); err != nil {
 		depts, cats, depErr := h.loadFormDeps(c.Request().Context())
 		if depErr != nil {
-			return echo.NewHTTPError(http.StatusInternalServerError, "common.internal_error")
-		}
-		users, _, listErr := h.userSvc.ListUsers(repositories.UserFilter{Role: "staff"}, 1, 1000)
-		if listErr != nil {
 			return echo.NewHTTPError(http.StatusInternalServerError, "common.internal_error")
 		}
 		message := configs.T(c, "common.internal_error", nil)
@@ -594,7 +516,6 @@ func (h *ServiceCatalogHandler) UpdateServiceType(c *echo.Context) error {
 			"ServiceType":  data,
 			"Departments":  depts,
 			"Categories":   cats,
-			"StaffOptions": users,
 			"CurrentPath":  "/admin/service-types",
 			"CurrentUser":  adminCurrentUser(c),
 		})

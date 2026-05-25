@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/awesome-academy/golang_baoan_thao/internal/configs"
 	"github.com/labstack/echo/v5"
@@ -24,6 +25,22 @@ func NewRenderer(root string) (*TemplateRenderer, error) {
 		"currentLocale": func() string {
 			return "vi"
 		},
+		// provide a simple default function: use pipeline value if non-empty, otherwise use provided default
+		"default": func(v interface{}, d string) string {
+			if v == nil {
+				return d
+			}
+			s, ok := v.(string)
+			if !ok {
+				return d
+			}
+			if strings.TrimSpace(s) == "" {
+				return d
+			}
+			return s
+		},
+		// stub for fmtTime so templates can be parsed before real func is injected
+		"fmtTime": func(v interface{}, layout string) string { return "" },
 	})
 	raw := map[string]string{}
 	err := filepath.Walk(root, func(path string, info os.FileInfo, err error) error {
@@ -68,6 +85,42 @@ func (r *TemplateRenderer) Render(c *echo.Context, w io.Writer, name string, dat
 		},
 		"currentLocale": func() string {
 			return configs.LocaleFromContext(c)
+		},
+		"fmtTime": func(v interface{}, layout string) string {
+			if v == nil {
+				return ""
+			}
+			switch t := v.(type) {
+			case time.Time:
+				if t.IsZero() {
+					return ""
+				}
+				return t.Format(layout)
+			case *time.Time:
+				if t == nil || t.IsZero() {
+					return ""
+				}
+				return t.Format(layout)
+			case string:
+				s := strings.TrimSpace(t)
+				if s == "" {
+					return ""
+				}
+				// try parse common RFC formats
+				if tm, err := time.Parse(time.RFC3339Nano, s); err == nil {
+					return tm.Format(layout)
+				}
+				if tm, err := time.Parse(time.RFC3339, s); err == nil {
+					return tm.Format(layout)
+				}
+				// fallback: if looks like 'YYYY-MM-DD HH:MM:SS...' just take prefix
+				if len(s) >= 16 {
+					return s[:16]
+				}
+				return s
+			default:
+				return ""
+			}
 		},
 	}
 

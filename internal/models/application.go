@@ -27,3 +27,11 @@ type Application struct {
 
 	ApplicationAttachments []ApplicationAttachment `json:"application_attachments,omitempty" gorm:"foreignKey:ApplicationID"`
 }
+
+// SubmittedAtFormatted returns SubmittedAt formatted as YYYY-MM-DD HH:mm
+func (a Application) SubmittedAtFormatted() string {
+	if a.SubmittedAt.IsZero() {
+		return ""
+	}
+	return a.SubmittedAt.Format("2006-01-02 15:04")
+}

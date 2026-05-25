@@ -10,6 +10,5 @@ type ServiceTypeFormRequest struct {
 	ProcessingTime          string `form:"processing_time" json:"processing_time"`
 	Fee                     string `form:"fee" json:"fee"`
 	ResponsibleDepartmentID string `form:"responsible_department_id" json:"responsible_department_id"`
-	ResponsibleStaffUserID  string `form:"responsible_staff_user_id" json:"responsible_staff_user_id"`
 	IsActive                bool   `form:"is_active" json:"is_active"`
 }

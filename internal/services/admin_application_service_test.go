@@ -6,23 +6,33 @@ import (
 	"time"
 
 	"github.com/awesome-academy/golang_baoan_thao/internal/models"
+	"github.com/awesome-academy/golang_baoan_thao/internal/repositories"
 	"github.com/stretchr/testify/assert"
 )
 
 type fakeAdminAppRepo struct {
-	apps  []models.Application
-	total int64
-	app   *models.Application
-	err   error
+	apps          []models.Application
+	total         int64
+	app           *models.Application
+	err           error
+	lastFilter    repositories.ApplicationFilter
+	processStatus models.ApplicationStatus
+	processNote   string
 }
 
-func (r *fakeAdminAppRepo) AdminList(_, _ int) ([]models.Application, int64, error) {
+func (r *fakeAdminAppRepo) AdminList(filter repositories.ApplicationFilter, _, _ int) ([]models.Application, int64, error) {
+	r.lastFilter = filter
 	return r.apps, r.total, r.err
 }
 func (r *fakeAdminAppRepo) GetByID(_ string) (*models.Application, error) {
 	return r.app, r.err
 }
 func (r *fakeAdminAppRepo) UpdateAssignedStaff(_ string, _ *string, _ string) error { return r.err }
+func (r *fakeAdminAppRepo) ProcessStatusUpdate(_ string, _ *models.ApplicationStatus, newStatus models.ApplicationStatus, resultNote string, _ string, _, _ *time.Time, _ string, _ []models.ApplicationAttachment) error {
+	r.processStatus = newStatus
+	r.processNote = resultNote
+	return r.err
+}
 func (r *fakeAdminAppRepo) CreateWithAttachments(_ *models.Application, _ []models.ApplicationAttachment, _ *models.Notification, _ func() string) error {
 	return nil
 }
@@ -41,13 +51,13 @@ func (r *fakeAdminAppRepo) GetByIDForCitizen(_, _ string) (*models.Application, 
 
 func newAdminAppSvc(repo *fakeAdminAppRepo) *AdminApplicationService {
 	assignSvc := NewApplicationAssignmentService(repo, &fakeAssignRepo{}, &fakeUserRepoAssign{})
-	return NewAdminApplicationService(repo, assignSvc)
+	return NewAdminApplicationService(repo, assignSvc, nil)
 }
 
 func TestAdminApplicationService_ListApplications_OK(t *testing.T) {
 	apps := []models.Application{{ID: "a1", ApplicationCode: "APP-2024-001"}}
 	svc := newAdminAppSvc(&fakeAdminAppRepo{apps: apps, total: 1})
-	result, total, err := svc.ListApplications(1, 10)
+	result, total, err := svc.ListApplications(repositories.ApplicationFilter{}, 1, 10)
 	assert.NoError(t, err)
 	assert.Equal(t, int64(1), total)
 	assert.Len(t, result, 1)
@@ -55,8 +65,17 @@ func TestAdminApplicationService_ListApplications_OK(t *testing.T) {
 
 func TestAdminApplicationService_ListApplications_Error(t *testing.T) {
 	svc := newAdminAppSvc(&fakeAdminAppRepo{err: errors.New("db error")})
-	_, _, err := svc.ListApplications(1, 10)
+	_, _, err := svc.ListApplications(repositories.ApplicationFilter{}, 1, 10)
 	assert.Error(t, err)
+}
+
+func TestAdminApplicationService_ListApplications_WithFilter(t *testing.T) {
+	repo := &fakeAdminAppRepo{apps: []models.Application{{ID: "a1"}}, total: 1}
+	svc := newAdminAppSvc(repo)
+	filter := repositories.ApplicationFilter{Status: string(models.ApplicationStatusProcessing), Service: "CCCD", Submitter: "An"}
+	_, _, err := svc.ListApplications(filter, 1, 10)
+	assert.NoError(t, err)
+	assert.Equal(t, filter, repo.lastFilter)
 }
 
 func TestAdminApplicationService_GetApplication_OK(t *testing.T) {
@@ -85,4 +104,31 @@ func TestAdminApplicationService_AssignToStaff_Unassign(t *testing.T) {
 	svc := newAdminAppSvc(&fakeAdminAppRepo{app: app})
 	err := svc.AssignToStaff("app1", nil, "admin-1")
 	assert.NoError(t, err)
+}
+
+func TestAdminApplicationService_ProcessApplication_OK(t *testing.T) {
+	prevStatus := models.ApplicationStatusReceived
+	repo := &fakeAdminAppRepo{app: &models.Application{ID: "app1", Status: prevStatus}}
+	svc := newAdminAppSvc(repo)
+
+	err := svc.ProcessApplication("app1", models.ApplicationStatusProcessing, "Đang xử lý", nil, "admin-1")
+	assert.NoError(t, err)
+	assert.Equal(t, models.ApplicationStatusProcessing, repo.processStatus)
+	assert.Equal(t, "Đang xử lý", repo.processNote)
+}
+
+func TestAdminApplicationService_ProcessApplication_InvalidTransition(t *testing.T) {
+	repo := &fakeAdminAppRepo{app: &models.Application{ID: "app1", Status: models.ApplicationStatusApproved}}
+	svc := newAdminAppSvc(repo)
+
+	err := svc.ProcessApplication("app1", models.ApplicationStatusProcessing, "", nil, "admin-1")
+	assert.ErrorIs(t, err, ErrAdminApplicationInvalidTransition)
+}
+
+func TestAdminApplicationService_ProcessApplication_RejectedRequiresReason(t *testing.T) {
+	repo := &fakeAdminAppRepo{app: &models.Application{ID: "app1", Status: models.ApplicationStatusProcessing}}
+	svc := newAdminAppSvc(repo)
+
+	err := svc.ProcessApplication("app1", models.ApplicationStatusRejected, "   ", nil, "admin-1")
+	assert.ErrorIs(t, err, ErrAdminApplicationRejectReasonRequired)
 }

@@ -106,13 +106,17 @@ func SetupRoutes(e *echo.Echo, handler *ApiHandler) {
 	deptStaff.POST("/assign", handler.AdminDepartmentHandler.AssignStaffToDept)
 	deptStaff.POST("/:user_id/remove", handler.AdminDepartmentHandler.RemoveStaffFromDept)
 
-	// Admin applications (manager+)
-	apps := admin.Group("/applications", middlewares.AdminWebRequireRoles(models.UserRoleManager, models.UserRoleSuperAdmin))
-	apps.GET("", handler.AdminApplicationHandler.ListApplications)
-	apps.GET("/export", handler.AdminApplicationHandler.ExportCSV)
-	apps.GET("/:id", handler.AdminApplicationHandler.ShowApplication)
-	apps.GET("/:id/assign", handler.AdminApplicationHandler.ShowAssignForm)
-	apps.POST("/:id/assign", handler.AdminApplicationHandler.AssignToStaff)
+	// Admin applications: read (Manager + Super Admin)
+	appsRead := admin.Group("/applications", middlewares.AdminWebRequireRoles(models.UserRoleManager, models.UserRoleSuperAdmin))
+	appsRead.GET("", handler.AdminApplicationHandler.ListApplications)
+	appsRead.GET("/export", handler.AdminApplicationHandler.ExportCSV)
+	appsRead.GET("/:id", handler.AdminApplicationHandler.ShowApplication)
+
+	// Admin applications: write (Manager only)
+	appsWrite := admin.Group("/applications", middlewares.AdminWebRequireRoles(models.UserRoleManager))
+	appsWrite.POST("/:id/process", handler.AdminApplicationHandler.ProcessApplication)
+	appsWrite.GET("/:id/assign", handler.AdminApplicationHandler.ShowAssignForm)
+	appsWrite.POST("/:id/assign", handler.AdminApplicationHandler.AssignToStaff)
 
 	api := e.Group("/api")
 

@@ -1,7 +1,9 @@
 package handlers
 
 import (
+	"bytes"
 	"errors"
+	"mime/multipart"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -9,20 +11,29 @@ import (
 
 	"github.com/awesome-academy/golang_baoan_thao/internal/configs"
 	"github.com/awesome-academy/golang_baoan_thao/internal/models"
+	"github.com/awesome-academy/golang_baoan_thao/internal/repositories"
+	"github.com/awesome-academy/golang_baoan_thao/internal/services"
+	templates "github.com/awesome-academy/golang_baoan_thao/internal/templates"
 	"github.com/labstack/echo/v5"
 	"github.com/stretchr/testify/assert"
 )
 
 type fakeAdminAppSvc struct {
-	apps      []models.Application
-	total     int64
-	app       *models.Application
-	listErr   error
-	getErr    error
-	assignErr error
+	apps       []models.Application
+	total      int64
+	app        *models.Application
+	listErr    error
+	getErr     error
+	assignErr  error
+	processErr error
+	lastFilter repositories.ApplicationFilter
+	lastStatus models.ApplicationStatus
+	lastNote   string
+	lastFiles  []*multipart.FileHeader
 }
 
-func (s *fakeAdminAppSvc) ListApplications(page, limit int) ([]models.Application, int64, error) {
+func (s *fakeAdminAppSvc) ListApplications(filter repositories.ApplicationFilter, page, limit int) ([]models.Application, int64, error) {
+	s.lastFilter = filter
 	return s.apps, s.total, s.listErr
 }
 func (s *fakeAdminAppSvc) GetApplication(id string) (*models.Application, error) {
@@ -30,6 +41,12 @@ func (s *fakeAdminAppSvc) GetApplication(id string) (*models.Application, error)
 }
 func (s *fakeAdminAppSvc) AssignToStaff(applicationID string, toStaffUserID *string, assignedBy string) error {
 	return s.assignErr
+}
+func (s *fakeAdminAppSvc) ProcessApplication(_ string, status models.ApplicationStatus, note string, files []*multipart.FileHeader, _ string) error {
+	s.lastStatus = status
+	s.lastNote = note
+	s.lastFiles = files
+	return s.processErr
 }
 
 type fakeAssignableStaffSvc struct {
@@ -55,6 +72,20 @@ func TestAdminApplicationHandler_List_OK(t *testing.T) {
 	err := h.ListApplications(c)
 	assert.NoError(t, err)
 	assert.Equal(t, http.StatusOK, rec.Code)
+}
+
+func TestAdminApplicationHandler_List_WithFilters(t *testing.T) {
+	_ = configs.LoadI18nMessages("../../locales")
+	e := newAdminEcho()
+	svc := &fakeAdminAppSvc{apps: []models.Application{{ID: "a1", ApplicationCode: "C1"}}, total: 1}
+	h := newAdminAppHandler(svc, &fakeAdminUserSvc{}, &fakeAssignableStaffSvc{})
+
+	req := httptest.NewRequest(http.MethodGet, "/admin/applications?status=processing&service=cccd&submitter=an", nil)
+	rec := httptest.NewRecorder()
+	c := e.NewContext(req, rec)
+	err := h.ListApplications(c)
+	assert.NoError(t, err)
+	assert.Equal(t, repositories.ApplicationFilter{Status: "processing", Service: "cccd", Submitter: "an"}, svc.lastFilter)
 }
 
 func TestAdminApplicationHandler_ShowAssignForm_OK(t *testing.T) {
@@ -150,10 +181,10 @@ func TestAdminApplicationHandler_ExportCSV_OptionalFields(t *testing.T) {
 	dept := &models.Department{Name: "Phòng IT"}
 	staff := &models.User{Name: "Nguyễn Staff"}
 	apps := []models.Application{{
-		ApplicationCode:  "APP-2024-002",
-		CitizenUser:      models.User{Name: "Cit"},
-		ServiceType:      models.ServiceType{Name: "Svc", ResponsibleDepartment: dept},
-		CompletedAt:      &now,
+		ApplicationCode:   "APP-2024-002",
+		CitizenUser:       models.User{Name: "Cit"},
+		ServiceType:       models.ServiceType{Name: "Svc", ResponsibleDepartment: dept},
+		CompletedAt:       &now,
 		AssignedStaffUser: staff,
 	}}
 	h := newAdminAppHandler(&fakeAdminAppSvc{apps: apps, total: 1}, &fakeAdminUserSvc{}, &fakeAssignableStaffSvc{})
@@ -180,6 +211,31 @@ func TestAdminApplicationHandler_ShowApplication_OK(t *testing.T) {
 	assert.Equal(t, http.StatusOK, rec.Code)
 }
 
+func TestAdminApplicationHandler_ProcessApplication_OK(t *testing.T) {
+	_ = configs.LoadI18nMessages("../../locales")
+	e := newAdminEcho()
+	svc := &fakeAdminAppSvc{app: &models.Application{ID: "a1", Status: models.ApplicationStatusReceived}}
+	h := newAdminAppHandler(svc, &fakeAdminUserSvc{}, &fakeAssignableStaffSvc{})
+
+	body := &bytes.Buffer{}
+	w := multipart.NewWriter(body)
+	_ = w.WriteField("status", string(models.ApplicationStatusProcessing))
+	_ = w.WriteField("note", "đang xử lý")
+	_ = w.Close()
+
+	req := httptest.NewRequest(http.MethodPost, "/admin/applications/a1/process", body)
+	req.Header.Set("Content-Type", w.FormDataContentType())
+	rec := httptest.NewRecorder()
+	c := e.NewContext(req, rec)
+	c.SetPathValues(echo.PathValues{{Name: "id", Value: "a1"}})
+	c.Set("user", superAdminClaims())
+
+	err := h.ProcessApplication(c)
+	assert.NoError(t, err)
+	assert.Equal(t, string(models.ApplicationStatusProcessing), string(svc.lastStatus))
+	assert.Equal(t, "đang xử lý", svc.lastNote)
+}
+
 func TestAdminApplicationHandler_ShowApplication_Error(t *testing.T) {
 	_ = configs.LoadI18nMessages("../../locales")
 	e := newAdminEcho()
@@ -191,6 +247,14 @@ func TestAdminApplicationHandler_ShowApplication_Error(t *testing.T) {
 	assert.Error(t, err)
 }
 
+func TestMapAdminApplicationProcessError_RejectReasonRequired(t *testing.T) {
+	err := mapAdminApplicationProcessError(services.ErrAdminApplicationRejectReasonRequired)
+	httpErr, ok := err.(*echo.HTTPError)
+	assert.True(t, ok)
+	assert.Equal(t, http.StatusUnprocessableEntity, httpErr.Code)
+	assert.Equal(t, "application.reject_reason_required", httpErr.Message)
+}
+
 // --- assignableStaffUsers edge cases ---
 
 func TestAdminApplicationHandler_assignableStaffUsers_NilApp(t *testing.T) {
@@ -198,18 +262,6 @@ func TestAdminApplicationHandler_assignableStaffUsers_NilApp(t *testing.T) {
 	users, err := h.assignableStaffUsers(nil)
 	assert.NoError(t, err)
 	assert.Nil(t, users)
-}
-
-func TestAdminApplicationHandler_assignableStaffUsers_ResponsibleStaffUser(t *testing.T) {
-	staffID := "u1"
-	app := &models.Application{ServiceType: models.ServiceType{ResponsibleStaffUserID: &staffID}}
-	userSvc := &fakeAdminUserSvc{user: &models.User{ID: "u1", Name: "Staff"}}
-	h := newAdminAppHandler(&fakeAdminAppSvc{}, userSvc, &fakeAssignableStaffSvc{})
-
-	users, err := h.assignableStaffUsers(app)
-	assert.NoError(t, err)
-	assert.Len(t, users, 1)
-	assert.Equal(t, "u1", users[0].ID)
 }
 
 func TestAdminApplicationHandler_assignableStaffUsers_WithAssignedStaff(t *testing.T) {
@@ -252,4 +304,28 @@ func TestAdminApplicationHandler_List_Error(t *testing.T) {
 	c, _ := newAdminCtx(e, http.MethodGet, "/admin/applications", "", "")
 	err := h.ListApplications(c)
 	assert.Error(t, err)
+}
+
+func TestAdminApplicationsList_RendersTable(t *testing.T) {
+	_ = configs.LoadI18nMessages("../../locales")
+	e := newTestEcho()
+	// use real renderer to render templates and assert HTML output
+	r, err := templates.NewRenderer("../../templates")
+	if err != nil {
+		t.Fatalf("failed to init templates: %v", err)
+	}
+	e.Renderer = r
+
+	svc := &fakeAdminAppSvc{apps: []models.Application{{ID: "a1", ApplicationCode: "C1"}}, total: 1}
+	h := newAdminAppHandler(svc, &fakeAdminUserSvc{}, &fakeAssignableStaffSvc{})
+
+	c, rec := newAdminCtx(e, http.MethodGet, "/admin/applications", "", "")
+	err = h.ListApplications(c)
+	assert.NoError(t, err)
+	assert.Equal(t, http.StatusOK, rec.Code)
+
+	body := rec.Body.String()
+	assert.Contains(t, body, "<table")
+	// header text from template default
+	assert.Contains(t, body, "Mã hồ sơ")
 }

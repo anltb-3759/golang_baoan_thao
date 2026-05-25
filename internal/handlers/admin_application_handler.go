@@ -2,20 +2,25 @@ package handlers
 
 import (
 	"encoding/csv"
+	"errors"
+	"mime/multipart"
 	"net/http"
 	"net/url"
 	"strings"
 
 	"github.com/awesome-academy/golang_baoan_thao/internal/configs"
 	"github.com/awesome-academy/golang_baoan_thao/internal/models"
+	"github.com/awesome-academy/golang_baoan_thao/internal/repositories"
+	"github.com/awesome-academy/golang_baoan_thao/internal/services"
 	"github.com/awesome-academy/golang_baoan_thao/internal/utils"
 	"github.com/labstack/echo/v5"
 )
 
 type AdminApplicationService interface {
-	ListApplications(page, limit int) ([]models.Application, int64, error)
+	ListApplications(filter repositories.ApplicationFilter, page, limit int) ([]models.Application, int64, error)
 	GetApplication(id string) (*models.Application, error)
 	AssignToStaff(applicationID string, toStaffUserID *string, assignedBy string) error
+	ProcessApplication(applicationID string, newStatus models.ApplicationStatus, note string, files []*multipart.FileHeader, processedBy string) error
 }
 
 type AssignableStaffService interface {
@@ -28,6 +33,11 @@ type AdminApplicationHandler struct {
 	staffProfileSvc AssignableStaffService
 }
 
+type applicationStatusOption struct {
+	Value string
+	Label string
+}
+
 func NewAdminApplicationHandler(svc AdminApplicationService, userSvc AdminUserService, staffProfileSvc AssignableStaffService) *AdminApplicationHandler {
 	return &AdminApplicationHandler{svc: svc, userSvc: userSvc, staffProfileSvc: staffProfileSvc}
 }
@@ -36,19 +46,82 @@ func adminAppFlashURL(flash, msg string) string {
 	return "/admin/applications?" + url.Values{"flash": {flash}, "msg": {msg}}.Encode()
 }
 
+func adminAppExportURL(filter repositories.ApplicationFilter) string {
+	query := adminAppQueryString(filter)
+	if query == "" {
+		return "/admin/applications/export"
+	}
+	return "/admin/applications/export?" + query
+}
+
+func adminAppQueryString(filter repositories.ApplicationFilter) string {
+	values := url.Values{}
+	if filter.Status != "" {
+		values.Set("status", filter.Status)
+	}
+	if filter.Service != "" {
+		values.Set("service", filter.Service)
+	}
+	if filter.Submitter != "" {
+		values.Set("submitter", filter.Submitter)
+	}
+	return values.Encode()
+}
+
+func adminAppFilterFromQuery(c *echo.Context) repositories.ApplicationFilter {
+	return repositories.ApplicationFilter{
+		Status:    strings.TrimSpace(c.QueryParam("status")),
+		Service:   strings.TrimSpace(c.QueryParam("service")),
+		Submitter: strings.TrimSpace(c.QueryParam("submitter")),
+	}
+}
+
+func applicationStatusOptionsForFilter() []applicationStatusOption {
+	return []applicationStatusOption{
+		{Value: string(models.ApplicationStatusReceived), Label: "received"},
+		{Value: string(models.ApplicationStatusProcessing), Label: "processing"},
+		{Value: string(models.ApplicationStatusNeedMoreInfo), Label: "need_more_info"},
+		{Value: string(models.ApplicationStatusApproved), Label: "approved"},
+		{Value: string(models.ApplicationStatusRejected), Label: "rejected"},
+	}
+}
+
+func applicationStatusOptionsForProcess(current models.ApplicationStatus) []applicationStatusOption {
+	switch current {
+	case models.ApplicationStatusReceived:
+		return []applicationStatusOption{{Value: string(models.ApplicationStatusProcessing), Label: "processing"}}
+	case models.ApplicationStatusProcessing:
+		return []applicationStatusOption{
+			{Value: string(models.ApplicationStatusApproved), Label: "approved"},
+			{Value: string(models.ApplicationStatusRejected), Label: "rejected"},
+		}
+	default:
+		return nil
+	}
+}
+
 func (h *AdminApplicationHandler) ListApplications(c *echo.Context) error {
+	filter := adminAppFilterFromQuery(c)
 	page, limit := parsePagination(c)
-	apps, total, err := h.svc.ListApplications(page, limit)
+	apps, total, err := h.svc.ListApplications(filter, page, limit)
 	if err != nil {
 		return echo.NewHTTPError(http.StatusInternalServerError, "common.internal_error")
 	}
+	currentUser := adminCurrentUser(c)
 	data := map[string]interface{}{
-		"Title":        configs.T(c, "ui.applications.title", nil),
-		"CurrentPath":  "/admin/applications",
-		"CurrentUser":  adminCurrentUser(c),
-		"Applications": apps,
-		"Pagination":   utils.NewPagination(page, limit, total),
-		"Flash":        flashFromQuery(c),
+		"Title":           configs.T(c, "ui.applications.title", nil),
+		"CurrentPath":     "/admin/applications",
+		"CurrentUser":     currentUser,
+		"CanManage":       currentUser != nil && currentUser.Role == string(models.UserRoleManager),
+		"Applications":    apps,
+		"Pagination":      utils.NewPagination(page, limit, total),
+		"Flash":           flashFromQuery(c),
+		"FilterStatus":    filter.Status,
+		"FilterService":   filter.Service,
+		"FilterSubmitter": filter.Submitter,
+		"ExportAction":    adminAppExportURL(filter),
+		"PaginationQuery": adminAppQueryString(filter),
+		"StatusOptions":   applicationStatusOptionsForFilter(),
 	}
 	return c.Render(http.StatusOK, "admin/pages/applications/list.html", data)
 }
@@ -59,11 +132,16 @@ func (h *AdminApplicationHandler) ShowApplication(c *echo.Context) error {
 	if err != nil {
 		return echo.NewHTTPError(http.StatusNotFound, "application.not_found")
 	}
+	currentUser := adminCurrentUser(c)
+	canManage := currentUser != nil && currentUser.Role == string(models.UserRoleManager)
 	data := map[string]interface{}{
-		"Title":       configs.T(c, "ui.applications.detail_title", nil),
-		"CurrentPath": "/admin/applications",
-		"CurrentUser": adminCurrentUser(c),
-		"Application": app,
+		"Title":          configs.T(c, "ui.applications.detail_title", nil),
+		"CurrentPath":    "/admin/applications",
+		"CurrentUser":    currentUser,
+		"Application":    app,
+		"ProcessOptions": applicationStatusOptionsForProcess(app.Status),
+		"CanProcess":     canManage && len(applicationStatusOptionsForProcess(app.Status)) > 0,
+		"CanManage":      canManage,
 	}
 	return c.Render(http.StatusOK, "admin/pages/applications/detail.html", data)
 }
@@ -105,15 +183,7 @@ func (h *AdminApplicationHandler) assignableStaffUsers(app *models.Application) 
 		users = append(users, user)
 	}
 
-	if app.ServiceType.ResponsibleStaffUserID != nil && strings.TrimSpace(*app.ServiceType.ResponsibleStaffUserID) != "" {
-		staff, err := h.userSvc.GetUser(*app.ServiceType.ResponsibleStaffUserID)
-		if err != nil {
-			return nil, err
-		}
-		if staff != nil {
-			addUser(*staff)
-		}
-	} else if app.ServiceType.ResponsibleDepartmentID != nil && strings.TrimSpace(*app.ServiceType.ResponsibleDepartmentID) != "" && h.staffProfileSvc != nil {
+	if app.ServiceType.ResponsibleDepartmentID != nil && strings.TrimSpace(*app.ServiceType.ResponsibleDepartmentID) != "" && h.staffProfileSvc != nil {
 		profiles, _, err := h.staffProfileSvc.ListStaffByDepartment(*app.ServiceType.ResponsibleDepartmentID, 1, 1000)
 		if err != nil {
 			return nil, err
@@ -146,8 +216,9 @@ func (h *AdminApplicationHandler) ExportCSV(c *echo.Context) error {
 
 	page := 1
 	limit := 1000
+	filter := adminAppFilterFromQuery(c)
 	for {
-		apps, _, err := h.svc.ListApplications(page, limit)
+		apps, _, err := h.svc.ListApplications(filter, page, limit)
 		if err != nil {
 			break
 		}
@@ -182,6 +253,55 @@ func (h *AdminApplicationHandler) ExportCSV(c *echo.Context) error {
 	}
 	w.Flush()
 	return nil
+}
+
+func (h *AdminApplicationHandler) ProcessApplication(c *echo.Context) error {
+	id := c.Param("id")
+	form, err := c.MultipartForm()
+	if err != nil || form == nil {
+		return echo.NewHTTPError(http.StatusBadRequest, "application.invalid_request")
+	}
+
+	statusValue := strings.TrimSpace(c.FormValue("status"))
+	if statusValue == "" {
+		return echo.NewHTTPError(http.StatusBadRequest, "application.invalid_request")
+	}
+	newStatus := models.ApplicationStatus(statusValue)
+	if len(applicationStatusOptionsForProcess(models.ApplicationStatusReceived)) > 0 {
+		allowed := map[string]struct{}{
+			string(models.ApplicationStatusProcessing): {},
+			string(models.ApplicationStatusApproved):   {},
+			string(models.ApplicationStatusRejected):   {},
+		}
+		if _, ok := allowed[statusValue]; !ok {
+			return echo.NewHTTPError(http.StatusUnprocessableEntity, "application.invalid_transition")
+		}
+	}
+
+	note := strings.TrimSpace(c.FormValue("note"))
+	files := form.File["attachments[]"]
+	if err := h.svc.ProcessApplication(id, newStatus, note, files, actorID(c)); err != nil {
+		return mapAdminApplicationProcessError(err)
+	}
+
+	return c.Redirect(http.StatusSeeOther, adminAppFlashURL("success", configs.T(c, "ui.msg.application_processed", nil)))
+}
+
+func mapAdminApplicationProcessError(err error) error {
+	switch {
+	case errors.Is(err, services.ErrAdminApplicationNotFound):
+		return echo.NewHTTPError(http.StatusNotFound, "application.not_found")
+	case errors.Is(err, services.ErrAdminApplicationInvalidTransition):
+		return echo.NewHTTPError(http.StatusUnprocessableEntity, "application.invalid_transition")
+	case errors.Is(err, services.ErrAdminApplicationRejectReasonRequired):
+		return echo.NewHTTPError(http.StatusUnprocessableEntity, "application.reject_reason_required")
+	case errors.Is(err, utils.ErrDisallowedMime):
+		return echo.NewHTTPError(http.StatusUnprocessableEntity, "application.attachment_invalid_type")
+	case errors.Is(err, utils.ErrEmptyFileName), errors.Is(err, utils.ErrUnsafeFileName), errors.Is(err, utils.ErrPathEscape):
+		return echo.NewHTTPError(http.StatusUnprocessableEntity, "application.attachment_invalid_type")
+	default:
+		return echo.NewHTTPError(http.StatusInternalServerError, "common.internal_error")
+	}
 }
 
 func (h *AdminApplicationHandler) AssignToStaff(c *echo.Context) error {

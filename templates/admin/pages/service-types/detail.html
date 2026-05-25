@@ -1,12 +1,15 @@
 {{ define "content" }}
 <div class="max-w-3xl">
   <header class="mb-6 flex items-center justify-between">
+    {{ $isSA := and .CurrentUser (eq .CurrentUser.Role "super_admin") }}
     <div>
       <h1 class="text-xl font-semibold text-gray-900">{{ .ServiceType.Name }}</h1>
       <p class="text-sm text-gray-500">{{ t "service_type.form_subtitle" }}</p>
     </div>
     <div class="flex gap-2">
+      {{ if $isSA }}
       <a href="/admin/service-types/{{ .ServiceType.ID }}/edit" class="bg-indigo-600 text-white px-4 py-2 rounded-md text-sm hover:bg-indigo-700">{{ t "service_type.edit_button" }}</a>
+      {{ end }}
       <a href="/admin/service-types" class="text-sm text-gray-600 hover:underline">{{ t "service_type.back_button" }}</a>
     </div>
   </header>

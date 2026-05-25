@@ -8,6 +8,7 @@
       </div>
       {{ $isSA := and .CurrentUser (eq .CurrentUser.Role "super_admin") }}
       <div class="flex gap-2">
+        {{ if $isSA }}
         <!-- Import / Export dropdown -->
         <div class="relative" id="import-export-menu">
           <button onclick="toggleImportExportMenu()"
@@ -30,7 +31,6 @@
             </a>
           </div>
         </div>
-        {{ if $isSA }}
         <a href="/admin/service-types/new" class="bg-indigo-600 text-white px-4 py-2 rounded-md text-sm hover:bg-indigo-700 inline-flex items-center gap-2">
           <i data-lucide="plus" class="h-4 w-4"></i>
           {{ t "service_type.create_button" }}
@@ -57,7 +57,7 @@
             <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">{{ t "service_type.active" }}</th>
             <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">{{ t "service_type.processing_time" }}</th>
             <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">{{ t "service_type.fee" }}</th>
-            <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">{{ t "service_type.actions" }}</th>
+            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">{{ t "service_type.actions" }}</th>
           </tr>
         </thead>
         <tbody class="divide-y divide-gray-200">
@@ -88,9 +88,9 @@
             </td>
             <td class="px-4 py-3 text-sm text-gray-700">{{ if .ProcessingTime }}{{ .ProcessingTime }} {{ t "service_type.days" }}{{ else }}-{{ end }}</td>
             <td class="px-4 py-3 text-sm text-gray-700">{{ printf "%.2f" .Fee }}</td>
-            <td class="px-4 py-3 text-right text-sm">
+            <td class="px-4 py-3 text-left text-sm">
               <div class="inline-flex items-center gap-2">
-                <a href="/admin/service-types/{{ .ID }}" class="text-sm text-gray-600 hover:underline">Xem</a>
+                <a href="/admin/service-types/{{ .ID }}" class="text-sm text-gray-600 hover:underline">{{ t "ui.common.view" }}</a>
                 {{ if $isSA }}
                 <a href="/admin/service-types/{{ .ID }}/edit" class="text-sm text-indigo-600 hover:underline">{{ t "service_type.edit_button" }}</a>
                 <form action="/admin/service-types/{{ .ID }}/delete" method="post" onsubmit="return confirm('{{ t "service_type.delete_confirm" }}')" class="inline">

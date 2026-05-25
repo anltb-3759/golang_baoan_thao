@@ -37,11 +37,14 @@ func (r *fakeAppRepoForAssign) ListStatusLogsByCitizen(appID, citizenUserID stri
 func (r *fakeAppRepoForAssign) CreateAttachments(appID string, atts []models.ApplicationAttachment) error {
 	return nil
 }
-func (r *fakeAppRepoForAssign) AdminList(page, limit int) ([]models.Application, int64, error) {
+func (r *fakeAppRepoForAssign) AdminList(_ repositories.ApplicationFilter, page, limit int) ([]models.Application, int64, error) {
 	return nil, 0, nil
 }
 func (r *fakeAppRepoForAssign) GetByIDForCitizen(id, citizenUserID string) (*models.Application, error) {
 	return r.app, r.err
+}
+func (r *fakeAppRepoForAssign) ProcessStatusUpdate(_ string, _ *models.ApplicationStatus, _ models.ApplicationStatus, _ string, _ string, _, _ *time.Time, _ string, _ []models.ApplicationAttachment) error {
+	return nil
 }
 
 type fakeAssignRepo struct{ created bool }

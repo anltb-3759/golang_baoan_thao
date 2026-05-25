@@ -6,14 +6,14 @@
   </span>
   <div class="flex gap-1">
     {{ if gt $p.PrevPage 0 }}
-    <a href="?page={{ $p.PrevPage }}&search={{ $.Search }}&role={{ $.RoleFilter }}"
+    <a href="{{ if $.PaginationQuery }}?{{ $.PaginationQuery }}&page={{ $p.PrevPage }}{{ else }}?page={{ $p.PrevPage }}&search={{ $.Search }}&role={{ $.RoleFilter }}{{ end }}"
        class="px-3 py-1 text-sm rounded-md border border-gray-300 hover:bg-gray-50 text-gray-700">{{ t "ui.pagination.prev" }}</a>
     {{ else }}
     <span class="px-3 py-1 text-sm rounded-md border border-gray-200 text-gray-300 cursor-not-allowed">{{ t "ui.pagination.prev" }}</span>
     {{ end }}
     <span class="px-3 py-1 text-sm rounded-md border border-indigo-500 bg-indigo-50 text-indigo-700">{{ $p.Page }}</span>
     {{ if lt $p.NextPage 999999 }}
-    <a href="?page={{ $p.NextPage }}&search={{ $.Search }}&role={{ $.RoleFilter }}"
+     <a href="{{ if $.PaginationQuery }}?{{ $.PaginationQuery }}&page={{ $p.NextPage }}{{ else }}?page={{ $p.NextPage }}&search={{ $.Search }}&role={{ $.RoleFilter }}{{ end }}"
        class="px-3 py-1 text-sm rounded-md border border-gray-300 hover:bg-gray-50 text-gray-700">{{ t "ui.pagination.next" }}</a>
     {{ else }}
     <span class="px-3 py-1 text-sm rounded-md border border-gray-200 text-gray-300 cursor-not-allowed">{{ t "ui.pagination.next" }}</span>

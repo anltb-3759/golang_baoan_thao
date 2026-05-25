@@ -77,7 +77,7 @@ func (r *fakeProfileApplicationRepo) CreateAttachments(_ string, _ []models.Appl
 func (r *fakeProfileApplicationRepo) CreateWithAttachments(_ *models.Application, _ []models.ApplicationAttachment, _ *models.Notification, _ func() string) error {
 	return nil
 }
-func (r *fakeProfileApplicationRepo) AdminList(page, limit int) ([]models.Application, int64, error) {
+func (r *fakeProfileApplicationRepo) AdminList(_ repositories.ApplicationFilter, page, limit int) ([]models.Application, int64, error) {
 	return r.apps, r.total, r.err
 }
 func (r *fakeProfileApplicationRepo) GetByID(id string) (*models.Application, error) {
@@ -89,6 +89,9 @@ func (r *fakeProfileApplicationRepo) GetByID(id string) (*models.Application, er
 	return nil, r.err
 }
 func (r *fakeProfileApplicationRepo) UpdateAssignedStaff(applicationID string, assignedStaffUserID *string, updatedBy string) error {
+	return nil
+}
+func (r *fakeProfileApplicationRepo) ProcessStatusUpdate(_ string, _ *models.ApplicationStatus, _ models.ApplicationStatus, _ string, _ string, _, _ *time.Time, _ string, _ []models.ApplicationAttachment) error {
 	return nil
 }
 

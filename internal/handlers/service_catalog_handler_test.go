@@ -351,63 +351,6 @@ func TestShowServiceType_InternalError(t *testing.T) {
 	assert.Equal(t, http.StatusInternalServerError, he.Code)
 }
 
-func TestCreateServiceType_InvalidStaff(t *testing.T) {
-	svc := new(mockServiceCatalogSvc)
-	userSvc := new(mockAdminUserSvc)
-	e := newTestEcho()
-	e.Renderer = &stubRenderer{}
-
-	// userSvc returns not found for provided staff id
-	userSvc.On("GetUser", "bad-staff").Return(nil, errors.New("not found"))
-	userSvc.On("ListUsers", mock.Anything, mock.Anything, mock.Anything).Return([]models.User{}, int64(0), nil)
-
-	h := handlers.NewServiceCatalogHandler(svc, userSvc)
-
-	form := url.Values{}
-	form.Set("name", "Svc")
-	form.Set("code", "SVC1")
-	form.Set("responsible_staff_user_id", "bad-staff")
-
-	req := httptest.NewRequest(http.MethodPost, "/admin/service-types", strings.NewReader(form.Encode()))
-	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
-	rec := httptest.NewRecorder()
-	c := e.NewContext(req, rec)
-	c.Set("user", &configs.JwtCustomClaims{ID: "admin-1", Email: "admin@test.com", Role: "super_admin"})
-
-	err := h.CreateServiceType(c)
-	assert.Error(t, err)
-}
-
-func TestUpdateServiceType_InvalidStaff(t *testing.T) {
-	svc := new(mockServiceCatalogSvc)
-	userSvc := new(mockAdminUserSvc)
-	e := newTestEcho()
-	e.Renderer = &stubRenderer{}
-
-	st := &models.ServiceType{ID: "st1", Name: "S", Code: "C"}
-	svc.On("GetByIDForAdmin", mock.Anything, "st1").Return(st, nil)
-
-	userSvc.On("GetUser", "bad-staff").Return(nil, errors.New("not found"))
-	userSvc.On("ListUsers", mock.Anything, mock.Anything, mock.Anything).Return([]models.User{}, int64(0), nil)
-
-	h := handlers.NewServiceCatalogHandler(svc, userSvc)
-
-	form := url.Values{}
-	form.Set("name", "Svc")
-	form.Set("code", "SVC1")
-	form.Set("responsible_staff_user_id", "bad-staff")
-
-	req := httptest.NewRequest(http.MethodPost, "/admin/service-types/st1", strings.NewReader(form.Encode()))
-	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
-	rec := httptest.NewRecorder()
-	c := e.NewContext(req, rec)
-	c.SetPathValues(echo.PathValues{{Name: "id", Value: "st1"}})
-	c.Set("user", &configs.JwtCustomClaims{ID: "admin-1", Email: "admin@test.com", Role: "super_admin"})
-
-	err := h.UpdateServiceType(c)
-	assert.Error(t, err)
-}
-
 // --- helpers ---
 
 func newAdminCtxExt(e *echo.Echo, method, path string) (*echo.Context, *httptest.ResponseRecorder) {
@@ -530,19 +473,6 @@ func TestCreateServiceTypeForm_DepsError(t *testing.T) {
 	userSvc := new(mockAdminUserSvc)
 	svc.On("ListDepartments", mock.Anything).Return(nil, errors.New("db error"))
 	userSvc.On("ListUsers", mock.Anything, mock.Anything, mock.Anything).Return([]models.User{}, int64(0), nil)
-	h := handlers.NewServiceCatalogHandler(svc, userSvc)
-	e := setupAdminEcho()
-
-	c, _ := newAdminCtxExt(e, http.MethodGet, "/admin/service-types/new")
-	err := h.CreateServiceTypeForm(c)
-	assert.Error(t, err)
-}
-
-func TestCreateServiceTypeForm_UserSvcError(t *testing.T) {
-	svc := new(mockServiceCatalogSvc)
-	userSvc := new(mockAdminUserSvc)
-	svc.On("ListDepartments", mock.Anything).Return([]models.Department{}, nil)
-	userSvc.On("ListUsers", mock.Anything, mock.Anything, mock.Anything).Return(nil, errors.New("user err"))
 	h := handlers.NewServiceCatalogHandler(svc, userSvc)
 	e := setupAdminEcho()
 
@@ -1005,14 +935,12 @@ func TestEditServiceTypeForm_WithAllOptionalFields(t *testing.T) {
 
 	pt := 5
 	deptID := "dept-1"
-	staffID := "staff-1"
 	catID := "cat-1"
 	schema := []byte(`{"fields":[]}`)
 	st := &models.ServiceType{
 		ID: "st1", Name: "Svc", Code: "S1",
 		ProcessingTime:          &pt,
 		ResponsibleDepartmentID: &deptID,
-		ResponsibleStaffUserID:  &staffID,
 		CategoryID:              &catID,
 		FormSchema:              schema,
 	}

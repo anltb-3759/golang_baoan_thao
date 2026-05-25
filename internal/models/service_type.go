@@ -18,8 +18,6 @@ type ServiceType struct {
 	Fee                     float64         `json:"fee" gorm:"type:numeric(12,2);not null;default:0"`
 	ResponsibleDepartmentID *string         `json:"responsible_department_id" gorm:"type:uuid;index"`
 	ResponsibleDepartment   *Department     `json:"responsible_department" gorm:"foreignKey:ResponsibleDepartmentID;references:ID;constraint:OnUpdate:CASCADE,OnDelete:SET NULL"`
-	ResponsibleStaffUserID  *string         `json:"responsible_staff_user_id" gorm:"type:uuid;index"`
-	ResponsibleStaffUser    *User           `json:"responsible_staff_user" gorm:"foreignKey:ResponsibleStaffUserID;references:ID;constraint:OnUpdate:CASCADE,OnDelete:SET NULL"`
 	IsActive                bool            `json:"is_active" gorm:"not null;default:true"`
 	CreatedAt               time.Time       `json:"created_at" gorm:"not null"`
 	UpdatedAt               time.Time       `json:"updated_at" gorm:"not null"`

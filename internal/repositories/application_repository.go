@@ -15,12 +15,19 @@ const codeRetryAttempts = 3
 type ApplicationRepository interface {
 	CreateWithAttachments(app *models.Application, atts []models.ApplicationAttachment, notif *models.Notification, codeGen func() string) error
 	GetByID(id string) (*models.Application, error)
-	AdminList(page, limit int) ([]models.Application, int64, error)
+	AdminList(filter ApplicationFilter, page, limit int) ([]models.Application, int64, error)
 	ListByCitizen(citizenUserID string, page, limit int) ([]models.Application, int64, error)
 	GetByIDForCitizen(id, citizenUserID string) (*models.Application, error)
 	ListStatusLogsByCitizen(appID, citizenUserID string, page, limit int, since *time.Time) ([]models.ApplicationStatusLog, int64, error)
 	CreateAttachments(appID string, atts []models.ApplicationAttachment) error
 	UpdateAssignedStaff(applicationID string, assignedStaffUserID *string, updatedBy string) error
+	ProcessStatusUpdate(appID string, oldStatus *models.ApplicationStatus, newStatus models.ApplicationStatus, resultNote string, rejectedReason string, processingStartedAt, completedAt *time.Time, updatedBy string, atts []models.ApplicationAttachment) error
+}
+
+type ApplicationFilter struct {
+	Status    string
+	Service   string
+	Submitter string
 }
 
 type applicationRepo struct {
@@ -81,8 +88,23 @@ func (r *applicationRepo) GetByID(id string) (*models.Application, error) {
 	return &app, nil
 }
 
-func (r *applicationRepo) AdminList(page, limit int) ([]models.Application, int64, error) {
-	q := r.db.Model(&models.Application{}).Where("deleted_at IS NULL")
+func (r *applicationRepo) AdminList(filter ApplicationFilter, page, limit int) ([]models.Application, int64, error) {
+	q := r.db.Model(&models.Application{}).
+		Joins("LEFT JOIN service_types ON service_types.id = applications.service_type_id").
+		Joins("LEFT JOIN users ON users.id = applications.citizen_user_id").
+		Where("applications.deleted_at IS NULL")
+
+	if filter.Status != "" {
+		q = q.Where("applications.status = ?", filter.Status)
+	}
+	if filter.Service != "" {
+		like := "%" + strings.ToLower(filter.Service) + "%"
+		q = q.Where("LOWER(service_types.name) LIKE ? OR LOWER(service_types.code) LIKE ?", like, like)
+	}
+	if filter.Submitter != "" {
+		like := "%" + strings.ToLower(filter.Submitter) + "%"
+		q = q.Where("LOWER(users.name) LIKE ? OR LOWER(users.email) LIKE ?", like, like)
+	}
 
 	var total int64
 	if err := q.Count(&total).Error; err != nil {
@@ -172,6 +194,43 @@ func (r *applicationRepo) UpdateAssignedStaff(applicationID string, assignedStaf
 			"assigned_staff_user_id": assignedStaffUserID,
 			"updated_at":             time.Now(),
 		}).Error
+}
+
+func (r *applicationRepo) ProcessStatusUpdate(appID string, oldStatus *models.ApplicationStatus, newStatus models.ApplicationStatus, resultNote string, rejectedReason string, processingStartedAt, completedAt *time.Time, updatedBy string, atts []models.ApplicationAttachment) error {
+	now := time.Now()
+	return r.db.Transaction(func(tx *gorm.DB) error {
+		updates := map[string]interface{}{
+			"status":                newStatus,
+			"result_note":           resultNote,
+			"rejected_reason":       rejectedReason,
+			"processing_started_at": processingStartedAt,
+			"completed_at":          completedAt,
+			"updated_at":            now,
+		}
+		if err := tx.Model(&models.Application{}).Where("id = ? AND deleted_at IS NULL", appID).Updates(updates).Error; err != nil {
+			return err
+		}
+
+		for i := range atts {
+			atts[i].ApplicationID = appID
+		}
+		if len(atts) > 0 {
+			if err := tx.Create(&atts).Error; err != nil {
+				return err
+			}
+		}
+
+		changedBy := updatedBy
+		log := &models.ApplicationStatusLog{
+			ApplicationID:   appID,
+			OldStatus:       oldStatus,
+			NewStatus:       newStatus,
+			ChangedByUserID: &changedBy,
+			Note:            resultNote,
+			CreatedAt:       now,
+		}
+		return tx.Create(log).Error
+	})
 }
 
 func isApplicationCodeConflict(err error) bool {

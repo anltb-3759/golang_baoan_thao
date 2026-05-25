@@ -7,6 +7,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/awesome-academy/golang_baoan_thao/internal/configs"
 	"github.com/awesome-academy/golang_baoan_thao/internal/models"
 	"github.com/awesome-academy/golang_baoan_thao/internal/repositories"
 	"github.com/awesome-academy/golang_baoan_thao/internal/utils"
@@ -15,12 +16,14 @@ import (
 var ErrAdminApplicationNotFound = errors.New("application.not_found")
 var ErrAdminApplicationInvalidTransition = errors.New("application.invalid_transition")
 var ErrAdminApplicationRejectReasonRequired = errors.New("application.reject_reason_required")
+var ErrAdminApplicationNoteRequired = errors.New("application.note_required")
 
 type AdminApplicationService struct {
-	appRepo        repositories.ApplicationRepository
-	assignService  *ApplicationAssignmentService
-	storage        utils.FileStorage
-	activityLogger activityLogger
+	appRepo          repositories.ApplicationRepository
+	assignService    *ApplicationAssignmentService
+	storage          utils.FileStorage
+	activityLogger   activityLogger
+	notificationRepo repositories.NotificationRepository
 }
 
 func NewAdminApplicationService(appRepo repositories.ApplicationRepository, assignService *ApplicationAssignmentService, storage utils.FileStorage, loggers ...activityLogger) *AdminApplicationService {
@@ -29,6 +32,11 @@ func NewAdminApplicationService(appRepo repositories.ApplicationRepository, assi
 		logger = loggers[0]
 	}
 	return &AdminApplicationService{appRepo: appRepo, assignService: assignService, storage: storage, activityLogger: logger}
+}
+
+func (s *AdminApplicationService) WithNotificationRepo(repo repositories.NotificationRepository) *AdminApplicationService {
+	s.notificationRepo = repo
+	return s
 }
 
 func (s *AdminApplicationService) ListApplications(filter repositories.ApplicationFilter, page, limit int) ([]models.Application, int64, error) {
@@ -57,6 +65,9 @@ func (s *AdminApplicationService) ProcessApplication(applicationID string, newSt
 	}
 	if newStatus == models.ApplicationStatusRejected && strings.TrimSpace(note) == "" {
 		return ErrAdminApplicationRejectReasonRequired
+	}
+	if newStatus == models.ApplicationStatusNeedMoreInfo && strings.TrimSpace(note) == "" {
+		return ErrAdminApplicationNoteRequired
 	}
 
 	now := time.Now()
@@ -133,7 +144,57 @@ func (s *AdminApplicationService) ProcessApplication(applicationID string, newSt
 		CreatedAt: now,
 	})
 
+	s.notifyCitizenStatusChange(app, newStatus, note, now)
+
 	return nil
+}
+
+func (s *AdminApplicationService) notifyCitizenStatusChange(app *models.Application, newStatus models.ApplicationStatus, note string, now time.Time) {
+	if s.notificationRepo == nil || app == nil {
+		return
+	}
+	loc := configs.DefaultLocale
+	params := map[string]string{
+		"code":    app.ApplicationCode,
+		"service": app.ServiceType.Name,
+		"note":    strings.TrimSpace(note),
+	}
+
+	var titleKey, messageKey string
+	var notifType models.NotificationType
+	switch newStatus {
+	case models.ApplicationStatusProcessing:
+		titleKey = "notification.processing.title"
+		messageKey = "notification.processing.message"
+		notifType = models.NotificationTypeSystem
+	case models.ApplicationStatusNeedMoreInfo:
+		titleKey = "notification.need_more_info.title"
+		messageKey = "notification.need_more_info.message"
+		notifType = models.NotificationTypeNeedMoreInfo
+	case models.ApplicationStatusApproved:
+		titleKey = "notification.approved.title"
+		messageKey = "notification.approved.message"
+		notifType = models.NotificationTypeResult
+	case models.ApplicationStatusRejected:
+		titleKey = "notification.rejected.title"
+		messageKey = "notification.rejected.message"
+		notifType = models.NotificationTypeResult
+	default:
+		return
+	}
+
+	appID := app.ID
+	notif := &models.Notification{
+		UserID:        app.CitizenUserID,
+		ApplicationID: &appID,
+		Title:         configs.TLang(loc, titleKey, params),
+		Message:       configs.TLang(loc, messageKey, params),
+		Type:          notifType,
+		CreatedAt:     now,
+	}
+	if err := s.notificationRepo.Create(notif); err != nil {
+		log.Printf("create status-change notification failed for app %s: %v", app.ID, err)
+	}
 }
 
 func (s *AdminApplicationService) logActivity(entry *models.ActivityLog) {
@@ -150,7 +211,11 @@ func isAllowedAdminTransition(current, next models.ApplicationStatus) bool {
 	case models.ApplicationStatusReceived:
 		return next == models.ApplicationStatusProcessing
 	case models.ApplicationStatusProcessing:
-		return next == models.ApplicationStatusApproved || next == models.ApplicationStatusRejected
+		return next == models.ApplicationStatusApproved ||
+			next == models.ApplicationStatusRejected ||
+			next == models.ApplicationStatusNeedMoreInfo
+	case models.ApplicationStatusNeedMoreInfo:
+		return next == models.ApplicationStatusProcessing
 	default:
 		return false
 	}

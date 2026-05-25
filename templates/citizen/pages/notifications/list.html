@@ -1,0 +1,110 @@
+{{ define "content" }}
+<div class="space-y-6">
+  <div class="flex items-center justify-between">
+    <div>
+      <h1 class="text-2xl font-semibold text-gray-900">{{ t "ui.nav.citizen.notifications" }}</h1>
+      <p class="mt-1 text-sm text-gray-600">{{ t "ui.citizen.notifications.subtitle" }}</p>
+    </div>
+    {{ if .UnreadCount }}
+    <form action="/citizen/notifications/read-all" method="post">
+      <button type="submit"
+              class="inline-flex items-center gap-2 rounded-md bg-indigo-600 px-3 py-2 text-sm font-medium text-white hover:bg-indigo-700">
+        <i data-lucide="check-check" class="h-4 w-4"></i>
+        {{ t "ui.citizen.notifications.mark_all_read" }}
+      </button>
+    </form>
+    {{ end }}
+  </div>
+
+  <form method="get" action="/citizen/notifications" class="flex flex-wrap items-end gap-3 rounded-lg border border-gray-200 bg-white p-4">
+    <div class="flex flex-col">
+      <label class="text-xs font-medium text-gray-600 mb-1">{{ t "ui.citizen.notifications.filter.read" }}</label>
+      <select name="is_read"
+              class="rounded-md border border-gray-300 px-3 py-1.5 text-sm">
+        <option value="" {{ if eq .FilterIsRead "" }}selected{{ end }}>{{ t "ui.citizen.notifications.filter.all" }}</option>
+        <option value="false" {{ if eq .FilterIsRead "false" }}selected{{ end }}>{{ t "ui.citizen.notifications.filter.unread" }}</option>
+        <option value="true" {{ if eq .FilterIsRead "true" }}selected{{ end }}>{{ t "ui.citizen.notifications.filter.read_only" }}</option>
+      </select>
+    </div>
+    <div class="flex flex-col">
+      <label class="text-xs font-medium text-gray-600 mb-1">{{ t "ui.citizen.notifications.filter.type" }}</label>
+      <select name="type"
+              class="rounded-md border border-gray-300 px-3 py-1.5 text-sm">
+        <option value="" {{ if eq .FilterType "" }}selected{{ end }}>{{ t "ui.citizen.notifications.filter.all_types" }}</option>
+        <option value="received" {{ if eq .FilterType "received" }}selected{{ end }}>{{ t "ui.citizen.notifications.type.received" }}</option>
+        <option value="need_more_info" {{ if eq .FilterType "need_more_info" }}selected{{ end }}>{{ t "ui.citizen.notifications.type.need_more_info" }}</option>
+        <option value="result" {{ if eq .FilterType "result" }}selected{{ end }}>{{ t "ui.citizen.notifications.type.result" }}</option>
+        <option value="system" {{ if eq .FilterType "system" }}selected{{ end }}>{{ t "ui.citizen.notifications.type.system" }}</option>
+      </select>
+    </div>
+    <button type="submit"
+            class="inline-flex items-center gap-2 rounded-md border border-gray-300 bg-white px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-50">
+      <i data-lucide="filter" class="h-4 w-4"></i>
+      {{ t "ui.common.search" }}
+    </button>
+    <a href="/citizen/notifications"
+       class="inline-flex items-center gap-2 rounded-md border border-gray-300 bg-white px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-50">
+      {{ t "ui.common.reset" }}
+    </a>
+  </form>
+
+  <div class="rounded-lg border border-gray-200 bg-white">
+    {{ if .Notifications }}
+    <ul class="divide-y divide-gray-100">
+      {{ range .Notifications }}
+      <li class="flex items-start gap-4 p-4 {{ if not .IsRead }}bg-indigo-50/40{{ end }}">
+        <div class="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-full
+          {{ if eq .Type "received" }}bg-blue-50 text-blue-600
+          {{ else if eq .Type "need_more_info" }}bg-amber-50 text-amber-600
+          {{ else if eq .Type "result" }}bg-emerald-50 text-emerald-600
+          {{ else }}bg-gray-100 text-gray-600{{ end }}">
+          {{ if eq .Type "received" }}<i data-lucide="inbox" class="h-4 w-4"></i>
+          {{ else if eq .Type "need_more_info" }}<i data-lucide="alert-circle" class="h-4 w-4"></i>
+          {{ else if eq .Type "result" }}<i data-lucide="check-circle-2" class="h-4 w-4"></i>
+          {{ else }}<i data-lucide="bell" class="h-4 w-4"></i>{{ end }}
+        </div>
+        <div class="flex-1 min-w-0">
+          <div class="flex items-center gap-2">
+            <p class="text-sm font-medium text-gray-900">{{ .Title }}</p>
+            {{ if not .IsRead }}
+            <span class="inline-flex items-center rounded-full bg-indigo-600 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-white">{{ t "ui.citizen.notifications.badge.new" }}</span>
+            {{ end }}
+          </div>
+          <p class="mt-1 text-sm text-gray-600">{{ .Message }}</p>
+          <p class="mt-1.5 text-xs text-gray-400">{{ fmtTime .CreatedAt "02/01/2006 15:04" }}</p>
+        </div>
+        <div class="flex shrink-0 items-center gap-2">
+          {{ if .ApplicationID }}
+          <a href="/citizen/applications/{{ .ApplicationID }}"
+             class="inline-flex items-center gap-1 rounded-md border border-gray-300 bg-white px-2.5 py-1 text-xs font-medium text-gray-700 hover:bg-gray-50">
+            <i data-lucide="external-link" class="h-3.5 w-3.5"></i>
+            {{ t "ui.common.view" }}
+          </a>
+          {{ end }}
+          {{ if not .IsRead }}
+          <form action="/citizen/notifications/{{ .ID }}/read" method="post">
+            <button type="submit"
+                    class="inline-flex items-center gap-1 rounded-md bg-indigo-600 px-2.5 py-1 text-xs font-medium text-white hover:bg-indigo-700">
+              <i data-lucide="check" class="h-3.5 w-3.5"></i>
+              {{ t "ui.citizen.notifications.mark_read" }}
+            </button>
+          </form>
+          {{ end }}
+        </div>
+      </li>
+      {{ end }}
+    </ul>
+    {{ template "admin/partials/pagination.html" . }}
+    {{ else }}
+    <div class="px-6 py-16 text-center">
+      <div class="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-gray-100 text-gray-400">
+        <i data-lucide="bell-off" class="h-5 w-5"></i>
+      </div>
+      <p class="mt-3 text-sm text-gray-600">{{ t "ui.citizen.notifications.empty" }}</p>
+    </div>
+    {{ end }}
+  </div>
+</div>
+{{ end }}
+
+{{ template "citizen_base" . }}

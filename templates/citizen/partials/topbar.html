@@ -1,0 +1,29 @@
+<header class="h-14 bg-white border-b border-gray-200 flex items-center justify-between px-6 sticky top-0 z-10">
+  <div class="flex items-center gap-2">
+    <span class="text-sm font-medium text-gray-900">{{ t "ui.page.system_name" }}</span>
+  </div>
+  <div class="flex items-center gap-3">
+    <a href="/citizen/notifications"
+       class="relative inline-flex items-center justify-center h-8 w-8 rounded-md text-gray-600 hover:bg-gray-100 transition"
+       aria-label="{{ t "ui.nav.citizen.notifications" }}">
+      <i data-lucide="bell" class="h-4 w-4"></i>
+      {{ if .UnreadCount }}
+      <span class="absolute -top-1 -right-1 inline-flex h-4 min-w-[1rem] items-center justify-center rounded-full bg-red-500 px-1 text-[10px] font-semibold leading-none text-white">{{ .UnreadCount }}</span>
+      {{ end }}
+    </a>
+    <div class="flex gap-1">
+      <a href="/set-locale?lang=vi"
+         class="px-2.5 py-1 rounded text-xs font-medium transition
+           {{ if eq (currentLocale) "vi" }}bg-indigo-600 text-white{{ else }}bg-gray-100 text-gray-600 hover:bg-gray-200{{ end }}">VI</a>
+      <a href="/set-locale?lang=en"
+         class="px-2.5 py-1 rounded text-xs font-medium transition
+           {{ if eq (currentLocale) "en" }}bg-indigo-600 text-white{{ else }}bg-gray-100 text-gray-600 hover:bg-gray-200{{ end }}">EN</a>
+    </div>
+    {{ if .CurrentUser }}
+    <span class="flex items-center gap-1.5 text-sm text-gray-600">
+      <i data-lucide="user-circle" class="h-4 w-4"></i>
+      {{ .CurrentUser.Email }}
+    </span>
+    {{ end }}
+  </div>
+</header>

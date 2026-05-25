@@ -1,6 +1,8 @@
 package routes
 
 import (
+	"net/http"
+
 	"github.com/awesome-academy/golang_baoan_thao/internal/handlers"
 	"github.com/awesome-academy/golang_baoan_thao/internal/middlewares"
 	"github.com/awesome-academy/golang_baoan_thao/internal/models"
@@ -20,9 +22,29 @@ type ApiHandler struct {
 	CitizenProfileHandler   *handlers.CitizenProfileHandler
 	ServiceCatalogHandler   *handlers.ServiceCatalogHandler
 	ApplicationHandler      *handlers.ApplicationHandler
+	NotificationHandler     *handlers.NotificationHandler
+	CitizenWebHandler       *handlers.CitizenWebHandler
 }
 
 func SetupRoutes(e *echo.Echo, handler *ApiHandler) {
+	e.GET("/", func(c *echo.Context) error {
+		return c.Redirect(http.StatusSeeOther, "/login")
+	})
+
+	// Citizen web auth (public)
+	e.GET("/login", handler.CitizenWebHandler.ShowLoginPage)
+	e.POST("/login", handler.CitizenWebHandler.WebLogin)
+	e.GET("/register", handler.CitizenWebHandler.ShowRegisterPage)
+	e.POST("/register", handler.CitizenWebHandler.WebRegister)
+	e.GET("/logout", handler.CitizenWebHandler.WebLogout)
+
+	// Citizen web routes (protected by cookie auth, role=citizen)
+	citizenWeb := e.Group("/citizen", middlewares.CitizenWebMiddleware)
+	citizenWeb.GET("", handler.CitizenWebHandler.ShowDashboard)
+	citizenWeb.GET("/notifications", handler.CitizenWebHandler.ListNotifications)
+	citizenWeb.POST("/notifications/read-all", handler.CitizenWebHandler.MarkAllNotificationsRead)
+	citizenWeb.POST("/notifications/:id/read", handler.CitizenWebHandler.MarkNotificationRead)
+
 	// Admin auth (public)
 	e.GET("/admin/login", handler.AdminAuthHandler.ShowLoginPage)
 	e.POST("/admin/login", handler.AdminAuthHandler.WebLogin)
@@ -149,6 +171,11 @@ func SetupRoutes(e *echo.Echo, handler *ApiHandler) {
 	citizen.GET("/me/applications/:id", handler.ApplicationHandler.GetMine)
 	citizen.GET("/me/applications/:id/status-history", handler.ApplicationHandler.ListMyStatusHistory)
 	citizen.POST("/me/applications/:id/supplements", handler.ApplicationHandler.UploadSupplements)
+
+	// Notifications
+	citizen.GET("/me/notifications", handler.NotificationHandler.List)
+	citizen.PUT("/me/notifications/read-all", handler.NotificationHandler.MarkAllAsRead)
+	citizen.PUT("/me/notifications/:id/read", handler.NotificationHandler.MarkAsRead)
 
 	staff := api.Group("/staff")
 	staff.Use(middlewares.JWTMiddleware)

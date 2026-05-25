@@ -58,6 +58,9 @@ func main() {
 	citizenProfileRepo := repositories.NewCitizenProfileRepository(db)
 	applicationRepo := repositories.NewApplicationRepository(db)
 	serviceCatalogRepo := repositories.NewServiceTypeRepository(db)
+	notificationRepo := repositories.NewNotificationRepository(db)
+	notificationSvc := services.NewNotificationService(notificationRepo)
+	notificationHandler := handlers.NewNotificationHandler(notificationSvc)
 	activityLogRepo := repositories.NewActivityLogRepository(db)
 	activityLogSvc := services.NewActivityLogService(activityLogRepo)
 
@@ -65,6 +68,9 @@ func main() {
 	authService := services.NewAuthService(db, userRepo, citizenProfileRepo)
 	authHandler := handlers.NewAuthHandler(authService).WithActivityLogger(activityLogSvc)
 	adminAuthHandler := handlers.NewAdminAuthHandler(authService).WithActivityLogger(activityLogSvc)
+	citizenWebHandler := handlers.NewCitizenWebHandler(authService).
+		WithActivityLogger(activityLogSvc).
+		WithNotificationService(notificationSvc)
 
 	serviceCatalogSvc := services.NewServiceCatalogService(serviceCatalogRepo, activityLogSvc)
 	adminUserSvc := services.NewAdminUserService(userRepo, activityLogSvc)
@@ -93,7 +99,8 @@ func main() {
 	// application assignment service + admin handler
 	applicationAssignmentRepo := repositories.NewApplicationAssignmentRepo(db)
 	applicationAssignmentSvc := services.NewApplicationAssignmentService(applicationRepo, applicationAssignmentRepo, userRepo, activityLogSvc)
-	adminApplicationSvc := services.NewAdminApplicationService(applicationRepo, applicationAssignmentSvc, storage, activityLogSvc)
+	adminApplicationSvc := services.NewAdminApplicationService(applicationRepo, applicationAssignmentSvc, storage, activityLogSvc).
+		WithNotificationRepo(notificationRepo)
 	adminApplicationHandler := handlers.NewAdminApplicationHandler(adminApplicationSvc, adminUserSvc, staffProfileSvc)
 
 	categoryRepo := repositories.NewCategoryRepo(db)
@@ -121,6 +128,8 @@ func main() {
 		CitizenProfileHandler:   citizenProfileHandler,
 		ApplicationHandler:      applicationHandler,
 		AdminCategoryHandler:    adminCategoryHandler,
+		NotificationHandler:     notificationHandler,
+		CitizenWebHandler:       citizenWebHandler,
 	})
 
 	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)

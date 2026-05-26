@@ -1,109 +1,156 @@
 package routes
 
 import (
+	"io"
+	"mime/multipart"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"testing"
+	"time"
 
 	"github.com/awesome-academy/golang_baoan_thao/internal/configs"
-	"github.com/awesome-academy/golang_baoan_thao/internal/middlewares"
+	"github.com/awesome-academy/golang_baoan_thao/internal/handlers"
 	"github.com/awesome-academy/golang_baoan_thao/internal/models"
+	"github.com/awesome-academy/golang_baoan_thao/internal/repositories"
 	"github.com/labstack/echo/v5"
 	"github.com/stretchr/testify/assert"
 )
 
-func TestApplicationsRouteAccessPolicy(t *testing.T) {
+func init() {
+	_ = os.Setenv("JWT_SECRET", "test-secret-for-routes")
+}
+
+type fakeRenderer struct{}
+
+func (r *fakeRenderer) Render(_ *echo.Context, w io.Writer, _ string, _ interface{}) error {
+	_, _ = w.Write([]byte("ok"))
+	return nil
+}
+
+type fakeAdminApplicationsSvc struct{}
+
+func (s *fakeAdminApplicationsSvc) ListApplications(_ repositories.ApplicationFilter, _, _ int) ([]models.Application, int64, error) {
+	return []models.Application{{ID: "a1", ApplicationCode: "APP-1", Status: models.ApplicationStatusReceived}}, 1, nil
+}
+
+func (s *fakeAdminApplicationsSvc) GetApplication(_ string) (*models.Application, error) {
+	return &models.Application{
+		ID:             "a1",
+		ApplicationCode: "APP-1",
+		Status:         models.ApplicationStatusReceived,
+		SubmittedAt:    time.Now(),
+		ServiceType:    models.ServiceType{Name: "Svc"},
+		CitizenUser:    models.User{Name: "Citizen"},
+	}, nil
+}
+
+func (s *fakeAdminApplicationsSvc) AssignToStaff(_ string, _ *string, _ string) error {
+	return nil
+}
+
+func (s *fakeAdminApplicationsSvc) ProcessApplication(_ string, _ models.ApplicationStatus, _ string, _ []*multipart.FileHeader, _ string) error {
+	return nil
+}
+
+func makeRefreshTokenForRole(role models.UserRole) string {
+	user := &models.User{ID: "u1", Email: "u1@test.com", Role: role}
+	token, _ := configs.GenerateRefreshToken(user)
+	return token
+}
+
+func newRoutesEchoForAppsAccess() *echo.Echo {
 	e := echo.New()
+	e.Renderer = &fakeRenderer{}
 
-	// Inject claims into context to exercise route role middleware in isolation.
-	admin := e.Group("/admin", func(next echo.HandlerFunc) echo.HandlerFunc {
-		return func(c *echo.Context) error {
-			role := c.Request().Header.Get("X-Role")
-			if role != "" {
-				c.Set("user", &configs.JwtCustomClaims{ID: "u1", Role: role})
-			}
-			return next(c)
-		}
-	})
+	appHandler := handlers.NewAdminApplicationHandler(&fakeAdminApplicationsSvc{}, nil, nil)
+	apiHandler := &ApiHandler{
+		AdminApplicationHandler: appHandler,
+		AdminAuthHandler:        &handlers.AdminAuthHandler{},
+		AdminDashboardHandler:   &handlers.AdminDashboardHandler{},
+		AdminUserHandler:        &handlers.AdminUserHandler{},
+		AdminDepartmentHandler:  &handlers.AdminDepartmentHandler{},
+		AdminCategoryHandler:    &handlers.AdminCategoryHandler{},
+		AdminLogHandler:         &handlers.AdminLogHandler{},
+		AdminCitizenHandler:     &handlers.AdminCitizenHandler{},
+		AuthHandler:             &handlers.AuthHandler{},
+		CitizenProfileHandler:   &handlers.CitizenProfileHandler{},
+		ServiceCatalogHandler:   &handlers.ServiceCatalogHandler{},
+		ApplicationHandler:      &handlers.ApplicationHandler{},
+	}
+	SetupRoutes(e, apiHandler)
+	return e
+}
 
-	ok := func(c *echo.Context) error { return c.String(http.StatusOK, "ok") }
+func requestWithRole(e *echo.Echo, method, path string, role models.UserRole) *httptest.ResponseRecorder {
+	req := httptest.NewRequest(method, path, nil)
+	req.AddCookie(&http.Cookie{Name: "refresh_token", Value: makeRefreshTokenForRole(role)})
+	rec := httptest.NewRecorder()
+	e.ServeHTTP(rec, req)
+	return rec
+}
 
-	appsRead := admin.Group("/applications", middlewares.AdminWebRequireRoles(models.UserRoleManager, models.UserRoleSuperAdmin))
-	appsRead.GET("", ok)
-	appsRead.GET("/export", ok)
-	appsRead.GET("/:id", ok)
-
-	appsWrite := admin.Group("/applications", middlewares.AdminWebRequireRoles(models.UserRoleManager))
-	appsWrite.POST("/:id/process", ok)
-	appsWrite.GET("/:id/assign", ok)
-	appsWrite.POST("/:id/assign", ok)
+func TestApplicationsRouteAccessPolicy(t *testing.T) {
+	e := newRoutesEchoForAppsAccess()
 
 	tests := []struct {
-		name   string
-		role   string
-		method string
-		path   string
-		want   int
+		name        string
+		role        models.UserRole
+		method      string
+		path        string
+		wantAllowed bool
 	}{
-		{
-			name:   "super_admin can read list",
-			role:   "super_admin",
-			method: http.MethodGet,
-			path:   "/admin/applications",
-			want:   http.StatusOK,
-		},
-		{
-			name:   "super_admin can export",
-			role:   "super_admin",
-			method: http.MethodGet,
-			path:   "/admin/applications/export",
-			want:   http.StatusOK,
-		},
-		{
-			name:   "super_admin can view detail",
-			role:   "super_admin",
-			method: http.MethodGet,
-			path:   "/admin/applications/a1",
-			want:   http.StatusOK,
-		},
-		{
-			name:   "super_admin cannot process",
-			role:   "super_admin",
-			method: http.MethodPost,
-			path:   "/admin/applications/a1/process",
-			want:   http.StatusSeeOther,
-		},
-		{
-			name:   "super_admin cannot open assign form",
-			role:   "super_admin",
-			method: http.MethodGet,
-			path:   "/admin/applications/a1/assign",
-			want:   http.StatusSeeOther,
-		},
-		{
-			name:   "manager can process",
-			role:   "manager",
-			method: http.MethodPost,
-			path:   "/admin/applications/a1/process",
-			want:   http.StatusOK,
-		},
-		{
-			name:   "manager can assign",
-			role:   "manager",
-			method: http.MethodPost,
-			path:   "/admin/applications/a1/assign",
-			want:   http.StatusOK,
-		},
+		{name: "super_admin can read list", role: models.UserRoleSuperAdmin, method: http.MethodGet, path: "/admin/applications", wantAllowed: true},
+		{name: "super_admin can export", role: models.UserRoleSuperAdmin, method: http.MethodGet, path: "/admin/applications/export", wantAllowed: true},
+		{name: "super_admin can view detail", role: models.UserRoleSuperAdmin, method: http.MethodGet, path: "/admin/applications/a1", wantAllowed: true},
+		{name: "staff can read list", role: models.UserRoleStaff, method: http.MethodGet, path: "/admin/applications", wantAllowed: true},
+		{name: "staff can view detail", role: models.UserRoleStaff, method: http.MethodGet, path: "/admin/applications/a1", wantAllowed: true},
+		{name: "staff can process", role: models.UserRoleStaff, method: http.MethodPost, path: "/admin/applications/a1/process", wantAllowed: true},
+		{name: "super_admin cannot process", role: models.UserRoleSuperAdmin, method: http.MethodPost, path: "/admin/applications/a1/process", wantAllowed: false},
+		{name: "manager cannot process", role: models.UserRoleManager, method: http.MethodPost, path: "/admin/applications/a1/process", wantAllowed: false},
+		{name: "manager can assign", role: models.UserRoleManager, method: http.MethodPost, path: "/admin/applications/a1/assign", wantAllowed: true},
+		{name: "super_admin cannot open assign form", role: models.UserRoleSuperAdmin, method: http.MethodGet, path: "/admin/applications/a1/assign", wantAllowed: false},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			req := httptest.NewRequest(tt.method, tt.path, nil)
-			req.Header.Set("X-Role", tt.role)
-			rec := httptest.NewRecorder()
-			e.ServeHTTP(rec, req)
-			assert.Equal(t, tt.want, rec.Code)
+			rec := requestWithRole(e, tt.method, tt.path, tt.role)
+			if tt.wantAllowed {
+				if rec.Code == http.StatusSeeOther {
+					assert.NotEqual(t, "/admin/login", rec.Header().Get("Location"))
+					return
+				}
+				assert.NotEqual(t, http.StatusForbidden, rec.Code)
+				return
+			}
+			assert.NotEqual(t, http.StatusOK, rec.Code)
+			assert.Contains(t, []int{http.StatusSeeOther, http.StatusForbidden}, rec.Code)
 		})
 	}
 }
 
+func TestApplicationsAssignAccessPolicy_OnlyManagerAllowed(t *testing.T) {
+	e := newRoutesEchoForAppsAccess()
+
+	tests := []struct {
+		name        string
+		role        models.UserRole
+		wantAllowed bool
+	}{
+		{name: "manager allowed", role: models.UserRoleManager, wantAllowed: true},
+		{name: "staff forbidden", role: models.UserRoleStaff, wantAllowed: false},
+		{name: "super_admin forbidden", role: models.UserRoleSuperAdmin, wantAllowed: false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			rec := requestWithRole(e, http.MethodGet, "/admin/applications/a1/assign", tt.role)
+			if tt.wantAllowed {
+				assert.Equal(t, http.StatusOK, rec.Code)
+				return
+			}
+			assert.NotEqual(t, http.StatusOK, rec.Code)
+			assert.Contains(t, []int{http.StatusSeeOther, http.StatusForbidden}, rec.Code)
+		})
+	}
+}

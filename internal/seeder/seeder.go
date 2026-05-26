@@ -10,7 +10,7 @@ import (
 )
 
 func SeedDatabase(db *gorm.DB) error {
-	fmt.Println("🌱 Starting database seeding...")
+	fmt.Println("ðŸŒ± Starting database seeding...")
 
 	if err := seedUsers(db); err != nil {
 		return fmt.Errorf("error seeding users: %w", err)
@@ -40,7 +40,7 @@ func SeedDatabase(db *gorm.DB) error {
 		return fmt.Errorf("error seeding notifications: %w", err)
 	}
 
-	fmt.Println("✅ Database seeding completed successfully!")
+	fmt.Println("âœ… Database seeding completed successfully!")
 	return nil
 }
 
@@ -65,56 +65,110 @@ func findServiceByCode(db *gorm.DB, code string) (models.ServiceType, error) {
 func seedUsers(db *gorm.DB) error {
 	users := []models.User{
 		{
-			Name:         "Nguyễn Văn An",
+			Name:         "Nguyá»…n VÄƒn An",
 			Email:        "admin@example.com",
 			PasswordHash: "$2a$10$nFfLjD3IXTX8j45eYDNF5.zxZzxoUTBU4Wklu6M3NFUojJtnYkukS",
 			Phone:        "0912345678",
-			Address:      "123 Đường Lê Lợi, Quận 1, TP. Hồ Chí Minh",
+			Address:      "123 ÄÆ°á»ng LÃª Lá»£i, Quáº­n 1, TP. Há»“ ChÃ­ Minh",
 			Role:         models.UserRoleSuperAdmin,
 			Status:       models.UserStatusActive,
 		},
 		{
-			Name:         "Trần Thị Bình",
+			Name:         "Tráº§n Thá»‹ BÃ¬nh",
 			Email:        "manager@example.com",
 			PasswordHash: "$2a$10$nFfLjD3IXTX8j45eYDNF5.zxZzxoUTBU4Wklu6M3NFUojJtnYkukS",
 			Phone:        "0912345679",
-			Address:      "456 Đường Nguyễn Huệ, Quận 1, TP. Hồ Chí Minh",
+			Address:      "456 ÄÆ°á»ng Nguyá»…n Huá»‡, Quáº­n 1, TP. Há»“ ChÃ­ Minh",
 			Role:         models.UserRoleManager,
 			Status:       models.UserStatusActive,
 		},
 		{
-			Name:         "Phạm Minh Tuấn",
+			Name:         "Pháº¡m Minh Tuáº¥n",
 			Email:        "staff1@example.com",
 			PasswordHash: "$2a$10$nFfLjD3IXTX8j45eYDNF5.zxZzxoUTBU4Wklu6M3NFUojJtnYkukS",
 			Phone:        "0912345680",
-			Address:      "789 Đường Tôn Đức Thắng, Quận 1, TP. Hồ Chí Minh",
+			Address:      "789 ÄÆ°á»ng TÃ´n Äá»©c Tháº¯ng, Quáº­n 1, TP. Há»“ ChÃ­ Minh",
 			Role:         models.UserRoleStaff,
 			Status:       models.UserStatusActive,
 		},
 		{
-			Name:         "Hoàng Thị Liên",
+			Name:         "HoÃ ng Thá»‹ LiÃªn",
 			Email:        "staff2@example.com",
 			PasswordHash: "$2a$10$nFfLjD3IXTX8j45eYDNF5.zxZzxoUTBU4Wklu6M3NFUojJtnYkukS",
 			Phone:        "0912345681",
-			Address:      "321 Đường Độc Lập, Quận 1, TP. Hồ Chí Minh",
+			Address:      "321 ÄÆ°á»ng Äá»™c Láº­p, Quáº­n 1, TP. Há»“ ChÃ­ Minh",
 			Role:         models.UserRoleStaff,
 			Status:       models.UserStatusActive,
 		},
 		{
-			Name:         "Vũ Thành Công",
+			Name:         "Le Quoc Viet",
+			Email:        "staff3@example.com",
+			PasswordHash: "$2a$10$nFfLjD3IXTX8j45eYDNF5.zxZzxoUTBU4Wklu6M3NFUojJtnYkukS",
+			Phone:        "0912345684",
+			Address:      "12 Tran Hung Dao, Quan 1, TP. Ho Chi Minh",
+			Role:         models.UserRoleStaff,
+			Status:       models.UserStatusActive,
+		},
+		{
+			Name:         "Nguyen Gia Han",
+			Email:        "staff4@example.com",
+			PasswordHash: "$2a$10$nFfLjD3IXTX8j45eYDNF5.zxZzxoUTBU4Wklu6M3NFUojJtnYkukS",
+			Phone:        "0912345685",
+			Address:      "45 Vo Van Tan, Quan 3, TP. Ho Chi Minh",
+			Role:         models.UserRoleStaff,
+			Status:       models.UserStatusActive,
+		},
+		{
+			Name:         "Tran Minh Khoa",
+			Email:        "staff5@example.com",
+			PasswordHash: "$2a$10$nFfLjD3IXTX8j45eYDNF5.zxZzxoUTBU4Wklu6M3NFUojJtnYkukS",
+			Phone:        "0912345686",
+			Address:      "88 Nguyen Dinh Chieu, Quan 1, TP. Ho Chi Minh",
+			Role:         models.UserRoleStaff,
+			Status:       models.UserStatusActive,
+		},
+		{
+			Name:         "Do Thi Mai",
+			Email:        "staff6@example.com",
+			PasswordHash: "$2a$10$nFfLjD3IXTX8j45eYDNF5.zxZzxoUTBU4Wklu6M3NFUojJtnYkukS",
+			Phone:        "0912345687",
+			Address:      "19 Le Van Sy, Quan Phu Nhuan, TP. Ho Chi Minh",
+			Role:         models.UserRoleStaff,
+			Status:       models.UserStatusActive,
+		},
+		{
+			Name:         "Pham Duc Long",
+			Email:        "staff7@example.com",
+			PasswordHash: "$2a$10$nFfLjD3IXTX8j45eYDNF5.zxZzxoUTBU4Wklu6M3NFUojJtnYkukS",
+			Phone:        "0912345688",
+			Address:      "201 Cach Mang Thang 8, Quan 10, TP. Ho Chi Minh",
+			Role:         models.UserRoleStaff,
+			Status:       models.UserStatusActive,
+		},
+		{
+			Name:         "Bui Thanh Nhan",
+			Email:        "staff8@example.com",
+			PasswordHash: "$2a$10$nFfLjD3IXTX8j45eYDNF5.zxZzxoUTBU4Wklu6M3NFUojJtnYkukS",
+			Phone:        "0912345689",
+			Address:      "77 Cong Hoa, Quan Tan Binh, TP. Ho Chi Minh",
+			Role:         models.UserRoleStaff,
+			Status:       models.UserStatusActive,
+		},
+		{
+			Name:         "VÅ© ThÃ nh CÃ´ng",
 			Email:        "citizen1@example.com",
 			PasswordHash: "$2a$10$nFfLjD3IXTX8j45eYDNF5.zxZzxoUTBU4Wklu6M3NFUojJtnYkukS",
 			Phone:        "0912345682",
-			Address:      "555 Đường Lạc Long Quân, Quận 5, TP. Hồ Chí Minh",
+			Address:      "555 ÄÆ°á»ng Láº¡c Long QuÃ¢n, Quáº­n 5, TP. Há»“ ChÃ­ Minh",
 			Role:         models.UserRoleCitizen,
 			Status:       models.UserStatusActive,
 		},
 		{
-			Name:         "Đặng Hữu Minh",
+			Name:         "Äáº·ng Há»¯u Minh",
 			Email:        "citizen2@example.com",
 			PasswordHash: "$2a$10$nFfLjD3IXTX8j45eYDNF5.zxZzxoUTBU4Wklu6M3NFUojJtnYkukS",
 			Phone:        "0912345683",
-			Address:      "666 Đường Phan Đình Phùng, Quận 3, TP. Hồ Chí Minh",
+			Address:      "666 ÄÆ°á»ng Phan ÄÃ¬nh PhÃ¹ng, Quáº­n 3, TP. Há»“ ChÃ­ Minh",
 			Role:         models.UserRoleCitizen,
 			Status:       models.UserStatusActive,
 		},
@@ -128,18 +182,18 @@ func seedUsers(db *gorm.DB) error {
 		}
 	}
 
-	fmt.Println("✓ Users seeded")
+	fmt.Println("âœ“ Users seeded")
 	return nil
 }
 
 func seedDepartments(db *gorm.DB) error {
-	manager, err := findUserByEmail(db, "manager@example.com")
-	if err != nil {
-		return fmt.Errorf("lookup manager: %w", err)
-	}
 	staff1, err := findUserByEmail(db, "staff1@example.com")
 	if err != nil {
 		return fmt.Errorf("lookup staff1: %w", err)
+	}
+	staff2, err := findUserByEmail(db, "staff2@example.com")
+	if err != nil {
+		return fmt.Errorf("lookup staff2: %w", err)
 	}
 
 	departments := []models.Department{
@@ -147,13 +201,13 @@ func seedDepartments(db *gorm.DB) error {
 			Name:         "Phòng Cấp Giấy Tờ Tùy Thân",
 			Code:         "PGTT",
 			Address:      "123 Đường Lê Lợi, Quận 1, TP. Hồ Chí Minh",
-			LeaderUserID: &manager.ID,
+			LeaderUserID: &staff1.ID,
 		},
 		{
 			Name:         "Phòng Đăng Ký Xe Cơ Giới",
 			Code:         "PDXCG",
 			Address:      "456 Đường Nguyễn Huệ, Quận 1, TP. Hồ Chí Minh",
-			LeaderUserID: &staff1.ID,
+			LeaderUserID: &staff2.ID,
 		},
 		{
 			Name:         "Phòng Cấp Giấy Phép Lái Xe",
@@ -186,37 +240,37 @@ func seedServiceTypes(db *gorm.DB) error {
 	}
 
 	formSchema1, _ := json.Marshal(map[string]interface{}{
-		"name":            "Mẫu đơn cấp CCCD",
+		"name":            "Máº«u Ä‘Æ¡n cáº¥p CCCD",
 		"fields":          []string{"full_name", "date_of_birth", "gender", "nationality"},
 		"required_fields": []string{"full_name", "date_of_birth", "gender"},
 	})
 	formSchema2, _ := json.Marshal(map[string]interface{}{
-		"name":            "Mẫu đơn cấp Giấy phép lái xe",
+		"name":            "Máº«u Ä‘Æ¡n cáº¥p Giáº¥y phÃ©p lÃ¡i xe",
 		"fields":          []string{"license_class", "experience_years", "medical_exam_date"},
 		"required_fields": []string{"license_class", "medical_exam_date"},
 	})
 	formSchema3, _ := json.Marshal(map[string]interface{}{
-		"name":            "Mẫu đơn đăng ký xe",
+		"name":            "Máº«u Ä‘Æ¡n Ä‘Äƒng kÃ½ xe",
 		"fields":          []string{"vehicle_type", "vehicle_brand", "chassis_no", "engine_no"},
 		"required_fields": []string{"vehicle_type", "chassis_no", "engine_no"},
 	})
 	formSchema4, _ := json.Marshal(map[string]interface{}{
-		"name":            "Mẫu đơn đăng ký nhập học",
+		"name":            "Máº«u Ä‘Æ¡n Ä‘Äƒng kÃ½ nháº­p há»c",
 		"fields":          []string{"student_name", "date_of_birth", "school_name", "grade"},
 		"required_fields": []string{"student_name", "date_of_birth", "school_name", "grade"},
 	})
 	formSchema5, _ := json.Marshal(map[string]interface{}{
-		"name":            "Mẫu đơn đăng ký khám sức khỏe",
+		"name":            "Máº«u Ä‘Æ¡n Ä‘Äƒng kÃ½ khÃ¡m sá»©c khá»e",
 		"fields":          []string{"full_name", "date_of_birth", "health_insurance_no", "preferred_date"},
 		"required_fields": []string{"full_name", "date_of_birth"},
 	})
 
 	serviceTypes := []models.ServiceType{
 		{
-			Name:                    "Cấp CCCD lần đầu",
+			Name:                    "Cáº¥p CCCD láº§n Ä‘áº§u",
 			Code:                    "CCCD_NEW",
-			Description:             "Cấp Căn cước công dân lần đầu cho công dân đủ 14 tuổi",
-			RequiredDocuments:       "Giấy khai sinh, Chứng minh thư hoặc Hộ chiếu, Ảnh màu 3x4",
+			Description:             "Cáº¥p CÄƒn cÆ°á»›c cÃ´ng dÃ¢n láº§n Ä‘áº§u cho cÃ´ng dÃ¢n Ä‘á»§ 14 tuá»•i",
+			RequiredDocuments:       "Giáº¥y khai sinh, Chá»©ng minh thÆ° hoáº·c Há»™ chiáº¿u, áº¢nh mÃ u 3x4",
 			FormSchema:              formSchema1,
 			ProcessingTime:          intPtr(3),
 			Fee:                     0.00,
@@ -224,10 +278,10 @@ func seedServiceTypes(db *gorm.DB) error {
 			IsActive:                true,
 		},
 		{
-			Name:                    "Cấp Giấy phép lái xe hạng A",
+			Name:                    "Cáº¥p Giáº¥y phÃ©p lÃ¡i xe háº¡ng A",
 			Code:                    "LICENSE_CLASS_A",
-			Description:             "Cấp Giấy phép lái xe hạng A (xe máy)",
-			RequiredDocuments:       "CCCD/Hộ chiếu, Giấy chứng nhận sức khỏe, 4 ảnh 3x4",
+			Description:             "Cáº¥p Giáº¥y phÃ©p lÃ¡i xe háº¡ng A (xe mÃ¡y)",
+			RequiredDocuments:       "CCCD/Há»™ chiáº¿u, Giáº¥y chá»©ng nháº­n sá»©c khá»e, 4 áº£nh 3x4",
 			FormSchema:              formSchema2,
 			ProcessingTime:          intPtr(5),
 			Fee:                     70000.00,
@@ -235,10 +289,10 @@ func seedServiceTypes(db *gorm.DB) error {
 			IsActive:                true,
 		},
 		{
-			Name:                    "Cấp Giấy phép lái xe hạng C",
+			Name:                    "Cáº¥p Giáº¥y phÃ©p lÃ¡i xe háº¡ng C",
 			Code:                    "LICENSE_CLASS_C",
-			Description:             "Cấp Giấy phép lái xe hạng C (ô tô nhỏ)",
-			RequiredDocuments:       "CCCD/Hộ chiếu, Giấy chứng nhận sức khỏe, 4 ảnh 3x4",
+			Description:             "Cáº¥p Giáº¥y phÃ©p lÃ¡i xe háº¡ng C (Ã´ tÃ´ nhá»)",
+			RequiredDocuments:       "CCCD/Há»™ chiáº¿u, Giáº¥y chá»©ng nháº­n sá»©c khá»e, 4 áº£nh 3x4",
 			FormSchema:              formSchema2,
 			ProcessingTime:          intPtr(7),
 			Fee:                     150000.00,
@@ -246,30 +300,30 @@ func seedServiceTypes(db *gorm.DB) error {
 			IsActive:                true,
 		},
 		{
-			Name:              "Đăng ký xe máy",
+			Name:              "ÄÄƒng kÃ½ xe mÃ¡y",
 			Code:              "REGISTER_BIKE",
-			Description:       "Đăng ký xe máy tại Cục Đăng ký Lái xe và Xe cơ giới",
-			RequiredDocuments: "Hóa đơn bán hàng, CCCD, Bảng kiểm tra kỹ thuật",
+			Description:       "ÄÄƒng kÃ½ xe mÃ¡y táº¡i Cá»¥c ÄÄƒng kÃ½ LÃ¡i xe vÃ  Xe cÆ¡ giá»›i",
+			RequiredDocuments: "HÃ³a Ä‘Æ¡n bÃ¡n hÃ ng, CCCD, Báº£ng kiá»ƒm tra ká»¹ thuáº­t",
 			FormSchema:        formSchema3,
 			ProcessingTime:    intPtr(1),
 			Fee:               50000.00,
 			IsActive:          true,
 		},
 		{
-			Name:              "Đăng ký nhập học trường công lập",
+			Name:              "ÄÄƒng kÃ½ nháº­p há»c trÆ°á»ng cÃ´ng láº­p",
 			Code:              "EDU_ENROLL",
-			Description:       "Đăng ký nhập học cho học sinh vào trường tiểu học và trung học công lập",
-			RequiredDocuments: "Giấy khai sinh, Hộ khẩu hoặc Giấy xác nhận cư trú, Ảnh 3x4",
+			Description:       "ÄÄƒng kÃ½ nháº­p há»c cho há»c sinh vÃ o trÆ°á»ng tiá»ƒu há»c vÃ  trung há»c cÃ´ng láº­p",
+			RequiredDocuments: "Giáº¥y khai sinh, Há»™ kháº©u hoáº·c Giáº¥y xÃ¡c nháº­n cÆ° trÃº, áº¢nh 3x4",
 			FormSchema:        formSchema4,
 			ProcessingTime:    intPtr(2),
 			Fee:               0.00,
 			IsActive:          true,
 		},
 		{
-			Name:              "Đăng ký khám sức khỏe định kỳ",
+			Name:              "ÄÄƒng kÃ½ khÃ¡m sá»©c khá»e Ä‘á»‹nh ká»³",
 			Code:              "HEALTH_CHECK",
-			Description:       "Đăng ký dịch vụ khám sức khỏe định kỳ tại cơ sở y tế công lập",
-			RequiredDocuments: "CCCD, Thẻ bảo hiểm y tế",
+			Description:       "ÄÄƒng kÃ½ dá»‹ch vá»¥ khÃ¡m sá»©c khá»e Ä‘á»‹nh ká»³ táº¡i cÆ¡ sá»Ÿ y táº¿ cÃ´ng láº­p",
+			RequiredDocuments: "CCCD, Tháº» báº£o hiá»ƒm y táº¿",
 			FormSchema:        formSchema5,
 			ProcessingTime:    intPtr(1),
 			Fee:               30000.00,
@@ -285,7 +339,7 @@ func seedServiceTypes(db *gorm.DB) error {
 		}
 	}
 
-	fmt.Println("✓ Service Types seeded")
+	fmt.Println("âœ“ Service Types seeded")
 	return nil
 }
 
@@ -308,7 +362,7 @@ func seedCitizenProfiles(db *gorm.DB) error {
 			CitizenIDNumber:          "123456789012",
 			DateOfBirth:              &dob1,
 			Gender:                   "Nam",
-			PermanentAddress:         "555 Đường Lạc Long Quân, Phường 9, Quận 5, TP. Hồ Chí Minh",
+			PermanentAddress:         "555 ÄÆ°á»ng Láº¡c Long QuÃ¢n, PhÆ°á»ng 9, Quáº­n 5, TP. Há»“ ChÃ­ Minh",
 			EmailNotificationEnabled: true,
 		},
 		{
@@ -316,7 +370,7 @@ func seedCitizenProfiles(db *gorm.DB) error {
 			CitizenIDNumber:          "987654321098",
 			DateOfBirth:              &dob2,
 			Gender:                   "Nam",
-			PermanentAddress:         "666 Đường Phan Đình Phùng, Phường 1, Quận 3, TP. Hồ Chí Minh",
+			PermanentAddress:         "666 ÄÆ°á»ng Phan ÄÃ¬nh PhÃ¹ng, PhÆ°á»ng 1, Quáº­n 3, TP. Há»“ ChÃ­ Minh",
 			EmailNotificationEnabled: true,
 		},
 	}
@@ -329,15 +383,11 @@ func seedCitizenProfiles(db *gorm.DB) error {
 		}
 	}
 
-	fmt.Println("✓ Citizen Profiles seeded")
+	fmt.Println("âœ“ Citizen Profiles seeded")
 	return nil
 }
 
 func seedStaffProfiles(db *gorm.DB) error {
-	manager, err := findUserByEmail(db, "manager@example.com")
-	if err != nil {
-		return fmt.Errorf("lookup manager: %w", err)
-	}
 	staff1, err := findUserByEmail(db, "staff1@example.com")
 	if err != nil {
 		return fmt.Errorf("lookup staff1: %w", err)
@@ -345,6 +395,30 @@ func seedStaffProfiles(db *gorm.DB) error {
 	staff2, err := findUserByEmail(db, "staff2@example.com")
 	if err != nil {
 		return fmt.Errorf("lookup staff2: %w", err)
+	}
+	staff3, err := findUserByEmail(db, "staff3@example.com")
+	if err != nil {
+		return fmt.Errorf("lookup staff3: %w", err)
+	}
+	staff4, err := findUserByEmail(db, "staff4@example.com")
+	if err != nil {
+		return fmt.Errorf("lookup staff4: %w", err)
+	}
+	staff5, err := findUserByEmail(db, "staff5@example.com")
+	if err != nil {
+		return fmt.Errorf("lookup staff5: %w", err)
+	}
+	staff6, err := findUserByEmail(db, "staff6@example.com")
+	if err != nil {
+		return fmt.Errorf("lookup staff6: %w", err)
+	}
+	staff7, err := findUserByEmail(db, "staff7@example.com")
+	if err != nil {
+		return fmt.Errorf("lookup staff7: %w", err)
+	}
+	staff8, err := findUserByEmail(db, "staff8@example.com")
+	if err != nil {
+		return fmt.Errorf("lookup staff8: %w", err)
 	}
 	deptGTTT, err := findDeptByCode(db, "PGTT")
 	if err != nil {
@@ -357,19 +431,44 @@ func seedStaffProfiles(db *gorm.DB) error {
 
 	profiles := []models.StaffProfile{
 		{
-			UserID:       manager.ID,
+			UserID:       staff1.ID,
 			DepartmentID: &deptGTTT.ID,
 			Position:     "Trưởng phòng",
 		},
 		{
-			UserID:       staff1.ID,
-			DepartmentID: &deptGTTT.ID,
-			Position:     "Chuyên viên cao cấp",
-		},
-		{
 			UserID:       staff2.ID,
 			DepartmentID: &deptXCG.ID,
+			Position:     "Trưởng phòng",
+		},
+		{
+			UserID:       staff3.ID,
+			DepartmentID: &deptGTTT.ID,
 			Position:     "Chuyên viên",
+		},
+		{
+			UserID:       staff4.ID,
+			DepartmentID: &deptGTTT.ID,
+			Position:     "Chuyên viên",
+		},
+		{
+			UserID:       staff5.ID,
+			DepartmentID: &deptXCG.ID,
+			Position:     "Chuyên viên",
+		},
+		{
+			UserID:       staff6.ID,
+			DepartmentID: &deptXCG.ID,
+			Position:     "Chuyên viên",
+		},
+		{
+			UserID:       staff7.ID,
+			DepartmentID: nil,
+			Position:     "Chuyên viên dự bị",
+		},
+		{
+			UserID:       staff8.ID,
+			DepartmentID: nil,
+			Position:     "Chuyên viên dự bị",
 		},
 	}
 
@@ -397,6 +496,10 @@ func seedApplications(db *gorm.DB) error {
 	staff1, err := findUserByEmail(db, "staff1@example.com")
 	if err != nil {
 		return fmt.Errorf("lookup staff1: %w", err)
+	}
+	staff2, err := findUserByEmail(db, "staff2@example.com")
+	if err != nil {
+		return fmt.Errorf("lookup staff2: %w", err)
 	}
 	svcCCCD, err := findServiceByCode(db, "CCCD_NEW")
 	if err != nil {
@@ -441,18 +544,18 @@ func seedApplications(db *gorm.DB) error {
 
 	applications := []models.Application{
 		{
-			ApplicationCode:     "HCM-2024-001",
+			ApplicationCode:     "HCM-2026-001",
 			CitizenUserID:       citizen1.ID,
 			ServiceTypeID:       svcCCCD.ID,
 			AssignedStaffUserID: &staff1.ID,
 			Status:              models.ApplicationStatusProcessing,
 			SubmittedData:       submittedData1,
-			ResultNote:          "Đã kiểm tra giấy tờ, đang xử lý cấp CCCD lần đầu",
+			ResultNote:          "Đã tiếp nhận và đang xử lý hồ sơ.",
 			SubmittedAt:         now.AddDate(0, 0, -7),
 			ProcessingStartedAt: &yesterday,
 		},
 		{
-			ApplicationCode: "HCM-2024-002",
+			ApplicationCode: "HCM-2026-002",
 			CitizenUserID:   citizen2.ID,
 			ServiceTypeID:   svcLicenseA.ID,
 			Status:          models.ApplicationStatusReceived,
@@ -460,16 +563,39 @@ func seedApplications(db *gorm.DB) error {
 			SubmittedAt:     now.AddDate(0, 0, -2),
 		},
 		{
-			ApplicationCode:     "HCM-2024-003",
+			ApplicationCode:     "HCM-2026-003",
 			CitizenUserID:       citizen1.ID,
 			ServiceTypeID:       svcLicenseC.ID,
 			AssignedStaffUserID: &staff1.ID,
-			Status:              models.ApplicationStatusApproved,
+			Status:              models.ApplicationStatusNeedMoreInfo,
 			SubmittedData:       submittedData3,
-			ResultNote:          "Đã phê duyệt. Giấy phép lái xe hạng C sẵn sàng lấy tại cơ quan.",
+			ResultNote:          "Vui lòng bổ sung giấy khám sức khỏe bản gốc.",
+			SubmittedAt:         now.AddDate(0, 0, -4),
+			ProcessingStartedAt: timePtr(now.AddDate(0, 0, -3)),
+		},
+		{
+			ApplicationCode:     "HCM-2026-004",
+			CitizenUserID:       citizen2.ID,
+			ServiceTypeID:       svcLicenseC.ID,
+			AssignedStaffUserID: &staff2.ID,
+			Status:              models.ApplicationStatusApproved,
+			SubmittedData:       submittedData2,
+			ResultNote:          "Đã phê duyệt hồ sơ.",
 			SubmittedAt:         now.AddDate(0, -1, 0),
 			ProcessingStartedAt: timePtr(now.AddDate(0, -1, 5)),
 			CompletedAt:         timePtr(now.AddDate(0, 0, -5)),
+		},
+		{
+			ApplicationCode:     "HCM-2026-005",
+			CitizenUserID:       citizen1.ID,
+			ServiceTypeID:       svcCCCD.ID,
+			AssignedStaffUserID: &staff2.ID,
+			Status:              models.ApplicationStatusRejected,
+			SubmittedData:       submittedData1,
+			RejectedReason:      "Thông tin giấy tờ không khớp hồ sơ gốc.",
+			SubmittedAt:         now.AddDate(0, 0, -10),
+			ProcessingStartedAt: timePtr(now.AddDate(0, 0, -9)),
+			CompletedAt:         timePtr(now.AddDate(0, 0, -8)),
 		},
 	}
 
@@ -502,16 +628,16 @@ func seedNotifications(db *gorm.DB) error {
 		{
 			UserID:        citizen1.ID,
 			ApplicationID: &app.ID,
-			Title:         "Cập nhật trạng thái hồ sơ",
-			Message:       "Hồ sơ HCM-2024-001 của bạn đã chuyển sang giai đoạn xử lý. Vui lòng chờ kết quả.",
+			Title:         "Cáº­p nháº­t tráº¡ng thÃ¡i há»“ sÆ¡",
+			Message:       "Há»“ sÆ¡ HCM-2024-001 cá»§a báº¡n Ä‘Ã£ chuyá»ƒn sang giai Ä‘oáº¡n xá»­ lÃ½. Vui lÃ²ng chá» káº¿t quáº£.",
 			Type:          models.NotificationTypeReceived,
 			IsRead:        false,
 			CreatedAt:     time.Now(),
 		},
 		{
 			UserID:    citizen2.ID,
-			Title:     "Thông báo hệ thống",
-			Message:   "Chào mừng bạn đến với Hệ thống Quản lý Dịch vụ Công. Bạn có thể đăng ký các dịch vụ công trực tuyến.",
+			Title:     "ThÃ´ng bÃ¡o há»‡ thá»‘ng",
+			Message:   "ChÃ o má»«ng báº¡n Ä‘áº¿n vá»›i Há»‡ thá»‘ng Quáº£n lÃ½ Dá»‹ch vá»¥ CÃ´ng. Báº¡n cÃ³ thá»ƒ Ä‘Äƒng kÃ½ cÃ¡c dá»‹ch vá»¥ cÃ´ng trá»±c tuyáº¿n.",
 			Type:      models.NotificationTypeSystem,
 			IsRead:    true,
 			ReadAt:    timePtr(time.Now().Add(-2 * time.Hour)),
@@ -526,7 +652,7 @@ func seedNotifications(db *gorm.DB) error {
 		}
 	}
 
-	fmt.Println("✓ Notifications seeded")
+	fmt.Println("âœ“ Notifications seeded")
 	return nil
 }
 

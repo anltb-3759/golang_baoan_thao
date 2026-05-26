@@ -82,7 +82,12 @@ func (r *applicationRepo) CreateWithAttachments(
 
 func (r *applicationRepo) GetByID(id string) (*models.Application, error) {
 	var app models.Application
-	if err := r.db.Preload("CitizenUser").Preload("ServiceType").Preload("AssignedStaffUser").Preload("ApplicationAttachments").Where("id = ? AND deleted_at IS NULL", id).First(&app).Error; err != nil {
+	if err := r.db.Preload("CitizenUser", "deleted_at IS NULL").
+		Preload("ServiceType", "deleted_at IS NULL").
+		Preload("AssignedStaffUser", "deleted_at IS NULL").
+		Preload("ApplicationAttachments", "deleted_at IS NULL").
+		Where("id = ? AND deleted_at IS NULL", id).
+		First(&app).Error; err != nil {
 		return nil, err
 	}
 	return &app, nil
@@ -92,7 +97,9 @@ func (r *applicationRepo) AdminList(filter ApplicationFilter, page, limit int) (
 	q := r.db.Model(&models.Application{}).
 		Joins("LEFT JOIN service_types ON service_types.id = applications.service_type_id").
 		Joins("LEFT JOIN users ON users.id = applications.citizen_user_id").
-		Where("applications.deleted_at IS NULL")
+		Where("applications.deleted_at IS NULL").
+		Where("service_types.deleted_at IS NULL").
+		Where("users.deleted_at IS NULL")
 
 	if filter.Status != "" {
 		q = q.Where("applications.status = ?", filter.Status)
@@ -113,7 +120,10 @@ func (r *applicationRepo) AdminList(filter ApplicationFilter, page, limit int) (
 
 	offset := (page - 1) * limit
 	items := make([]models.Application, 0)
-	if err := q.Preload("ServiceType").Preload("CitizenUser").Preload("AssignedStaffUser").Order("submitted_at DESC").Offset(offset).Limit(limit).Find(&items).Error; err != nil {
+	if err := q.Preload("ServiceType", "deleted_at IS NULL").
+		Preload("CitizenUser", "deleted_at IS NULL").
+		Preload("AssignedStaffUser", "deleted_at IS NULL").
+		Order("submitted_at DESC").Offset(offset).Limit(limit).Find(&items).Error; err != nil {
 		return nil, 0, err
 	}
 	return items, total, nil
@@ -130,7 +140,7 @@ func (r *applicationRepo) ListByCitizen(citizenUserID string, page, limit int) (
 
 	offset := (page - 1) * limit
 	items := make([]models.Application, 0)
-	if err := q.Preload("ServiceType").
+	if err := q.Preload("ServiceType", "deleted_at IS NULL").
 		Order("submitted_at DESC").
 		Offset(offset).
 		Limit(limit).
@@ -142,7 +152,8 @@ func (r *applicationRepo) ListByCitizen(citizenUserID string, page, limit int) (
 
 func (r *applicationRepo) GetByIDForCitizen(id, citizenUserID string) (*models.Application, error) {
 	var app models.Application
-	if err := r.db.Preload("ServiceType").Preload("ApplicationAttachments").
+	if err := r.db.Preload("ServiceType", "deleted_at IS NULL").
+		Preload("ApplicationAttachments", "deleted_at IS NULL").
 		Where("id = ? AND citizen_user_id = ? AND deleted_at IS NULL", id, citizenUserID).
 		First(&app).Error; err != nil {
 		return nil, err

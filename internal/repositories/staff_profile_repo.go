@@ -26,7 +26,10 @@ func NewStaffProfileRepo(db *gorm.DB) StaffProfileRepository {
 
 func (r *staffProfileRepo) FindByUserID(userID string) (*models.StaffProfile, error) {
 	var p models.StaffProfile
-	if err := r.db.Preload("User").Preload("Department").Where("user_id = ? AND deleted_at IS NULL", userID).First(&p).Error; err != nil {
+	if err := r.db.Preload("User", "deleted_at IS NULL").
+		Preload("Department", "deleted_at IS NULL").
+		Where("user_id = ? AND deleted_at IS NULL", userID).
+		First(&p).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, nil
 		}
@@ -36,7 +39,10 @@ func (r *staffProfileRepo) FindByUserID(userID string) (*models.StaffProfile, er
 }
 
 func (r *staffProfileRepo) ListByDepartment(deptID string, offset, limit int) ([]models.StaffProfile, int64, error) {
-	q := r.db.Model(&models.StaffProfile{}).Preload("User").Preload("Department").Where("deleted_at IS NULL")
+	q := r.db.Model(&models.StaffProfile{}).
+		Preload("User", "deleted_at IS NULL").
+		Preload("Department", "deleted_at IS NULL").
+		Where("deleted_at IS NULL")
 	if deptID != "" {
 		q = q.Where("department_id = ?", deptID)
 	} else {

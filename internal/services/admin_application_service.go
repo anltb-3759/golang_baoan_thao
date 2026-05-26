@@ -16,7 +16,7 @@ import (
 var ErrAdminApplicationNotFound = errors.New("application.not_found")
 var ErrAdminApplicationInvalidTransition = errors.New("application.invalid_transition")
 var ErrAdminApplicationRejectReasonRequired = errors.New("application.reject_reason_required")
-var ErrAdminApplicationNoteRequired = errors.New("application.note_required")
+var ErrAdminApplicationNeedMoreInfoNoteRequired = errors.New("application.need_more_info_note_required")
 
 type AdminApplicationService struct {
 	appRepo          repositories.ApplicationRepository
@@ -67,7 +67,7 @@ func (s *AdminApplicationService) ProcessApplication(applicationID string, newSt
 		return ErrAdminApplicationRejectReasonRequired
 	}
 	if newStatus == models.ApplicationStatusNeedMoreInfo && strings.TrimSpace(note) == "" {
-		return ErrAdminApplicationNoteRequired
+		return ErrAdminApplicationNeedMoreInfoNoteRequired
 	}
 
 	now := time.Now()
@@ -209,13 +209,11 @@ func (s *AdminApplicationService) logActivity(entry *models.ActivityLog) {
 func isAllowedAdminTransition(current, next models.ApplicationStatus) bool {
 	switch current {
 	case models.ApplicationStatusReceived:
-		return next == models.ApplicationStatusProcessing
+		return next == models.ApplicationStatusProcessing || next == models.ApplicationStatusNeedMoreInfo
 	case models.ApplicationStatusProcessing:
-		return next == models.ApplicationStatusApproved ||
-			next == models.ApplicationStatusRejected ||
-			next == models.ApplicationStatusNeedMoreInfo
+		return next == models.ApplicationStatusNeedMoreInfo || next == models.ApplicationStatusApproved || next == models.ApplicationStatusRejected
 	case models.ApplicationStatusNeedMoreInfo:
-		return next == models.ApplicationStatusProcessing
+		return next == models.ApplicationStatusProcessing || next == models.ApplicationStatusApproved || next == models.ApplicationStatusRejected
 	default:
 		return false
 	}

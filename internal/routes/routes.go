@@ -129,17 +129,20 @@ func SetupRoutes(e *echo.Echo, handler *ApiHandler) {
 	deptStaff.POST("/assign", handler.AdminDepartmentHandler.AssignStaffToDept)
 	deptStaff.POST("/:user_id/remove", handler.AdminDepartmentHandler.RemoveStaffFromDept)
 
-	// Admin applications: read (Manager + Super Admin)
-	appsRead := admin.Group("/applications", middlewares.AdminWebRequireRoles(models.UserRoleManager, models.UserRoleSuperAdmin))
+	// Admin applications: read (Manager + Super Admin + Staff)
+	appsRead := admin.Group("/applications", middlewares.AdminWebRequireRoles(models.UserRoleManager, models.UserRoleSuperAdmin, models.UserRoleStaff))
 	appsRead.GET("", handler.AdminApplicationHandler.ListApplications)
 	appsRead.GET("/export", handler.AdminApplicationHandler.ExportCSV)
 	appsRead.GET("/:id", handler.AdminApplicationHandler.ShowApplication)
 
-	// Admin applications: write (Manager only)
-	appsWrite := admin.Group("/applications", middlewares.AdminWebRequireRoles(models.UserRoleManager))
-	appsWrite.POST("/:id/process", handler.AdminApplicationHandler.ProcessApplication)
-	appsWrite.GET("/:id/assign", handler.AdminApplicationHandler.ShowAssignForm)
-	appsWrite.POST("/:id/assign", handler.AdminApplicationHandler.AssignToStaff)
+	// Admin applications: process (Staff only)
+	appsProcess := admin.Group("/applications", middlewares.AdminWebRequireRoles(models.UserRoleStaff))
+	appsProcess.POST("/:id/process", handler.AdminApplicationHandler.ProcessApplication)
+
+	// Admin applications: assign (Manager only)
+	appsAssign := admin.Group("/applications", middlewares.AdminWebRequireRoles(models.UserRoleManager))
+	appsAssign.GET("/:id/assign", handler.AdminApplicationHandler.ShowAssignForm)
+	appsAssign.POST("/:id/assign", handler.AdminApplicationHandler.AssignToStaff)
 
 	// Activity logs: read (Manager + Super Admin)
 	logsRead := admin.Group("/logs", middlewares.AdminWebRequireRoles(models.UserRoleManager, models.UserRoleSuperAdmin))

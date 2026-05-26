@@ -29,15 +29,16 @@ type DepartmentImportExportService interface {
 
 type StaffProfileService interface {
 	ListStaffByDepartment(deptID string, page, limit int) ([]models.StaffProfile, int64, error)
+	FindStaffProfileByUserID(userID string) (*models.StaffProfile, error)
 	AssignStaffToDepartment(userID string, deptID string, updatedBy string) error
 	RemoveStaffFromDepartment(userID string, updatedBy string) error
 }
 
 type AdminDepartmentHandler struct {
-	svc       DepartmentService
-	userSvc   AdminUserService
+	svc        DepartmentService
+	userSvc    AdminUserService
 	profileSvc StaffProfileService
-	importSvc DepartmentImportExportService
+	importSvc  DepartmentImportExportService
 }
 
 func NewAdminDepartmentHandler(svc DepartmentService, userSvc AdminUserService, profileSvc StaffProfileService) *AdminDepartmentHandler {
@@ -57,6 +58,13 @@ func deptStaffFlashURL(deptID, flash, msg string) string {
 	return "/admin/departments/" + deptID + "/staff?" + url.Values{"flash": {flash}, "msg": {msg}}.Encode()
 }
 
+func deptAssignWarnURL(deptID, userID string) string {
+	return "/admin/departments/" + deptID + "/staff/assign?" + url.Values{
+		"warn":    {"department_transfer_confirm_required"},
+		"user_id": {userID},
+	}.Encode()
+}
+
 func (h *AdminDepartmentHandler) ListDepartments(c *echo.Context) error {
 	search := c.QueryParam("search")
 	page, limit := parsePagination(c)
@@ -68,12 +76,12 @@ func (h *AdminDepartmentHandler) ListDepartments(c *echo.Context) error {
 	}
 
 	data := map[string]interface{}{
-		"Title":        configs.T(c, "ui.departments.title", nil),
-		"CurrentPath":  "/admin/departments",
-		"CurrentUser":  adminCurrentUser(c),
-		"Departments":  depts,
-		"Pagination":   utils.NewPagination(page, limit, total),
-		"Search":       search,
+		"Title":          configs.T(c, "ui.departments.title", nil),
+		"CurrentPath":    "/admin/departments",
+		"CurrentUser":    adminCurrentUser(c),
+		"Departments":    depts,
+		"Pagination":     utils.NewPagination(page, limit, total),
+		"Search":         search,
 		"ImportAction":   "/admin/departments/import",
 		"TemplateAction": "/admin/departments/template",
 		"Flash":          flashFromQuery(c),
@@ -82,7 +90,7 @@ func (h *AdminDepartmentHandler) ListDepartments(c *echo.Context) error {
 }
 
 func (h *AdminDepartmentHandler) ShowCreateForm(c *echo.Context) error {
-	staffUsers, err := h.listStaffUsers()
+	staffUsers, err := h.listAssignableStaffUsers()
 	if err != nil {
 		return err
 	}
@@ -105,12 +113,21 @@ func (h *AdminDepartmentHandler) CreateDepartment(c *echo.Context) error {
 	if err := c.Validate(req); err != nil {
 		return h.renderFormErrors(c, false, nil, req, extractFieldErrors(c, err), "")
 	}
+	if req.LeaderUserID != "" {
+		user, err := h.userSvc.GetUser(req.LeaderUserID)
+		if err != nil || user == nil || user.Role != models.UserRoleStaff {
+			return h.renderFormErrors(c, false, nil, req, nil, configs.T(c, "validation.invalid", nil))
+		}
+	}
 
 	_, err := h.svc.CreateDepartment(req, actorID(c))
 	if err != nil {
 		msg := configs.T(c, "common.internal_error", nil)
 		if errors.Is(err, services.ErrDepartmentCodeExists) {
 			msg = configs.T(c, "department.code_exists", nil)
+		}
+		if errors.Is(err, services.ErrDepartmentLeaderAlreadyAssigned) {
+			msg = configs.T(c, "department.leader_already_assigned", nil)
 		}
 		return h.renderFormErrors(c, false, nil, req, nil, msg)
 	}
@@ -125,7 +142,7 @@ func (h *AdminDepartmentHandler) ShowEditForm(c *echo.Context) error {
 		return c.Redirect(http.StatusSeeOther, deptFlashURL("error", configs.T(c, "department.not_found", nil)))
 	}
 
-	staffUsers, err := h.listStaffUsers()
+	staffUsers, err := h.listAssignableStaffUsers()
 	if err != nil {
 		return err
 	}
@@ -156,11 +173,20 @@ func (h *AdminDepartmentHandler) UpdateDepartment(c *echo.Context) error {
 	if err := c.Validate(req); err != nil {
 		return h.renderFormErrors(c, true, dept, req, extractFieldErrors(c, err), "")
 	}
+	if req.LeaderUserID != "" {
+		user, err := h.userSvc.GetUser(req.LeaderUserID)
+		if err != nil || user == nil || user.Role != models.UserRoleStaff {
+			return h.renderFormErrors(c, true, dept, req, nil, configs.T(c, "validation.invalid", nil))
+		}
+	}
 
 	if _, err := h.svc.UpdateDepartment(id, req, actorID(c)); err != nil {
 		msg := configs.T(c, "common.internal_error", nil)
 		if errors.Is(err, services.ErrDepartmentCodeExists) {
 			msg = configs.T(c, "department.code_exists", nil)
+		}
+		if errors.Is(err, services.ErrDepartmentLeaderAlreadyAssigned) {
+			msg = configs.T(c, "department.leader_already_assigned", nil)
 		}
 		return h.renderFormErrors(c, true, dept, req, nil, msg)
 	}
@@ -234,16 +260,16 @@ func (h *AdminDepartmentHandler) ImportCSV(c *echo.Context) error {
 		search := c.QueryParam("search")
 		depts, total, _ := h.svc.ListDepartments(repositories.DepartmentFilter{Search: search}, 1, 20)
 		data := map[string]interface{}{
-			"Title":        configs.T(c, "ui.departments.title", nil),
-			"CurrentPath":  "/admin/departments",
-			"CurrentUser":  adminCurrentUser(c),
-			"Departments":  depts,
-			"Pagination":   utils.NewPagination(1, 20, total),
-			"Search":       search,
-			"ImportErrors":  errs,
-			"ImportAction":  "/admin/departments/import",
+			"Title":          configs.T(c, "ui.departments.title", nil),
+			"CurrentPath":    "/admin/departments",
+			"CurrentUser":    adminCurrentUser(c),
+			"Departments":    depts,
+			"Pagination":     utils.NewPagination(1, 20, total),
+			"Search":         search,
+			"ImportErrors":   errs,
+			"ImportAction":   "/admin/departments/import",
 			"TemplateAction": "/admin/departments/template",
-			"Flash":         flashFromQuery(c),
+			"Flash":          flashFromQuery(c),
 		}
 		return c.Render(http.StatusUnprocessableEntity, "admin/pages/departments/list.html", data)
 	}
@@ -256,7 +282,7 @@ func (h *AdminDepartmentHandler) renderFormErrors(c *echo.Context, isEdit bool, 
 	if isEdit {
 		titleKey = "ui.departments.form.edit_title"
 	}
-	staffUsers, _ := h.listStaffUsers()
+	staffUsers, _ := h.listAssignableStaffUsers()
 	curLeaderID := ""
 	if dept != nil {
 		curLeaderID = derefStr(dept.LeaderUserID)
@@ -299,6 +325,20 @@ func (h *AdminDepartmentHandler) listStaffUsers() ([]models.User, error) {
 	var staff []models.User
 	for _, u := range users {
 		if u.Role == models.UserRoleStaff || u.Role == models.UserRoleManager || u.Role == models.UserRoleSuperAdmin {
+			staff = append(staff, u)
+		}
+	}
+	return staff, nil
+}
+
+func (h *AdminDepartmentHandler) listAssignableStaffUsers() ([]models.User, error) {
+	users, _, err := h.userSvc.ListUsers(repositories.UserFilter{}, 1, 1000)
+	if err != nil {
+		return nil, err
+	}
+	staff := make([]models.User, 0)
+	for _, u := range users {
+		if u.Role == models.UserRoleStaff {
 			staff = append(staff, u)
 		}
 	}
@@ -356,7 +396,7 @@ func (h *AdminDepartmentHandler) ListDepartmentStaff(c *echo.Context) error {
 }
 
 func (h *AdminDepartmentHandler) ShowAssignStaffForm(c *echo.Context) error {
-	staffUsers, err := h.listStaffUsers()
+	staffUsers, err := h.listAssignableStaffUsers()
 	if err != nil {
 		return err
 	}
@@ -364,12 +404,42 @@ func (h *AdminDepartmentHandler) ShowAssignStaffForm(c *echo.Context) error {
 	if err != nil {
 		return err
 	}
+	warn := c.QueryParam("warn")
+	selectedUserID := c.QueryParam("user_id")
+	warningActionURL := "/admin/departments/" + id + "/staff/assign"
+	selectedStaffName := ""
+	currentDepartmentName := ""
+	targetDepartmentName := ""
+	if warn == "department_transfer_confirm_required" && selectedUserID != "" {
+		warningActionURL = deptAssignWarnURL(id, selectedUserID)
+		if user, uErr := h.userSvc.GetUser(selectedUserID); uErr == nil && user != nil {
+			selectedStaffName = user.Name
+		}
+		if dept, dErr := h.svc.GetDepartment(id); dErr == nil && dept != nil {
+			targetDepartmentName = dept.Name
+		}
+		if h.profileSvc != nil {
+			if sp, pErr := h.profileSvc.FindStaffProfileByUserID(selectedUserID); pErr == nil && sp != nil && sp.DepartmentID != nil {
+				if fromDept, fromErr := h.svc.GetDepartment(*sp.DepartmentID); fromErr == nil && fromDept != nil {
+					currentDepartmentName = fromDept.Name
+				}
+			}
+		}
+	}
+
 	data := map[string]interface{}{
-		"Title":        configs.T(c, "ui.departments.assign_staff_title", nil),
-		"CurrentPath":  "/admin/departments",
-		"CurrentUser":  adminCurrentUser(c),
-		"DepartmentID": id,
-		"StaffUsers":   staffUsers,
+		"Title":                 configs.T(c, "ui.departments.assign_staff_title", nil),
+		"CurrentPath":           "/admin/departments",
+		"CurrentUser":           adminCurrentUser(c),
+		"DepartmentID":          id,
+		"StaffUsers":            staffUsers,
+		"WarningType":           warn,
+		"SelectedUserID":        selectedUserID,
+		"ConfirmTransferValue":  "1",
+		"WarningActionURL":      warningActionURL,
+		"SelectedStaffName":     selectedStaffName,
+		"CurrentDepartmentName": currentDepartmentName,
+		"TargetDepartmentName":  targetDepartmentName,
 	}
 	return c.Render(http.StatusOK, "admin/pages/departments/assign_staff_form.html", data)
 }
@@ -386,7 +456,27 @@ func (h *AdminDepartmentHandler) AssignStaffToDept(c *echo.Context) error {
 	if userID == "" {
 		return echo.NewHTTPError(http.StatusBadRequest, "validation.invalid")
 	}
+	confirmTransfer := c.FormValue("confirm_transfer") == "1"
+	warn := c.QueryParam("warn")
+	warnUserID := c.QueryParam("user_id")
+	if confirmTransfer && (warn != "department_transfer_confirm_required" || warnUserID == "" || warnUserID != userID) {
+		return echo.NewHTTPError(http.StatusUnprocessableEntity, "validation.invalid")
+	}
+	user, err := h.userSvc.GetUser(userID)
+	if err != nil || user == nil || user.Role != models.UserRoleStaff {
+		return echo.NewHTTPError(http.StatusUnprocessableEntity, "validation.invalid")
+	}
+	sp, err := h.profileSvc.FindStaffProfileByUserID(userID)
+	if err != nil {
+		return echo.NewHTTPError(http.StatusInternalServerError, "common.internal_error")
+	}
+	if sp != nil && sp.DepartmentID != nil && *sp.DepartmentID != deptID && !confirmTransfer {
+		return c.Redirect(http.StatusSeeOther, deptAssignWarnURL(deptID, userID))
+	}
 	if err := h.profileSvc.AssignStaffToDepartment(userID, deptID, actorID(c)); err != nil {
+		if errors.Is(err, services.ErrLeaderTransferForbiddenForManager) {
+			return echo.NewHTTPError(http.StatusUnprocessableEntity, "department.leader_transfer_forbidden_for_manager")
+		}
 		return echo.NewHTTPError(http.StatusInternalServerError, "common.internal_error")
 	}
 	return c.Redirect(http.StatusSeeOther, deptStaffFlashURL(deptID, "success", configs.T(c, "ui.msg.department_staff_assigned", nil)))
@@ -405,6 +495,9 @@ func (h *AdminDepartmentHandler) RemoveStaffFromDept(c *echo.Context) error {
 		return echo.NewHTTPError(http.StatusBadRequest, "validation.invalid")
 	}
 	if err := h.profileSvc.RemoveStaffFromDepartment(userID, actorID(c)); err != nil {
+		if errors.Is(err, services.ErrLeaderTransferForbiddenForManager) {
+			return echo.NewHTTPError(http.StatusUnprocessableEntity, "department.leader_transfer_forbidden_for_manager")
+		}
 		return echo.NewHTTPError(http.StatusInternalServerError, "common.internal_error")
 	}
 	return c.Redirect(http.StatusSeeOther, deptStaffFlashURL(deptID, "success", configs.T(c, "ui.msg.department_staff_removed", nil)))

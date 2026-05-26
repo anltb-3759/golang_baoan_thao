@@ -8,18 +8,31 @@
   </header>
 
   <section class="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-    <form method="post" action="/admin/departments/{{ .DepartmentID }}/staff/assign" class="space-y-4">
+    {{ if eq .WarningType "department_transfer_confirm_required" }}
+    <div class="mb-4 rounded-md border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+      {{ t "department.staff_transfer_confirm_required" nil }}
+      <div class="mt-2">
+        {{ .SelectedStaffName }}: {{ .CurrentDepartmentName }} -> {{ .TargetDepartmentName }}
+      </div>
+    </div>
+    {{ end }}
+
+    <form method="post" action="{{ .WarningActionURL }}" class="space-y-4">
+      {{ if eq .WarningType "department_transfer_confirm_required" }}
+      <input type="hidden" name="confirm_transfer" value="{{ .ConfirmTransferValue }}">
+      {{ end }}
+
       <label class="grid gap-2">
         <span class="text-sm font-medium text-gray-700">{{ t "ui.applications.assign.select_staff" }}</span>
         <select name="user_id" class="w-full rounded-lg border border-gray-300 bg-white text-sm px-3 py-2">
           {{ range .StaffUsers }}
-          <option value="{{ .ID }}">{{ .Name }} ({{ .Email }})</option>
+          <option value="{{ .ID }}" {{ if eq $.SelectedUserID .ID }}selected{{ end }}>{{ .Name }} ({{ .Email }})</option>
           {{ end }}
         </select>
       </label>
 
       <div class="flex gap-2 pt-2">
-        <button type="submit" class="bg-indigo-600 text-white px-4 py-2 rounded-md text-sm hover:bg-indigo-700">{{ t "ui.actions.assign" }}</button>
+        <button type="submit" class="bg-indigo-600 text-white px-4 py-2 rounded-md text-sm hover:bg-indigo-700">{{ if eq .WarningType "department_transfer_confirm_required" }}{{ t "ui.departments.staff.confirm_transfer_action" }}{{ else }}{{ t "ui.actions.assign" }}{{ end }}</button>
         <a href="/admin/departments/{{ .DepartmentID }}/staff" class="bg-white text-gray-700 border border-gray-300 px-4 py-2 rounded-md text-sm hover:bg-gray-50">{{ t "ui.common.cancel" }}</a>
       </div>
     </form>

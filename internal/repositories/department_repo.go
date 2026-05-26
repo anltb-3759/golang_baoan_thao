@@ -16,6 +16,7 @@ type DepartmentFilter struct {
 type DepartmentRepository interface {
 	FindByID(id string) (*models.Department, error)
 	FindByCode(code string) (*models.Department, error)
+	FindByLeaderUserID(userID string) (*models.Department, error)
 	Create(dept *models.Department) (*models.Department, error)
 	CreateInTx(tx *gorm.DB, dept *models.Department) error
 	Update(dept *models.Department) error
@@ -48,6 +49,18 @@ func (r *DepartmentRepo) FindByID(id string) (*models.Department, error) {
 func (r *DepartmentRepo) FindByCode(code string) (*models.Department, error) {
 	var dept models.Department
 	err := r.db.Where("code = ? AND deleted_at IS NULL", code).First(&dept).Error
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, nil
+		}
+		return nil, err
+	}
+	return &dept, nil
+}
+
+func (r *DepartmentRepo) FindByLeaderUserID(userID string) (*models.Department, error) {
+	var dept models.Department
+	err := r.db.Where("leader_user_id = ? AND deleted_at IS NULL", userID).First(&dept).Error
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, nil

@@ -20,6 +20,7 @@ type fakeDepartmentRepo struct {
 	findErr   error
 	codeErr   error
 	codeDept  *models.Department
+	leaderDept *models.Department
 	createErr error
 	updateErr error
 	deleteErr error
@@ -31,9 +32,15 @@ func (r *fakeDepartmentRepo) FindByID(_ string) (*models.Department, error) {
 func (r *fakeDepartmentRepo) FindByCode(_ string) (*models.Department, error) {
 	return r.codeDept, r.codeErr
 }
+func (r *fakeDepartmentRepo) FindByLeaderUserID(_ string) (*models.Department, error) {
+	return r.leaderDept, r.findErr
+}
 func (r *fakeDepartmentRepo) Create(d *models.Department) (*models.Department, error) {
 	if r.createErr != nil {
 		return nil, r.createErr
+	}
+	if d.ID == "" {
+		d.ID = "dept-new"
 	}
 	return d, nil
 }
@@ -54,13 +61,25 @@ func (r *fakeDepartmentRepo) CreateInTx(_ *gorm.DB, d *models.Department) error 
 
 var _ repositories.DepartmentRepository = (*fakeDepartmentRepo)(nil)
 
-type fakeStaffRepo struct{}
+type fakeStaffRepo struct {
+	updateCalls []struct {
+		userID string
+		deptID *string
+	}
+	updateErr error
+}
 
 func (r *fakeStaffRepo) FindByUserID(_ string) (*models.StaffProfile, error)           { return nil, nil }
 func (r *fakeStaffRepo) ListByDepartment(_ string, _, _ int) ([]models.StaffProfile, int64, error) {
 	return nil, 0, nil
 }
-func (r *fakeStaffRepo) UpdateDepartment(_ string, _ *string, _ string) error { return nil }
+func (r *fakeStaffRepo) UpdateDepartment(userID string, deptID *string, _ string) error {
+	r.updateCalls = append(r.updateCalls, struct {
+		userID string
+		deptID *string
+	}{userID: userID, deptID: deptID})
+	return r.updateErr
+}
 func (r *fakeStaffRepo) Create(p *models.StaffProfile) (*models.StaffProfile, error)  { return p, nil }
 func (r *fakeStaffRepo) CreateInTx(_ *gorm.DB, _ *models.StaffProfile) error          { return nil }
 
@@ -135,11 +154,18 @@ func TestDepartmentService_CreateDepartment_WithLeader(t *testing.T) {
 }
 
 func TestDepartmentService_CreateDepartment_WithLeaderAndStaffRepo(t *testing.T) {
-	svc := newDeptSvcWithStaff(&fakeDepartmentRepo{codeDept: nil})
+	staffRepo := &fakeStaffRepo{}
+	svc := NewDepartmentService(&fakeDepartmentRepo{codeDept: nil}, staffRepo)
 	req := &dtos.DepartmentCreateRequest{Name: "IT", Code: "IT001", LeaderUserID: "user-1"}
 	dept, err := svc.CreateDepartment(req, "actor")
 	assert.NoError(t, err)
 	assert.Equal(t, "user-1", *dept.LeaderUserID)
+	if assert.Len(t, staffRepo.updateCalls, 1) {
+		assert.Equal(t, "user-1", staffRepo.updateCalls[0].userID)
+		if assert.NotNil(t, staffRepo.updateCalls[0].deptID) {
+			assert.Equal(t, "dept-new", *staffRepo.updateCalls[0].deptID)
+		}
+	}
 }
 
 func TestDepartmentService_CreateDepartment_CodeExists(t *testing.T) {
@@ -148,6 +174,14 @@ func TestDepartmentService_CreateDepartment_CodeExists(t *testing.T) {
 	req := &dtos.DepartmentCreateRequest{Name: "IT", Code: "IT001"}
 	_, err := svc.CreateDepartment(req, "actor")
 	assert.ErrorIs(t, err, ErrDepartmentCodeExists)
+}
+
+func TestDepartmentService_CreateDepartment_LeaderAlreadyAssigned(t *testing.T) {
+	existingLeaderDept := &models.Department{ID: "d-existing", LeaderUserID: ptrStrDept("user-1")}
+	svc := newDeptSvc(&fakeDepartmentRepo{codeDept: nil, leaderDept: existingLeaderDept})
+	req := &dtos.DepartmentCreateRequest{Name: "IT", Code: "IT001", LeaderUserID: "user-1"}
+	_, err := svc.CreateDepartment(req, "actor")
+	assert.ErrorIs(t, err, ErrDepartmentLeaderAlreadyAssigned)
 }
 
 func TestDepartmentService_CreateDepartment_FindCodeError(t *testing.T) {
@@ -204,6 +238,15 @@ func TestDepartmentService_UpdateDepartment_CodeChange_Conflict(t *testing.T) {
 	assert.ErrorIs(t, err, ErrDepartmentCodeExists)
 }
 
+func TestDepartmentService_UpdateDepartment_LeaderAlreadyAssigned(t *testing.T) {
+	d := &models.Department{ID: "d1", Code: "OLD"}
+	existingLeaderDept := &models.Department{ID: "d2", LeaderUserID: ptrStrDept("user-1")}
+	svc := newDeptSvc(&fakeDepartmentRepo{dept: d, leaderDept: existingLeaderDept})
+	req := &dtos.DepartmentUpdateRequest{Name: "Dept", Code: "OLD", LeaderUserID: "user-1"}
+	_, err := svc.UpdateDepartment("d1", req, "actor")
+	assert.ErrorIs(t, err, ErrDepartmentLeaderAlreadyAssigned)
+}
+
 func TestDepartmentService_UpdateDepartment_NotFound(t *testing.T) {
 	svc := newDeptSvc(&fakeDepartmentRepo{dept: nil})
 	req := &dtos.DepartmentUpdateRequest{Name: "X", Code: "X"}
@@ -230,21 +273,52 @@ func TestDepartmentService_UpdateDepartment_SaveError(t *testing.T) {
 
 func TestDepartmentService_UpdateDepartment_WithLeaderAndStaffRepo(t *testing.T) {
 	d := &models.Department{ID: "d1", Code: "OLD"}
-	svc := newDeptSvcWithStaff(&fakeDepartmentRepo{dept: d})
+	staffRepo := &fakeStaffRepo{}
+	svc := NewDepartmentService(&fakeDepartmentRepo{dept: d}, staffRepo)
 	req := &dtos.DepartmentUpdateRequest{Name: "IT", Code: "OLD", LeaderUserID: "user-1"}
 	result, err := svc.UpdateDepartment("d1", req, "actor")
 	assert.NoError(t, err)
 	assert.Equal(t, "user-1", *result.LeaderUserID)
+	if assert.Len(t, staffRepo.updateCalls, 1) {
+		assert.Equal(t, "user-1", staffRepo.updateCalls[0].userID)
+		if assert.NotNil(t, staffRepo.updateCalls[0].deptID) {
+			assert.Equal(t, "d1", *staffRepo.updateCalls[0].deptID)
+		}
+	}
 }
 
 func TestDepartmentService_UpdateDepartment_ClearLeader(t *testing.T) {
 	leaderID := "user-1"
 	d := &models.Department{ID: "d1", Code: "OLD", LeaderUserID: &leaderID}
-	svc := newDeptSvc(&fakeDepartmentRepo{dept: d})
+	staffRepo := &fakeStaffRepo{}
+	svc := NewDepartmentService(&fakeDepartmentRepo{dept: d}, staffRepo)
 	req := &dtos.DepartmentUpdateRequest{Name: "X", Code: "OLD", LeaderUserID: ""}
 	result, err := svc.UpdateDepartment("d1", req, "actor")
 	assert.NoError(t, err)
 	assert.Nil(t, result.LeaderUserID)
+	if assert.Len(t, staffRepo.updateCalls, 1) {
+		assert.Equal(t, "user-1", staffRepo.updateCalls[0].userID)
+		assert.Nil(t, staffRepo.updateCalls[0].deptID)
+	}
+}
+
+func TestDepartmentService_UpdateDepartment_ChangeLeader_ClearsOldAssignsNew(t *testing.T) {
+	oldLeader := "user-old"
+	d := &models.Department{ID: "d1", Code: "OLD", LeaderUserID: &oldLeader}
+	staffRepo := &fakeStaffRepo{}
+	svc := NewDepartmentService(&fakeDepartmentRepo{dept: d}, staffRepo)
+	req := &dtos.DepartmentUpdateRequest{Name: "X", Code: "OLD", LeaderUserID: "user-new"}
+	result, err := svc.UpdateDepartment("d1", req, "actor")
+	assert.NoError(t, err)
+	assert.Equal(t, "user-new", *result.LeaderUserID)
+	if assert.Len(t, staffRepo.updateCalls, 2) {
+		assert.Equal(t, "user-old", staffRepo.updateCalls[0].userID)
+		assert.Nil(t, staffRepo.updateCalls[0].deptID)
+		assert.Equal(t, "user-new", staffRepo.updateCalls[1].userID)
+		if assert.NotNil(t, staffRepo.updateCalls[1].deptID) {
+			assert.Equal(t, "d1", *staffRepo.updateCalls[1].deptID)
+		}
+	}
 }
 
 // --- DeleteDepartment ---
@@ -276,3 +350,5 @@ func TestDepartmentService_DeleteDepartment_DeleteError(t *testing.T) {
 	err := svc.DeleteDepartment("d1", "actor")
 	assert.ErrorIs(t, err, deleteErr)
 }
+
+func ptrStrDept(v string) *string { return &v }

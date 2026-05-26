@@ -159,3 +159,72 @@ func TestAdminApplicationService_ProcessApplication_RejectedRequiresReason(t *te
 	err := svc.ProcessApplication("app1", models.ApplicationStatusRejected, "   ", nil, "admin-1")
 	assert.ErrorIs(t, err, ErrAdminApplicationRejectReasonRequired)
 }
+
+func TestAdminApplicationService_ProcessApplication_AllowNeedMoreInfoTransitions(t *testing.T) {
+	cases := []struct {
+		name string
+		from models.ApplicationStatus
+		to   models.ApplicationStatus
+		note string
+	}{
+		{
+			name: "received to need_more_info",
+			from: models.ApplicationStatusReceived,
+			to:   models.ApplicationStatusNeedMoreInfo,
+			note: "need additional papers",
+		},
+		{
+			name: "processing to need_more_info",
+			from: models.ApplicationStatusProcessing,
+			to:   models.ApplicationStatusNeedMoreInfo,
+			note: "missing photo",
+		},
+		{
+			name: "need_more_info to processing",
+			from: models.ApplicationStatusNeedMoreInfo,
+			to:   models.ApplicationStatusProcessing,
+			note: "citizen submitted extra docs",
+		},
+		{
+			name: "need_more_info to approved",
+			from: models.ApplicationStatusNeedMoreInfo,
+			to:   models.ApplicationStatusApproved,
+			note: "all docs are valid",
+		},
+		{
+			name: "need_more_info to rejected",
+			from: models.ApplicationStatusNeedMoreInfo,
+			to:   models.ApplicationStatusRejected,
+			note: "documents are inconsistent",
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			repo := &fakeAdminAppRepo{app: &models.Application{ID: "app1", Status: tc.from}}
+			svc := newAdminAppSvc(repo)
+
+			err := svc.ProcessApplication("app1", tc.to, tc.note, nil, "admin-1")
+			assert.NoError(t, err)
+			assert.Equal(t, tc.to, repo.processStatus)
+		})
+	}
+}
+
+func TestAdminApplicationService_ProcessApplication_RequireNoteForNeedMoreInfo(t *testing.T) {
+	repo := &fakeAdminAppRepo{app: &models.Application{ID: "app1", Status: models.ApplicationStatusProcessing}}
+	svc := newAdminAppSvc(repo)
+
+	err := svc.ProcessApplication("app1", models.ApplicationStatusNeedMoreInfo, "   ", nil, "admin-1")
+	assert.ErrorIs(t, err, ErrAdminApplicationNeedMoreInfoNoteRequired)
+	assert.Equal(t, models.ApplicationStatus(""), repo.processStatus)
+}
+
+func TestAdminApplicationService_ProcessApplication_RequireReasonForRejected(t *testing.T) {
+	repo := &fakeAdminAppRepo{app: &models.Application{ID: "app1", Status: models.ApplicationStatusNeedMoreInfo}}
+	svc := newAdminAppSvc(repo)
+
+	err := svc.ProcessApplication("app1", models.ApplicationStatusRejected, "   ", nil, "admin-1")
+	assert.ErrorIs(t, err, ErrAdminApplicationRejectReasonRequired)
+	assert.Equal(t, models.ApplicationStatus(""), repo.processStatus)
+}

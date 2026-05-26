@@ -3,6 +3,7 @@ package handlers
 import (
 	"bytes"
 	"errors"
+	"io"
 	"mime/multipart"
 	"net/http"
 	"net/http/httptest"
@@ -17,6 +18,24 @@ import (
 	"github.com/labstack/echo/v5"
 	"github.com/stretchr/testify/assert"
 )
+
+type captureRenderer struct {
+	name string
+	data map[string]interface{}
+}
+
+func (r *captureRenderer) Render(_ *echo.Context, w io.Writer, name string, data any) error {
+	r.name = name
+	if m, ok := data.(map[string]interface{}); ok {
+		r.data = m
+	}
+	_, _ = w.Write([]byte("ok"))
+	return nil
+}
+
+func claimsWithRole(role models.UserRole) *configs.JwtCustomClaims {
+	return &configs.JwtCustomClaims{ID: "u-1", Email: "u@test.com", Role: string(role)}
+}
 
 type fakeAdminAppSvc struct {
 	apps       []models.Application
@@ -211,6 +230,102 @@ func TestAdminApplicationHandler_ShowApplication_OK(t *testing.T) {
 	assert.Equal(t, http.StatusOK, rec.Code)
 }
 
+func TestAdminApplicationHandler_ShowApplication_RenderPermissionsByRole(t *testing.T) {
+	_ = configs.LoadI18nMessages("../../locales")
+	e := newTestEcho()
+	renderer := &captureRenderer{}
+	e.Renderer = renderer
+
+	app := &models.Application{
+		ID:             "a1",
+		ApplicationCode: "C1",
+		Status:         models.ApplicationStatusReceived,
+	}
+	h := newAdminAppHandler(&fakeAdminAppSvc{app: app}, &fakeAdminUserSvc{}, &fakeAssignableStaffSvc{})
+
+	tests := []struct {
+		name       string
+		role       models.UserRole
+		canAssign  bool
+		canProcess bool
+	}{
+		{name: "manager can assign only", role: models.UserRoleManager, canAssign: true, canProcess: false},
+		{name: "staff can process only", role: models.UserRoleStaff, canAssign: false, canProcess: true},
+		{name: "super admin cannot assign or process", role: models.UserRoleSuperAdmin, canAssign: false, canProcess: false},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			req := httptest.NewRequest(http.MethodGet, "/admin/applications/a1", nil)
+			rec := httptest.NewRecorder()
+			c := e.NewContext(req, rec)
+			c.Set("user", claimsWithRole(tc.role))
+			c.SetPathValues(echo.PathValues{{Name: "id", Value: "a1"}})
+
+			err := h.ShowApplication(c)
+			assert.NoError(t, err)
+			assert.Equal(t, http.StatusOK, rec.Code)
+			assert.Equal(t, "admin/pages/applications/detail.html", renderer.name)
+			assert.Equal(t, tc.canAssign, renderer.data["CanAssign"])
+			assert.Equal(t, tc.canProcess, renderer.data["CanProcess"])
+		})
+	}
+}
+
+func TestAdminApplicationHandler_ShowApplication_ProcessOptionsIncludeNeedMoreInfo(t *testing.T) {
+	_ = configs.LoadI18nMessages("../../locales")
+	e := newTestEcho()
+	renderer := &captureRenderer{}
+	e.Renderer = renderer
+
+	tests := []struct {
+		name        string
+		current     models.ApplicationStatus
+		expectValue []string
+	}{
+		{
+			name:        "received options",
+			current:     models.ApplicationStatusReceived,
+			expectValue: []string{string(models.ApplicationStatusProcessing), string(models.ApplicationStatusNeedMoreInfo)},
+		},
+		{
+			name:        "processing options",
+			current:     models.ApplicationStatusProcessing,
+			expectValue: []string{string(models.ApplicationStatusNeedMoreInfo), string(models.ApplicationStatusApproved), string(models.ApplicationStatusRejected)},
+		},
+		{
+			name:        "need more info options",
+			current:     models.ApplicationStatusNeedMoreInfo,
+			expectValue: []string{string(models.ApplicationStatusProcessing), string(models.ApplicationStatusApproved), string(models.ApplicationStatusRejected)},
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			app := &models.Application{ID: "a1", ApplicationCode: "C1", Status: tc.current}
+			h := newAdminAppHandler(&fakeAdminAppSvc{app: app}, &fakeAdminUserSvc{}, &fakeAssignableStaffSvc{})
+
+			req := httptest.NewRequest(http.MethodGet, "/admin/applications/a1", nil)
+			rec := httptest.NewRecorder()
+			c := e.NewContext(req, rec)
+			c.Set("user", claimsWithRole(models.UserRoleStaff))
+			c.SetPathValues(echo.PathValues{{Name: "id", Value: "a1"}})
+
+			err := h.ShowApplication(c)
+			assert.NoError(t, err)
+
+			rawOptions, ok := renderer.data["ProcessOptions"].([]applicationStatusOption)
+			if assert.True(t, ok) {
+				got := make([]string, 0, len(rawOptions))
+				for _, opt := range rawOptions {
+					got = append(got, opt.Value)
+				}
+				assert.Equal(t, tc.expectValue, got)
+			}
+		})
+	}
+}
+
 func TestAdminApplicationHandler_ProcessApplication_OK(t *testing.T) {
 	_ = configs.LoadI18nMessages("../../locales")
 	e := newAdminEcho()
@@ -253,6 +368,14 @@ func TestMapAdminApplicationProcessError_RejectReasonRequired(t *testing.T) {
 	assert.True(t, ok)
 	assert.Equal(t, http.StatusUnprocessableEntity, httpErr.Code)
 	assert.Equal(t, "application.reject_reason_required", httpErr.Message)
+}
+
+func TestMapAdminApplicationProcessError_NeedMoreInfoNoteRequired(t *testing.T) {
+	err := mapAdminApplicationProcessError(services.ErrAdminApplicationNeedMoreInfoNoteRequired)
+	httpErr, ok := err.(*echo.HTTPError)
+	assert.True(t, ok)
+	assert.Equal(t, http.StatusUnprocessableEntity, httpErr.Code)
+	assert.Equal(t, "application.need_more_info_note_required", httpErr.Message)
 }
 
 // --- assignableStaffUsers edge cases ---

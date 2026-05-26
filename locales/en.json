@@ -443,5 +443,18 @@
   "ui.citizen.applications.detail.supplement_hint": "The officer has requested additional documents. Please upload the missing files.",
   "ui.citizen.applications.detail.btn.upload": "Upload",
   "ui.citizen.applications.flash.submitted": "Application submitted successfully!",
-  "ui.citizen.applications.flash.supplement_uploaded": "Additional documents uploaded successfully!"
+  "ui.citizen.applications.flash.supplement_uploaded": "Additional documents uploaded successfully!",
+  "ui.nav.profile": "My Profile",
+  "ui.profile.title": "My Profile",
+  "ui.profile.info_title": "Account Information",
+  "ui.profile.contact_title": "Update Contact",
+  "ui.profile.password_title": "Change Password",
+  "ui.profile.contact.phone": "Phone number",
+  "ui.profile.contact.address": "Address",
+  "ui.profile.contact.save": "Update Contact",
+  "ui.profile.password.current": "Current password",
+  "ui.profile.password.new": "New password",
+  "ui.profile.password.confirm": "Confirm new password",
+  "ui.profile.password.save": "Change Password",
+  "ui.msg.profile_updated": "Profile updated successfully"
 }

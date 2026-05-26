@@ -117,6 +117,9 @@ func main() {
 	adminDepartmentHandler = adminDepartmentHandler.WithImportExport(importExportSvc)
 	serviceCatalogHandler = serviceCatalogHandler.WithImportExport(importExportSvc)
 
+	adminProfileSvc := services.NewAdminProfileService(userRepo)
+	adminProfileHandler := handlers.NewAdminProfileHandler(adminProfileSvc)
+
 	docs.SetupSwaggerRoutes(e)
 	routes.SetupRoutes(e, &routes.ApiHandler{
 		AuthHandler:             authHandler,
@@ -127,6 +130,7 @@ func main() {
 		AdminApplicationHandler: adminApplicationHandler,
 		AdminLogHandler:         adminLogHandler,
 		AdminCitizenHandler:     adminCitizenHandler,
+		AdminProfileHandler:     adminProfileHandler,
 		ServiceCatalogHandler:   serviceCatalogHandler,
 		CitizenProfileHandler:   citizenProfileHandler,
 		ApplicationHandler:      applicationHandler,

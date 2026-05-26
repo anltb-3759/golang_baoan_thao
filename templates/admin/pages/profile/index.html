@@ -1,0 +1,104 @@
+{{ template "admin/partials/head.html" . }}
+<div class="flex h-screen overflow-hidden">
+  {{ template "admin/partials/sidebar.html" . }}
+  <div class="flex-1 flex flex-col overflow-hidden">
+    {{ template "admin/partials/topbar.html" . }}
+    <main class="flex-1 overflow-y-auto bg-gray-50">
+      <div class="max-w-2xl mx-auto p-6 space-y-6">
+
+        <!-- Page Header -->
+        <div class="flex items-center justify-between">
+          <h1 class="text-xl font-semibold text-gray-900">{{ t "ui.profile.title" }}</h1>
+        </div>
+
+        {{ if .Flash }}
+        <div class="px-4 py-3 rounded-lg text-sm border
+          {{ if eq .Flash.Type "success" }}bg-green-50 text-green-700 border-green-200{{ else }}bg-red-50 text-red-700 border-red-200{{ end }}">
+          {{ .Flash.Message }}
+        </div>
+        {{ end }}
+
+        <!-- User Info (read-only) -->
+        <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+          <h2 class="text-base font-medium text-gray-800 mb-4">{{ t "ui.profile.info_title" }}</h2>
+          <div class="grid grid-cols-2 gap-4 text-sm">
+            <div>
+              <span class="text-gray-500">{{ t "ui.users.form.name" }}</span>
+              <p class="mt-1 text-gray-900 font-medium">{{ .User.Name }}</p>
+            </div>
+            <div>
+              <span class="text-gray-500">{{ t "ui.users.form.email" }}</span>
+              <p class="mt-1 text-gray-900 font-medium">{{ .User.Email }}</p>
+            </div>
+            <div>
+              <span class="text-gray-500">{{ t "ui.users.col.role" }}</span>
+              <p class="mt-1 text-gray-900 font-medium">{{ .User.Role }}</p>
+            </div>
+            <div>
+              <span class="text-gray-500">{{ t "ui.users.col.status" }}</span>
+              <p class="mt-1 text-gray-900 font-medium">{{ .User.Status }}</p>
+            </div>
+          </div>
+        </div>
+
+        <!-- Contact Update Form -->
+        <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+          <h2 class="text-base font-medium text-gray-800 mb-4">{{ t "ui.profile.contact_title" }}</h2>
+          <form method="POST" action="/admin/profile" class="space-y-4">
+            <div>
+              <label class="text-sm font-medium text-gray-700">{{ t "ui.profile.contact.phone" }}</label>
+              <input type="text" name="phone"
+                     value="{{ .User.Phone }}"
+                     placeholder="0912345678"
+                     class="mt-1 w-full rounded-lg border border-gray-300 text-sm px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-100 focus:border-indigo-500">
+            </div>
+            <div>
+              <label class="text-sm font-medium text-gray-700">{{ t "ui.profile.contact.address" }}</label>
+              <textarea name="address" rows="2"
+                        class="mt-1 w-full rounded-lg border border-gray-300 text-sm px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-100 focus:border-indigo-500">{{ .User.Address }}</textarea>
+            </div>
+            <div class="pt-4 border-t border-gray-100">
+              <button type="submit"
+                      class="bg-indigo-600 text-white px-4 py-2 rounded-md text-sm hover:bg-indigo-700">
+                {{ t "ui.profile.contact.save" }}
+              </button>
+            </div>
+          </form>
+        </div>
+
+        <!-- Password Change Form -->
+        <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+          <h2 class="text-base font-medium text-gray-800 mb-4">{{ t "ui.profile.password_title" }}</h2>
+          <form method="POST" action="/admin/profile/password" class="space-y-4">
+            <div>
+              <label class="text-sm font-medium text-gray-700">{{ t "ui.profile.password.current" }}</label>
+              <input type="password" name="current_password"
+                     class="mt-1 w-full rounded-lg border border-gray-300 text-sm px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-100 focus:border-indigo-500"
+                     minlength="6" maxlength="72" required>
+            </div>
+            <div>
+              <label class="text-sm font-medium text-gray-700">{{ t "ui.profile.password.new" }}</label>
+              <input type="password" name="new_password"
+                     class="mt-1 w-full rounded-lg border border-gray-300 text-sm px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-100 focus:border-indigo-500"
+                     minlength="6" maxlength="72" required>
+            </div>
+            <div>
+              <label class="text-sm font-medium text-gray-700">{{ t "ui.profile.password.confirm" }}</label>
+              <input type="password" name="confirm_new_password"
+                     class="mt-1 w-full rounded-lg border border-gray-300 text-sm px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-100 focus:border-indigo-500"
+                     minlength="6" maxlength="72" required>
+            </div>
+            <div class="pt-4 border-t border-gray-100">
+              <button type="submit"
+                      class="bg-indigo-600 text-white px-4 py-2 rounded-md text-sm hover:bg-indigo-700">
+                {{ t "ui.profile.password.save" }}
+              </button>
+            </div>
+          </form>
+        </div>
+
+      </div>
+    </main>
+  </div>
+</div>
+{{ template "admin/partials/foot.html" . }}

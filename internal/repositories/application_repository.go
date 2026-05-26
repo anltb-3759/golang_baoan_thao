@@ -12,6 +12,18 @@ import (
 
 const codeRetryAttempts = 3
 
+type DashboardStats struct {
+	Total     int64
+	Pending   int64
+	Approved  int64
+	Rejected  int64
+}
+
+type DashboardRepository interface {
+	GetDashboardStats() (DashboardStats, error)
+	ListRecent(limit int) ([]models.Application, error)
+}
+
 type ApplicationRepository interface {
 	CreateWithAttachments(app *models.Application, atts []models.ApplicationAttachment, notif *models.Notification, codeGen func() string) error
 	GetByID(id string) (*models.Application, error)
@@ -22,6 +34,7 @@ type ApplicationRepository interface {
 	CreateAttachments(appID string, atts []models.ApplicationAttachment) error
 	UpdateAssignedStaff(applicationID string, assignedStaffUserID *string, updatedBy string) error
 	ProcessStatusUpdate(appID string, oldStatus *models.ApplicationStatus, newStatus models.ApplicationStatus, resultNote string, rejectedReason string, processingStartedAt, completedAt *time.Time, updatedBy string, atts []models.ApplicationAttachment) error
+	DashboardRepository
 }
 
 type ApplicationFilter struct {
@@ -253,6 +266,47 @@ func isApplicationCodeConflict(err error) bool {
 	}
 	msg := err.Error()
 	return strings.Contains(msg, "applications_application_code") || strings.Contains(msg, "application_code")
+}
+
+func (r *applicationRepo) GetDashboardStats() (DashboardStats, error) {
+	type row struct {
+		Status string
+		Count  int64
+	}
+	var rows []row
+	if err := r.db.Model(&models.Application{}).
+		Select("status, COUNT(*) as count").
+		Where("deleted_at IS NULL").
+		Group("status").
+		Scan(&rows).Error; err != nil {
+		return DashboardStats{}, err
+	}
+	var stats DashboardStats
+	for _, row := range rows {
+		stats.Total += row.Count
+		switch models.ApplicationStatus(row.Status) {
+		case models.ApplicationStatusReceived, models.ApplicationStatusProcessing, models.ApplicationStatusNeedMoreInfo:
+			stats.Pending += row.Count
+		case models.ApplicationStatusApproved:
+			stats.Approved = row.Count
+		case models.ApplicationStatusRejected:
+			stats.Rejected = row.Count
+		}
+	}
+	return stats, nil
+}
+
+func (r *applicationRepo) ListRecent(limit int) ([]models.Application, error) {
+	items := make([]models.Application, 0, limit)
+	if err := r.db.Preload("ServiceType", "deleted_at IS NULL").
+		Preload("CitizenUser", "deleted_at IS NULL").
+		Where("deleted_at IS NULL").
+		Order("submitted_at DESC").
+		Limit(limit).
+		Find(&items).Error; err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 var _ func() string = utils.GenerateApplicationCode

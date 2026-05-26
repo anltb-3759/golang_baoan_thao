@@ -8,13 +8,15 @@
         <div class="flex items-center justify-between mb-6">
           <h1 class="text-xl font-semibold text-gray-900">{{ t "ui.dashboard.title" }}</h1>
         </div>
+
+        <!-- Stat cards -->
         <div class="grid grid-cols-4 gap-4">
           <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-4 flex items-center gap-4">
             <div class="flex items-center justify-center w-10 h-10 rounded-lg bg-indigo-50 text-indigo-600">
               <i data-lucide="file-text" class="h-5 w-5"></i>
             </div>
             <div>
-              <p class="text-2xl font-bold text-gray-900">—</p>
+              <p class="text-2xl font-bold text-gray-900">{{ .Stats.Total }}</p>
               <p class="text-xs text-gray-500 mt-0.5">{{ t "ui.dashboard.stat.total" }}</p>
             </div>
           </div>
@@ -23,7 +25,7 @@
               <i data-lucide="clock" class="h-5 w-5"></i>
             </div>
             <div>
-              <p class="text-2xl font-bold text-gray-900">—</p>
+              <p class="text-2xl font-bold text-gray-900">{{ .Stats.Pending }}</p>
               <p class="text-xs text-gray-500 mt-0.5">{{ t "ui.dashboard.stat.pending" }}</p>
             </div>
           </div>
@@ -32,7 +34,7 @@
               <i data-lucide="check-circle" class="h-5 w-5"></i>
             </div>
             <div>
-              <p class="text-2xl font-bold text-gray-900">—</p>
+              <p class="text-2xl font-bold text-gray-900">{{ .Stats.Approved }}</p>
               <p class="text-xs text-gray-500 mt-0.5">{{ t "ui.dashboard.stat.approved" }}</p>
             </div>
           </div>
@@ -41,11 +43,63 @@
               <i data-lucide="x-circle" class="h-5 w-5"></i>
             </div>
             <div>
-              <p class="text-2xl font-bold text-gray-900">—</p>
+              <p class="text-2xl font-bold text-gray-900">{{ .Stats.Rejected }}</p>
               <p class="text-xs text-gray-500 mt-0.5">{{ t "ui.dashboard.stat.rejected" }}</p>
             </div>
           </div>
         </div>
+
+        <!-- Recent applications -->
+        <div>
+          <h2 class="text-base font-medium text-gray-900 mb-3">{{ t "ui.dashboard.recent_title" }}</h2>
+          <div class="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
+            <table class="min-w-full divide-y divide-gray-200">
+              <thead class="bg-gray-50">
+                <tr>
+                  <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">{{ t "ui.dashboard.col.code" }}</th>
+                  <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">{{ t "ui.dashboard.col.citizen" }}</th>
+                  <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">{{ t "ui.dashboard.col.service" }}</th>
+                  <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">{{ t "ui.dashboard.col.submitted_at" }}</th>
+                  <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">{{ t "ui.dashboard.col.status" }}</th>
+                </tr>
+              </thead>
+              <tbody class="divide-y divide-gray-200">
+                {{ if .RecentApplications }}
+                {{ range .RecentApplications }}
+                <tr class="hover:bg-gray-50">
+                  <td class="px-4 py-3 text-sm">
+                    <a href="/admin/applications/{{ .ID }}" class="text-indigo-600 hover:underline font-medium">{{ .ApplicationCode }}</a>
+                  </td>
+                  <td class="px-4 py-3 text-sm text-gray-700">{{ .CitizenUser.Name }}</td>
+                  <td class="px-4 py-3 text-sm text-gray-700">{{ .ServiceType.Name }}</td>
+                  <td class="px-4 py-3 text-sm text-gray-500">{{ fmtTime .SubmittedAt "2006-01-02 15:04" }}</td>
+                  <td class="px-4 py-3 text-sm">
+                    {{ if eq (print .Status) "received" }}
+                    <span class="bg-gray-100 text-gray-700 text-xs px-2 py-1 rounded-md">{{ t "ui.applications.status.received" }}</span>
+                    {{ else if eq (print .Status) "processing" }}
+                    <span class="bg-blue-100 text-blue-700 text-xs px-2 py-1 rounded-md">{{ t "ui.applications.status.processing" }}</span>
+                    {{ else if eq (print .Status) "need_more_info" }}
+                    <span class="bg-yellow-100 text-yellow-700 text-xs px-2 py-1 rounded-md">{{ t "ui.applications.status.need_more_info" }}</span>
+                    {{ else if eq (print .Status) "approved" }}
+                    <span class="bg-green-100 text-green-700 text-xs px-2 py-1 rounded-md">{{ t "ui.applications.status.approved" }}</span>
+                    {{ else if eq (print .Status) "rejected" }}
+                    <span class="bg-red-100 text-red-700 text-xs px-2 py-1 rounded-md">{{ t "ui.applications.status.rejected" }}</span>
+                    {{ else }}
+                    <span class="bg-gray-100 text-gray-700 text-xs px-2 py-1 rounded-md">{{ .Status }}</span>
+                    {{ end }}
+                  </td>
+                </tr>
+                {{ end }}
+                {{ else }}
+                <tr>
+                  <td colspan="5" class="px-4 py-8 text-center text-sm text-gray-400">{{ t "ui.applications.empty" }}</td>
+                </tr>
+                {{ end }}
+              </tbody>
+            </table>
+          </div>
+        </div>
+
       </div>
     </main>
   </div>

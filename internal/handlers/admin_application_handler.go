@@ -46,6 +46,10 @@ func adminAppFlashURL(flash, msg string) string {
 	return "/admin/applications?" + url.Values{"flash": {flash}, "msg": {msg}}.Encode()
 }
 
+func adminAppDetailFlashURL(id, flash, msg string) string {
+	return "/admin/applications/" + id + "?" + url.Values{"flash": {flash}, "msg": {msg}}.Encode()
+}
+
 func adminAppExportURL(filter repositories.ApplicationFilter) string {
 	query := adminAppQueryString(filter)
 	if query == "" {
@@ -153,6 +157,7 @@ func (h *AdminApplicationHandler) ShowApplication(c *echo.Context) error {
 		"ProcessOptions": applicationStatusOptionsForProcess(app.Status),
 		"CanProcess":     canProcess,
 		"CanAssign":      canAssign,
+		"Flash":          flashFromQuery(c),
 	}
 	return c.Render(http.StatusOK, "admin/pages/applications/detail.html", data)
 }
@@ -293,28 +298,35 @@ func (h *AdminApplicationHandler) ProcessApplication(c *echo.Context) error {
 	note := strings.TrimSpace(c.FormValue("note"))
 	files := form.File["attachments[]"]
 	if err := h.svc.ProcessApplication(id, newStatus, note, files, actorID(c)); err != nil {
-		return mapAdminApplicationProcessError(err)
+		if errors.Is(err, services.ErrAdminApplicationNotFound) {
+			return echo.NewHTTPError(http.StatusNotFound, "application.not_found")
+		}
+		errKey := mapAdminApplicationProcessErrorKey(err)
+		if errKey == "" {
+			return echo.NewHTTPError(http.StatusInternalServerError, "common.internal_error")
+		}
+		msg := configs.T(c, errKey, nil)
+		return c.Redirect(http.StatusSeeOther, adminAppDetailFlashURL(id, "error", msg))
 	}
 
-	return c.Redirect(http.StatusSeeOther, adminAppFlashURL("success", configs.T(c, "ui.msg.application_processed", nil)))
+	return c.Redirect(http.StatusSeeOther, adminAppDetailFlashURL(id, "success", configs.T(c, "ui.msg.application_processed", nil)))
 }
 
-func mapAdminApplicationProcessError(err error) error {
+func mapAdminApplicationProcessErrorKey(err error) string {
 	switch {
-	case errors.Is(err, services.ErrAdminApplicationNotFound):
-		return echo.NewHTTPError(http.StatusNotFound, "application.not_found")
 	case errors.Is(err, services.ErrAdminApplicationInvalidTransition):
-		return echo.NewHTTPError(http.StatusUnprocessableEntity, "application.invalid_transition")
+		return "application.invalid_transition"
 	case errors.Is(err, services.ErrAdminApplicationRejectReasonRequired):
-		return echo.NewHTTPError(http.StatusUnprocessableEntity, "application.reject_reason_required")
+		return "application.reject_reason_required"
 	case errors.Is(err, services.ErrAdminApplicationNeedMoreInfoNoteRequired):
-		return echo.NewHTTPError(http.StatusUnprocessableEntity, "application.need_more_info_note_required")
-	case errors.Is(err, utils.ErrDisallowedMime):
-		return echo.NewHTTPError(http.StatusUnprocessableEntity, "application.attachment_invalid_type")
-	case errors.Is(err, utils.ErrEmptyFileName), errors.Is(err, utils.ErrUnsafeFileName), errors.Is(err, utils.ErrPathEscape):
-		return echo.NewHTTPError(http.StatusUnprocessableEntity, "application.attachment_invalid_type")
+		return "application.need_more_info_note_required"
+	case errors.Is(err, utils.ErrDisallowedMime),
+		errors.Is(err, utils.ErrEmptyFileName),
+		errors.Is(err, utils.ErrUnsafeFileName),
+		errors.Is(err, utils.ErrPathEscape):
+		return "application.attachment_invalid_type"
 	default:
-		return echo.NewHTTPError(http.StatusInternalServerError, "common.internal_error")
+		return ""
 	}
 }
 

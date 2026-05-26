@@ -95,6 +95,12 @@ func (r *fakeProfileApplicationRepo) UpdateAssignedStaff(applicationID string, a
 func (r *fakeProfileApplicationRepo) ProcessStatusUpdate(_ string, _ *models.ApplicationStatus, _ models.ApplicationStatus, _ string, _ string, _, _ *time.Time, _ string, _ []models.ApplicationAttachment) error {
 	return nil
 }
+func (r *fakeProfileApplicationRepo) GetDashboardStats() (repositories.DashboardStats, error) {
+	return repositories.DashboardStats{}, nil
+}
+func (r *fakeProfileApplicationRepo) ListRecent(_ int) ([]models.Application, error) {
+	return nil, nil
+}
 
 // compile-time interface checks
 var _ repositories.UserRepository = (*fakeProfileUserRepo)(nil)

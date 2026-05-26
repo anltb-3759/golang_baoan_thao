@@ -352,3 +352,29 @@ func TestDepartmentService_DeleteDepartment_DeleteError(t *testing.T) {
 }
 
 func ptrStrDept(v string) *string { return &v }
+
+func TestDepartmentService_LogActivity_WithLogger(t *testing.T) {
+	d := &models.Department{ID: "d1", Name: "Test"}
+	repo := &fakeDepartmentRepo{codeDept: nil, dept: d}
+	logger := &fakeActivityLogger{}
+	svc := NewDepartmentService(repo, nil, logger)
+
+	req := &dtos.DepartmentCreateRequest{Name: "Test", Code: "TEST"}
+	_, err := svc.CreateDepartment(req, "actor1")
+	assert.NoError(t, err)
+	if assert.Len(t, logger.entries, 1) {
+		assert.Equal(t, "department.create", logger.entries[0].Action)
+	}
+}
+
+func TestDepartmentService_LogActivity_LoggerError(t *testing.T) {
+	d := &models.Department{ID: "d1", Name: "Test"}
+	repo := &fakeDepartmentRepo{codeDept: nil, dept: d}
+	logger := &fakeActivityLogger{err: assert.AnError}
+	svc := NewDepartmentService(repo, nil, logger)
+
+	req := &dtos.DepartmentCreateRequest{Name: "Test", Code: "TEST"}
+	// Should succeed even if logger fails
+	_, err := svc.CreateDepartment(req, "actor1")
+	assert.NoError(t, err)
+}

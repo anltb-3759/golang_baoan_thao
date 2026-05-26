@@ -72,6 +72,37 @@ func TestAdminProfileHandler_ShowProfilePage_InternalError(t *testing.T) {
 	assert.Contains(t, decoded, configs.T(c, "common.internal_error", nil))
 }
 
+func TestAdminProfileHandler_UpdateProfile_NoLogger(t *testing.T) {
+	// Covers writeActivityLog nil-logger path (early return)
+	_ = configs.LoadI18nMessages("../../locales")
+	e := newAdminEcho()
+	h := NewAdminProfileHandler(&fakeAdminProfileSvc{user: &models.User{ID: "admin-1"}})
+	// no WithActivityLogger → h.logger == nil
+
+	form := url.Values{"phone": {"0909"}, "address": {"HCM"}}
+	c, rec := newFormCtx(e, http.MethodPost, "/admin/profile", form)
+	err := h.UpdateProfile(c)
+	assert.NoError(t, err)
+	assert.Equal(t, http.StatusSeeOther, rec.Code)
+}
+
+func TestAdminProfileHandler_ChangePassword_NoLogger(t *testing.T) {
+	// Covers writeActivityLog nil-logger path (early return)
+	_ = configs.LoadI18nMessages("../../locales")
+	e := newAdminEcho()
+	h := NewAdminProfileHandler(&fakeAdminProfileSvc{})
+
+	form := url.Values{
+		"current_password":     {"oldpass123"},
+		"new_password":         {"newpass123"},
+		"confirm_new_password": {"newpass123"},
+	}
+	c, rec := newFormCtx(e, http.MethodPost, "/admin/profile/password", form)
+	err := h.ChangePassword(c)
+	assert.NoError(t, err)
+	assert.Equal(t, http.StatusSeeOther, rec.Code)
+}
+
 func TestAdminProfileHandler_UpdateProfile_WritesActivityLog(t *testing.T) {
 	_ = configs.LoadI18nMessages("../../locales")
 	e := newAdminEcho()
@@ -87,6 +118,50 @@ func TestAdminProfileHandler_UpdateProfile_WritesActivityLog(t *testing.T) {
 	if assert.NotNil(t, logger.lastLog) {
 		assert.Equal(t, "admin.profile.update_contact", logger.lastLog.Action)
 		assert.Equal(t, "success", logger.lastLog.Result)
+	}
+}
+
+func TestAdminProfileHandler_UpdateProfile_ServiceError(t *testing.T) {
+	_ = configs.LoadI18nMessages("../../locales")
+	e := newAdminEcho()
+	h := NewAdminProfileHandler(&fakeAdminProfileSvc{updateErr: services.ErrUserNotFound})
+
+	form := url.Values{"phone": {"0909"}, "address": {"HCM"}}
+	c, rec := newFormCtx(e, http.MethodPost, "/admin/profile", form)
+	err := h.UpdateProfile(c)
+	assert.NoError(t, err)
+	assert.Equal(t, http.StatusSeeOther, rec.Code)
+	loc := rec.Header().Get(echo.HeaderLocation)
+	assert.Contains(t, loc, "flash=error")
+}
+
+func TestAdminProfileHandler_ChangePassword_ServiceErrors(t *testing.T) {
+	_ = configs.LoadI18nMessages("../../locales")
+	cases := []struct {
+		name string
+		err  error
+	}{
+		{"user_not_found", services.ErrUserNotFound},
+		{"password_mismatch", services.ErrPasswordMismatch},
+		{"confirmation_mismatch", services.ErrPasswordConfirmationMismatch},
+		{"must_differ", services.ErrNewPasswordMustDiffer},
+		{"internal", errors.New("db fail")},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			e := newAdminEcho()
+			h := NewAdminProfileHandler(&fakeAdminProfileSvc{pwdErr: tc.err})
+			form := url.Values{
+				"current_password":     {"oldpass123"},
+				"new_password":         {"newpass123"},
+				"confirm_new_password": {"newpass123"},
+			}
+			c, rec := newFormCtx(e, http.MethodPost, "/admin/profile/password", form)
+			err := h.ChangePassword(c)
+			assert.NoError(t, err)
+			assert.Equal(t, http.StatusSeeOther, rec.Code)
+			assert.Contains(t, rec.Header().Get(echo.HeaderLocation), "flash=error")
+		})
 	}
 }
 

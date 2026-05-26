@@ -133,6 +133,24 @@ func TestCategoryRepo_FindByCode_NotFound(t *testing.T) {
 	}
 }
 
+func TestCategoryRepo_FindByCode_Error(t *testing.T) {
+	repo, mock, cleanup := newMockCategoryRepo(t)
+	defer cleanup()
+
+	dbErr := errors.New("db connection error")
+	mock.ExpectQuery(regexp.QuoteMeta(`SELECT * FROM "categories" WHERE code = $1 AND deleted_at IS NULL ORDER BY "categories"."id" LIMIT $2`)).
+		WithArgs("CODE", 1).
+		WillReturnError(dbErr)
+
+	_, err := repo.FindByCode("CODE")
+	if err == nil {
+		t.Fatal("expected error, got nil")
+	}
+	if err := mock.ExpectationsWereMet(); err != nil {
+		t.Fatalf("unmet expectations: %v", err)
+	}
+}
+
 func TestCategoryRepo_Create(t *testing.T) {
 	repo, mock, cleanup := newMockCategoryRepo(t)
 	defer cleanup()
@@ -246,6 +264,41 @@ func TestCategoryRepo_List_WithSearch(t *testing.T) {
 	}
 	if len(cats) != 1 {
 		t.Fatalf("expected 1 category, got %d", len(cats))
+	}
+	if err := mock.ExpectationsWereMet(); err != nil {
+		t.Fatalf("unmet expectations: %v", err)
+	}
+}
+
+func TestCategoryRepo_List_CountError(t *testing.T) {
+	repo, mock, cleanup := newMockCategoryRepo(t)
+	defer cleanup()
+
+	dbErr := errors.New("count error")
+	mock.ExpectQuery(`SELECT count\(\*\) FROM "categories"`).WillReturnError(dbErr)
+
+	_, _, err := repo.List(CategoryFilter{}, 0, 10)
+	if err == nil {
+		t.Fatal("expected error, got nil")
+	}
+	if err := mock.ExpectationsWereMet(); err != nil {
+		t.Fatalf("unmet expectations: %v", err)
+	}
+}
+
+func TestCategoryRepo_List_FindError(t *testing.T) {
+	repo, mock, cleanup := newMockCategoryRepo(t)
+	defer cleanup()
+
+	mock.ExpectQuery(`SELECT count\(\*\) FROM "categories"`).
+		WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(1))
+
+	dbErr := errors.New("find error")
+	mock.ExpectQuery(`SELECT \* FROM "categories"`).WillReturnError(dbErr)
+
+	_, _, err := repo.List(CategoryFilter{}, 0, 10)
+	if err == nil {
+		t.Fatal("expected error, got nil")
 	}
 	if err := mock.ExpectationsWereMet(); err != nil {
 		t.Fatalf("unmet expectations: %v", err)

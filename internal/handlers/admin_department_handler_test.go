@@ -974,6 +974,42 @@ func TestAdminDeptHandler_RemoveStaffFromDept_LeaderTransferForbiddenForManager(
 
 func ptr(s string) *string { return &s }
 
+func TestAdminDeptHandler_DownloadTemplate(t *testing.T) {
+	e := newTestEcho()
+	h := newDeptHandler(&fakeDeptSvc{}, &fakeAdminUserSvc{})
+
+	req := httptest.NewRequest(http.MethodGet, "/admin/departments/template", nil)
+	rec := httptest.NewRecorder()
+	c := e.NewContext(req, rec)
+
+	err := h.DownloadTemplate(c)
+	assert.NoError(t, err)
+	assert.Equal(t, http.StatusOK, rec.Code)
+	assert.Contains(t, rec.Header().Get("Content-Disposition"), "template_phong_ban.xlsx")
+}
+
+// --- listStaffUsers direct coverage ---
+
+func TestAdminDeptHandler_ListStaffUsers_FiltersRoles(t *testing.T) {
+	users := []models.User{
+		{ID: "u1", Role: models.UserRoleStaff},
+		{ID: "u2", Role: models.UserRoleManager},
+		{ID: "u3", Role: models.UserRoleSuperAdmin},
+		{ID: "u4", Role: models.UserRoleCitizen},
+	}
+	h := newDeptHandler(&fakeDeptSvc{}, &fakeAdminUserSvc{users: users, total: 4})
+	result, err := h.listStaffUsers()
+	assert.NoError(t, err)
+	assert.Len(t, result, 3)
+}
+
+func TestAdminDeptHandler_ListStaffUsers_Error(t *testing.T) {
+	h := newDeptHandler(&fakeDeptSvc{}, &fakeAdminUserSvc{listErr: errors.New("db fail")})
+	result, err := h.listStaffUsers()
+	assert.Error(t, err)
+	assert.Nil(t, result)
+}
+
 // --- listStaffUsers role filter coverage ---
 
 func TestAdminDeptHandler_ShowCreateForm_WithStaffUsers(t *testing.T) {

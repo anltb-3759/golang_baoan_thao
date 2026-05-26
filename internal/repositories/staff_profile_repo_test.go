@@ -283,3 +283,37 @@ func TestStaffProfileRepo_CreateInTx(t *testing.T) {
 		t.Fatalf("unmet expectations: %v", err)
 	}
 }
+
+func TestStaffProfileRepo_ListByDepartment_CountError(t *testing.T) {
+	repo, mock, cleanup := newMockStaffProfileRepo(t)
+	defer cleanup()
+
+	dbErr := errors.New("count error")
+	mock.ExpectQuery(`SELECT count\(\*\) FROM "staff_profiles"`).WillReturnError(dbErr)
+
+	_, _, err := repo.ListByDepartment("dept-1", 0, 10)
+	if err == nil {
+		t.Fatal("expected error, got nil")
+	}
+	if err := mock.ExpectationsWereMet(); err != nil {
+		t.Fatalf("unmet expectations: %v", err)
+	}
+}
+
+func TestStaffProfileRepo_ListByDepartment_FindError(t *testing.T) {
+	repo, mock, cleanup := newMockStaffProfileRepo(t)
+	defer cleanup()
+
+	mock.ExpectQuery(`SELECT count\(\*\) FROM "staff_profiles"`).
+		WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(1))
+	dbErr := errors.New("find error")
+	mock.ExpectQuery(`SELECT \* FROM "staff_profiles"`).WillReturnError(dbErr)
+
+	_, _, err := repo.ListByDepartment("dept-1", 0, 10)
+	if err == nil {
+		t.Fatal("expected error, got nil")
+	}
+	if err := mock.ExpectationsWereMet(); err != nil {
+		t.Fatalf("unmet expectations: %v", err)
+	}
+}

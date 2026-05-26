@@ -535,6 +535,7 @@ type fakeNotifSvc struct {
 	markErr    error
 	markAllErr error
 	countVal   int64
+	countErr   error
 }
 
 func (s *fakeNotifSvc) List(_ string, _ repositories.NotificationFilter, _, _ int) ([]dtos.NotificationResponse, int64, error) {
@@ -543,7 +544,7 @@ func (s *fakeNotifSvc) List(_ string, _ repositories.NotificationFilter, _, _ in
 func (s *fakeNotifSvc) MarkAsRead(_, _ string) error { return s.markErr }
 func (s *fakeNotifSvc) MarkAllAsRead(_ string) error { return s.markAllErr }
 func (s *fakeNotifSvc) CountUnread(_ string) (int64, error) {
-	return s.countVal, nil
+	return s.countVal, s.countErr
 }
 
 func TestListNotifications_Success(t *testing.T) {
@@ -697,6 +698,26 @@ func TestShowServiceDetail_Renders(t *testing.T) {
 	}
 }
 
+func TestShowServiceCatalog_UnreadCountError(t *testing.T) {
+	_ = configs.LoadI18nMessages("../../locales")
+	e := newAdminEcho()
+	catalog := &fakeCatalogSvc{}
+	notifSvc := &fakeNotifSvc{countErr: errors.New("count db error")}
+	h := NewCitizenWebHandler(&fakeAuthService{}).
+		WithCatalogService(catalog).
+		WithNotificationService(notifSvc)
+
+	c, rec := newCitizenCtx(e, http.MethodGet, "/citizen/services")
+	setCitizenUser(c, "u1")
+
+	if err := h.ShowServiceCatalog(c); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", rec.Code)
+	}
+}
+
 // --- WithActivityLogger / WithNotificationService ---
 
 func TestCitizenWebHandler_WithActivityLogger_Returns(t *testing.T) {
@@ -733,5 +754,535 @@ func TestIsAllDigits_False(t *testing.T) {
 func TestIsAllDigits_Empty(t *testing.T) {
 	if isAllDigits("") {
 		t.Fatal("expected false for empty string")
+	}
+}
+
+// --- ShowApplyForm tests ---
+
+func TestShowApplyForm_NilServices(t *testing.T) {
+	e := newAdminEcho()
+	h := NewCitizenWebHandler(&fakeAuthService{})
+
+	c, _ := newCitizenCtx(e, http.MethodGet, "/citizen/applications/new")
+	setCitizenUser(c, "u1")
+
+	err := h.ShowApplyForm(c)
+	var he *echo.HTTPError
+	if !errors.As(err, &he) || he.Code != http.StatusInternalServerError {
+		t.Fatalf("expected 500 HTTPError, got %v", err)
+	}
+}
+
+func TestShowApplyForm_NoClaims(t *testing.T) {
+	e := newAdminEcho()
+	catalog := &fakeCatalogSvc{}
+	appSvc := &fakeAppWebSvc{}
+	h := NewCitizenWebHandler(&fakeAuthService{}).WithCatalogService(catalog).WithApplicationService(appSvc)
+
+	c, _ := newCitizenCtx(e, http.MethodGet, "/citizen/applications/new")
+	// no user set
+
+	err := h.ShowApplyForm(c)
+	var he *echo.HTTPError
+	if !errors.As(err, &he) || he.Code != http.StatusUnauthorized {
+		t.Fatalf("expected 401 HTTPError, got %v", err)
+	}
+}
+
+func TestShowApplyForm_NoServiceTypeID(t *testing.T) {
+	_ = configs.LoadI18nMessages("../../locales")
+	e := newAdminEcho()
+	catalog := &fakeCatalogSvc{}
+	appSvc := &fakeAppWebSvc{}
+	h := NewCitizenWebHandler(&fakeAuthService{}).WithCatalogService(catalog).WithApplicationService(appSvc)
+
+	c, rec := newCitizenCtx(e, http.MethodGet, "/citizen/applications/new")
+	setCitizenUser(c, "u1")
+
+	err := h.ShowApplyForm(c)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if rec.Code != http.StatusSeeOther {
+		t.Fatalf("expected redirect, got %d", rec.Code)
+	}
+}
+
+func TestShowApplyForm_ServiceTypeNotFound(t *testing.T) {
+	e := newAdminEcho()
+	catalog := &fakeCatalogSvc{
+		getByIDFn: func(_ context.Context, id string) (*models.ServiceType, error) {
+			return nil, errors.New("not found")
+		},
+	}
+	appSvc := &fakeAppWebSvc{}
+	h := NewCitizenWebHandler(&fakeAuthService{}).WithCatalogService(catalog).WithApplicationService(appSvc)
+
+	req := httptest.NewRequest(http.MethodGet, "/citizen/applications/new?service_type_id=st-1", nil)
+	rec := httptest.NewRecorder()
+	c := e.NewContext(req, rec)
+	setCitizenUser(c, "u1")
+
+	err := h.ShowApplyForm(c)
+	var he *echo.HTTPError
+	if !errors.As(err, &he) || he.Code != http.StatusNotFound {
+		t.Fatalf("expected 404 HTTPError, got %v", err)
+	}
+}
+
+func TestShowApplyForm_OK(t *testing.T) {
+	_ = configs.LoadI18nMessages("../../locales")
+	e := newAdminEcho()
+	catalog := &fakeCatalogSvc{}
+	appSvc := &fakeAppWebSvc{}
+	h := NewCitizenWebHandler(&fakeAuthService{}).WithCatalogService(catalog).WithApplicationService(appSvc)
+
+	req := httptest.NewRequest(http.MethodGet, "/citizen/applications/new?service_type_id=st-1", nil)
+	rec := httptest.NewRecorder()
+	c := e.NewContext(req, rec)
+	setCitizenUser(c, "u1")
+
+	if err := h.ShowApplyForm(c); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", rec.Code)
+	}
+}
+
+// --- UploadApplicationSupplements tests ---
+
+func TestUploadApplicationSupplements_NoClaims(t *testing.T) {
+	e := newAdminEcho()
+	appSvc := &fakeAppWebSvc{}
+	h := NewCitizenWebHandler(&fakeAuthService{}).WithApplicationService(appSvc)
+
+	c, _ := newCitizenCtx(e, http.MethodPost, "/citizen/applications/app1/supplements")
+	// no user
+
+	err := h.UploadApplicationSupplements(c)
+	var he *echo.HTTPError
+	if !errors.As(err, &he) || he.Code != http.StatusUnauthorized {
+		t.Fatalf("expected 401, got %v", err)
+	}
+}
+
+func TestUploadApplicationSupplements_NilAppSvc(t *testing.T) {
+	e := newAdminEcho()
+	h := NewCitizenWebHandler(&fakeAuthService{})
+
+	c, _ := newCitizenCtx(e, http.MethodPost, "/citizen/applications/app1/supplements")
+	setCitizenUser(c, "u1")
+
+	err := h.UploadApplicationSupplements(c)
+	var he *echo.HTTPError
+	if !errors.As(err, &he) || he.Code != http.StatusInternalServerError {
+		t.Fatalf("expected 500, got %v", err)
+	}
+}
+
+func TestUploadApplicationSupplements_NotFound(t *testing.T) {
+	_ = configs.LoadI18nMessages("../../locales")
+	e := newAdminEcho()
+	appSvc := &fakeAppWebSvc{
+		supplementFn: func(_, _ string, _ []*multipart.FileHeader) ([]dtos.ApplicationAttachmentResponse, error) {
+			return nil, services.ErrApplicationNotFound
+		},
+	}
+	h := NewCitizenWebHandler(&fakeAuthService{}).WithApplicationService(appSvc)
+
+	body := &strings.Builder{}
+	body.WriteString("--boundary\r\nContent-Disposition: form-data; name=\"attachments[]\"; filename=\"a.pdf\"\r\n\r\ndata\r\n--boundary--\r\n")
+	req := httptest.NewRequest(http.MethodPost, "/citizen/applications/app1/supplements", strings.NewReader(body.String()))
+	req.Header.Set("Content-Type", "multipart/form-data; boundary=boundary")
+	rec := httptest.NewRecorder()
+	c := e.NewContext(req, rec)
+	c.SetPathValues(echo.PathValues{{Name: "id", Value: "app1"}})
+	setCitizenUser(c, "u1")
+
+	err := h.UploadApplicationSupplements(c)
+	var he *echo.HTTPError
+	if !errors.As(err, &he) || he.Code != http.StatusNotFound {
+		t.Fatalf("expected 404, got %v", err)
+	}
+}
+
+func TestUploadApplicationSupplements_Success(t *testing.T) {
+	_ = configs.LoadI18nMessages("../../locales")
+	e := newAdminEcho()
+	appSvc := &fakeAppWebSvc{}
+	h := NewCitizenWebHandler(&fakeAuthService{}).WithApplicationService(appSvc)
+
+	body := &strings.Builder{}
+	body.WriteString("--boundary\r\nContent-Disposition: form-data; name=\"attachments[]\"; filename=\"a.pdf\"\r\n\r\ndata\r\n--boundary--\r\n")
+	req := httptest.NewRequest(http.MethodPost, "/citizen/applications/app1/supplements", strings.NewReader(body.String()))
+	req.Header.Set("Content-Type", "multipart/form-data; boundary=boundary")
+	rec := httptest.NewRecorder()
+	c := e.NewContext(req, rec)
+	c.SetPathValues(echo.PathValues{{Name: "id", Value: "app1"}})
+	setCitizenUser(c, "u1")
+
+	if err := h.UploadApplicationSupplements(c); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if rec.Code != http.StatusSeeOther {
+		t.Fatalf("expected redirect, got %d", rec.Code)
+	}
+}
+
+func TestUploadApplicationSupplements_ServiceErrors(t *testing.T) {
+	_ = configs.LoadI18nMessages("../../locales")
+	cases := []struct {
+		name string
+		err  error
+	}{
+		{"supplement_not_allowed", services.ErrSupplementNotAllowed},
+		{"too_many_attachments", services.ErrTooManyAttachments},
+		{"attachment_too_large", services.ErrAttachmentTooLarge},
+		{"internal", errors.New("internal")},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			e := newAdminEcho()
+			appSvc := &fakeAppWebSvc{
+				supplementFn: func(_, _ string, _ []*multipart.FileHeader) ([]dtos.ApplicationAttachmentResponse, error) {
+					return nil, tc.err
+				},
+			}
+			h := NewCitizenWebHandler(&fakeAuthService{}).WithApplicationService(appSvc)
+
+			body := &strings.Builder{}
+			body.WriteString("--boundary\r\nContent-Disposition: form-data; name=\"attachments[]\"; filename=\"a.pdf\"\r\n\r\ndata\r\n--boundary--\r\n")
+			req := httptest.NewRequest(http.MethodPost, "/citizen/applications/app1/supplements", strings.NewReader(body.String()))
+			req.Header.Set("Content-Type", "multipart/form-data; boundary=boundary")
+			rec := httptest.NewRecorder()
+			c := e.NewContext(req, rec)
+			c.SetPathValues(echo.PathValues{{Name: "id", Value: "app1"}})
+			setCitizenUser(c, "u1")
+
+			err := h.UploadApplicationSupplements(c)
+			if err != nil {
+				t.Fatalf("expected nil error (redirect), got %v", err)
+			}
+			if rec.Code != http.StatusSeeOther {
+				t.Fatalf("expected redirect, got %d", rec.Code)
+			}
+		})
+	}
+}
+
+// --- WebRegister validation branches ---
+
+func TestWebRegister_PasswordMismatch(t *testing.T) {
+	_ = configs.LoadI18nMessages("../../locales")
+	e := newAdminEcho()
+	h := NewCitizenWebHandler(&fakeAuthService{})
+	form := "name=User&email=a%40b.com&citizen_id_number=123456789012&password=pass123&confirm_password=different"
+	req := httptest.NewRequest(http.MethodPost, "/register", strings.NewReader(form))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	rec := httptest.NewRecorder()
+	c := e.NewContext(req, rec)
+	if err := h.WebRegister(c); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if rec.Code != http.StatusUnprocessableEntity {
+		t.Fatalf("expected 422, got %d", rec.Code)
+	}
+}
+
+func TestWebRegister_InvalidCCCD(t *testing.T) {
+	_ = configs.LoadI18nMessages("../../locales")
+	e := newAdminEcho()
+	h := NewCitizenWebHandler(&fakeAuthService{})
+	form := "name=User&email=a%40b.com&citizen_id_number=123abc&password=pass123&confirm_password=pass123"
+	req := httptest.NewRequest(http.MethodPost, "/register", strings.NewReader(form))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	rec := httptest.NewRecorder()
+	c := e.NewContext(req, rec)
+	if err := h.WebRegister(c); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if rec.Code != http.StatusUnprocessableEntity {
+		t.Fatalf("expected 422, got %d", rec.Code)
+	}
+}
+
+func TestWebRegister_PasswordTooShort(t *testing.T) {
+	_ = configs.LoadI18nMessages("../../locales")
+	e := newAdminEcho()
+	h := NewCitizenWebHandler(&fakeAuthService{})
+	form := "name=User&email=a%40b.com&citizen_id_number=123456789012&password=abc&confirm_password=abc"
+	req := httptest.NewRequest(http.MethodPost, "/register", strings.NewReader(form))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	rec := httptest.NewRecorder()
+	c := e.NewContext(req, rec)
+	if err := h.WebRegister(c); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if rec.Code != http.StatusUnprocessableEntity {
+		t.Fatalf("expected 422, got %d", rec.Code)
+	}
+}
+
+func TestWebRegister_EmailExists(t *testing.T) {
+	_ = configs.LoadI18nMessages("../../locales")
+	e := newAdminEcho()
+	h := NewCitizenWebHandler(&fakeAuthService{
+		registerFn: func(_ *dtos.RegisterRequest) (*models.User, error) {
+			return nil, services.ErrEmailAlreadyExists
+		},
+	})
+	form := "name=User&email=exists%40b.com&citizen_id_number=123456789012&password=pass123&confirm_password=pass123"
+	req := httptest.NewRequest(http.MethodPost, "/register", strings.NewReader(form))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	rec := httptest.NewRecorder()
+	c := e.NewContext(req, rec)
+	if err := h.WebRegister(c); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if rec.Code != http.StatusUnprocessableEntity {
+		t.Fatalf("expected 422, got %d", rec.Code)
+	}
+}
+
+func TestWebRegister_WithActivityLogger(t *testing.T) {
+	_ = configs.LoadI18nMessages("../../locales")
+	e := newAdminEcho()
+	logger := &fakeActivityLogger{}
+	h := NewCitizenWebHandler(&fakeAuthService{
+		registerFn: func(_ *dtos.RegisterRequest) (*models.User, error) {
+			return &models.User{ID: "u1"}, nil
+		},
+	}).WithActivityLogger(logger)
+	form := "name=User&email=new%40b.com&citizen_id_number=123456789012&password=pass123&confirm_password=pass123"
+	req := httptest.NewRequest(http.MethodPost, "/register", strings.NewReader(form))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	rec := httptest.NewRecorder()
+	c := e.NewContext(req, rec)
+	if err := h.WebRegister(c); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if rec.Code != http.StatusSeeOther {
+		t.Fatalf("expected redirect, got %d", rec.Code)
+	}
+	if logger.calls != 1 {
+		t.Fatalf("expected 1 log call, got %d", logger.calls)
+	}
+}
+
+// --- ShowApplicationDetail missing branches ---
+
+func TestShowApplicationDetail_NoClaims(t *testing.T) {
+	e := newAdminEcho()
+	h := NewCitizenWebHandler(&fakeAuthService{}).WithApplicationService(&fakeAppWebSvc{})
+	c, _ := newCitizenCtx(e, http.MethodGet, "/citizen/applications/app1")
+	// no user set
+	err := h.ShowApplicationDetail(c)
+	var he *echo.HTTPError
+	if !errors.As(err, &he) || he.Code != http.StatusUnauthorized {
+		t.Fatalf("expected 401, got %v", err)
+	}
+}
+
+func TestShowApplicationDetail_NilSvc(t *testing.T) {
+	e := newAdminEcho()
+	h := NewCitizenWebHandler(&fakeAuthService{})
+	c, _ := newCitizenCtx(e, http.MethodGet, "/citizen/applications/app1")
+	setCitizenUser(c, "u1")
+	err := h.ShowApplicationDetail(c)
+	var he *echo.HTTPError
+	if !errors.As(err, &he) || he.Code != http.StatusInternalServerError {
+		t.Fatalf("expected 500, got %v", err)
+	}
+}
+
+func TestShowApplicationDetail_InternalError(t *testing.T) {
+	e := newAdminEcho()
+	appSvc := &fakeAppWebSvc{
+		getFn: func(_, _ string) (*dtos.ApplicationResponse, error) {
+			return nil, errors.New("db error")
+		},
+	}
+	h := NewCitizenWebHandler(&fakeAuthService{}).WithApplicationService(appSvc)
+	c, _ := newCitizenCtx(e, http.MethodGet, "/citizen/applications/app1")
+	setCitizenUser(c, "u1")
+	setPathParam(c, "id", "app1")
+	err := h.ShowApplicationDetail(c)
+	var he *echo.HTTPError
+	if !errors.As(err, &he) || he.Code != http.StatusInternalServerError {
+		t.Fatalf("expected 500, got %v", err)
+	}
+}
+
+// --- SubmitApplication missing branches ---
+
+func TestSubmitApplication_NoClaims(t *testing.T) {
+	e := newAdminEcho()
+	h := NewCitizenWebHandler(&fakeAuthService{}).
+		WithCatalogService(&fakeCatalogSvc{}).
+		WithApplicationService(&fakeAppWebSvc{})
+	c, _ := newCitizenCtx(e, http.MethodPost, "/citizen/applications")
+	// no user
+	err := h.SubmitApplication(c)
+	var he *echo.HTTPError
+	if !errors.As(err, &he) || he.Code != http.StatusUnauthorized {
+		t.Fatalf("expected 401, got %v", err)
+	}
+}
+
+func TestSubmitApplication_NilServices(t *testing.T) {
+	e := newAdminEcho()
+	h := NewCitizenWebHandler(&fakeAuthService{})
+	c, _ := newCitizenCtx(e, http.MethodPost, "/citizen/applications")
+	setCitizenUser(c, "u1")
+	err := h.SubmitApplication(c)
+	var he *echo.HTTPError
+	if !errors.As(err, &he) || he.Code != http.StatusInternalServerError {
+		t.Fatalf("expected 500, got %v", err)
+	}
+}
+
+func TestSubmitApplication_EmptyServiceTypeID(t *testing.T) {
+	_ = configs.LoadI18nMessages("../../locales")
+	e := newAdminEcho()
+	h := NewCitizenWebHandler(&fakeAuthService{}).
+		WithCatalogService(&fakeCatalogSvc{}).
+		WithApplicationService(&fakeAppWebSvc{})
+	form := "service_type_id="
+	req := httptest.NewRequest(http.MethodPost, "/citizen/applications", strings.NewReader(form))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	rec := httptest.NewRecorder()
+	c := e.NewContext(req, rec)
+	setCitizenUser(c, "u1")
+	if err := h.SubmitApplication(c); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if rec.Code != http.StatusSeeOther {
+		t.Fatalf("expected redirect, got %d", rec.Code)
+	}
+}
+
+func TestSubmitApplication_ServiceTypeNotFound(t *testing.T) {
+	e := newAdminEcho()
+	h := NewCitizenWebHandler(&fakeAuthService{}).
+		WithCatalogService(&fakeCatalogSvc{
+			getByIDFn: func(_ context.Context, _ string) (*models.ServiceType, error) {
+				return nil, errors.New("not found")
+			},
+		}).
+		WithApplicationService(&fakeAppWebSvc{})
+	form := "service_type_id=st-1"
+	req := httptest.NewRequest(http.MethodPost, "/citizen/applications", strings.NewReader(form))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	rec := httptest.NewRecorder()
+	c := e.NewContext(req, rec)
+	setCitizenUser(c, "u1")
+	err := h.SubmitApplication(c)
+	var he *echo.HTTPError
+	if !errors.As(err, &he) || he.Code != http.StatusNotFound {
+		t.Fatalf("expected 404, got %v", err)
+	}
+}
+
+func TestSubmitApplication_ServiceErrors(t *testing.T) {
+	_ = configs.LoadI18nMessages("../../locales")
+	cases := []struct {
+		name string
+		err  error
+	}{
+		{"missing_required_field", services.ErrMissingRequiredField},
+		{"attachment_required", services.ErrAttachmentRequired},
+		{"too_many_attachments", services.ErrTooManyAttachments},
+		{"attachment_too_large", services.ErrAttachmentTooLarge},
+		{"attachment_invalid_type", services.ErrAttachmentInvalidType},
+		{"internal_error", errors.New("db error")},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			e := newAdminEcho()
+			h := NewCitizenWebHandler(&fakeAuthService{}).
+				WithCatalogService(&fakeCatalogSvc{}).
+				WithApplicationService(&fakeAppWebSvc{
+					submitFn: func(_ string, _ *dtos.SubmitApplicationRequest, _ []*multipart.FileHeader) (*dtos.ApplicationResponse, error) {
+						return nil, tc.err
+					},
+				})
+			form := "service_type_id=st-1"
+			req := httptest.NewRequest(http.MethodPost, "/citizen/applications", strings.NewReader(form))
+			req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+			rec := httptest.NewRecorder()
+			c := e.NewContext(req, rec)
+			setCitizenUser(c, "u1")
+			if err := h.SubmitApplication(c); err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			if rec.Code != http.StatusUnprocessableEntity {
+				t.Fatalf("expected 422, got %d", rec.Code)
+			}
+		})
+	}
+}
+
+// --- parseFormSchema ---
+
+func TestParseFormSchema_EmptyRaw(t *testing.T) {
+	result := parseFormSchema(nil)
+	if result.Required == nil {
+		t.Error("expected non-nil Required map")
+	}
+	if len(result.Fields) != 0 {
+		t.Errorf("expected empty Fields, got %v", result.Fields)
+	}
+}
+
+func TestParseFormSchema_InvalidJSON(t *testing.T) {
+	result := parseFormSchema([]byte("{invalid"))
+	if result.Required == nil {
+		t.Error("expected non-nil Required map")
+	}
+}
+
+// --- SetLocale with same-host referer ---
+
+func TestAdminAuthHandlerSetLocale_SameHostReferer(t *testing.T) {
+	e := newTestEcho()
+	handler := NewAdminAuthHandler(&fakeAuthService{})
+
+	req := httptest.NewRequest(http.MethodGet, "/admin/locale?lang=vi", nil)
+	req.Host = "example.com"
+	req.Header.Set("Referer", "http://example.com/admin/dashboard?tab=1")
+	rec := httptest.NewRecorder()
+	c := e.NewContext(req, rec)
+
+	if err := handler.SetLocale(c); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if rec.Code != http.StatusSeeOther {
+		t.Fatalf("expected redirect, got %d", rec.Code)
+	}
+	loc := rec.Header().Get(echo.HeaderLocation)
+	if loc != "/admin/dashboard?tab=1" {
+		t.Fatalf("expected same-host redirect, got %q", loc)
+	}
+}
+
+func TestAdminAuthHandlerSetLocale_RelativeReferer(t *testing.T) {
+	e := newTestEcho()
+	handler := NewAdminAuthHandler(&fakeAuthService{})
+
+	req := httptest.NewRequest(http.MethodGet, "/admin/locale?lang=en", nil)
+	req.Header.Set("Referer", "/admin/users")
+	rec := httptest.NewRecorder()
+	c := e.NewContext(req, rec)
+
+	if err := handler.SetLocale(c); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if rec.Code != http.StatusSeeOther {
+		t.Fatalf("expected redirect, got %d", rec.Code)
+	}
+	loc := rec.Header().Get(echo.HeaderLocation)
+	if loc != "/admin/users" {
+		t.Fatalf("expected relative path redirect, got %q", loc)
 	}
 }

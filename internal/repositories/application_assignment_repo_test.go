@@ -143,3 +143,23 @@ func TestApplicationAssignmentRepo_ListByApplication_Error(t *testing.T) {
 		t.Fatalf("unmet expectations: %v", err)
 	}
 }
+
+func TestApplicationAssignmentRepo_ListByApplication_RecordNotFound(t *testing.T) {
+	repo, mock, cleanup := newMockApplicationAssignmentRepo(t)
+	defer cleanup()
+
+	mock.ExpectQuery(regexp.QuoteMeta(`SELECT * FROM "application_assignments" WHERE application_id = $1 ORDER BY created_at DESC`)).
+		WithArgs("app-nf").
+		WillReturnError(gorm.ErrRecordNotFound)
+
+	items, err := repo.ListByApplication("app-nf")
+	if err != nil {
+		t.Fatalf("expected nil error for RecordNotFound, got %v", err)
+	}
+	if items != nil {
+		t.Fatalf("expected nil items, got %v", items)
+	}
+	if err := mock.ExpectationsWereMet(); err != nil {
+		t.Fatalf("unmet expectations: %v", err)
+	}
+}

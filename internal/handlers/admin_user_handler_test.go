@@ -17,6 +17,7 @@ import (
 	"github.com/awesome-academy/golang_baoan_thao/internal/utils"
 	"github.com/labstack/echo/v5"
 	"github.com/stretchr/testify/assert"
+	"gorm.io/gorm"
 )
 
 // --- stub renderer ---
@@ -293,6 +294,23 @@ func TestAdminUserHandler_ShowEditForm_NotFound(t *testing.T) {
 	err := h.ShowEditForm(c)
 	assert.NoError(t, err)
 	assert.Equal(t, http.StatusSeeOther, rec.Code)
+}
+
+func TestAdminUserHandler_ShowEditForm_WithRepos_AndDeptID(t *testing.T) {
+	_ = configs.LoadI18nMessages("../../locales")
+	e := newAdminEcho()
+	u := &models.User{ID: "u1", Name: "Staff"}
+	svc := &fakeAdminUserSvc{user: u}
+	deptID := "dept-1"
+	deptRepo := &fakeDeptRepoForUser{depts: []models.Department{{ID: "dept-1", Name: "IT"}}}
+	staffRepo := &fakeStaffProfileRepo{profile: &models.StaffProfile{UserID: "u1", DepartmentID: &deptID}}
+	h := NewAdminUserHandler(svc).WithDeptAndStaffRepos(deptRepo, staffRepo)
+
+	c, rec := newAdminCtx(e, http.MethodGet, "/admin/users/u1/edit", "", "")
+	c.SetPathValues(echo.PathValues{{Name: "id", Value: "u1"}})
+	err := h.ShowEditForm(c)
+	assert.NoError(t, err)
+	assert.Equal(t, http.StatusOK, rec.Code)
 }
 
 // --- UpdateUser ---
@@ -594,19 +612,68 @@ func TestAdminDashboardHandler_ShowDashboard(t *testing.T) {
 	assert.Equal(t, http.StatusOK, rec.Code)
 }
 
-type fakeDashboardAppRepo struct{}
+type fakeDashboardAppRepo struct {
+	err error
+}
 
 func (r *fakeDashboardAppRepo) GetDashboardStats() (repositories.DashboardStats, error) {
-	return repositories.DashboardStats{Total: 10, Pending: 3, Approved: 5, Rejected: 2}, nil
+	return repositories.DashboardStats{Total: 10, Pending: 3, Approved: 5, Rejected: 2}, r.err
 }
 func (r *fakeDashboardAppRepo) ListRecent(_ int) ([]models.Application, error) {
-	return nil, nil
+	return nil, r.err
 }
 func (r *fakeDashboardAppRepo) GetDashboardStatsForStaff(_ string) (repositories.DashboardStats, error) {
-	return repositories.DashboardStats{}, nil
+	return repositories.DashboardStats{}, r.err
 }
 func (r *fakeDashboardAppRepo) ListRecentForStaff(_ string, _ int) ([]models.Application, error) {
-	return nil, nil
+	return nil, r.err
+}
+
+func TestAdminDashboardHandler_ShowDashboard_Error(t *testing.T) {
+	_ = configs.LoadI18nMessages("../../locales")
+	e := newAdminEcho()
+	svc := services.NewAdminDashboardService(&fakeDashboardAppRepo{err: errors.New("db error")})
+	h := NewAdminDashboardHandler(svc)
+
+	c, _ := newAdminCtx(e, http.MethodGet, "/admin", "", "")
+	err := h.ShowDashboard(c)
+	assert.Error(t, err)
+}
+
+func TestAdminDashboardHandler_ShowDashboard_StaffRole(t *testing.T) {
+	_ = configs.LoadI18nMessages("../../locales")
+	e := newAdminEcho()
+	svc := services.NewAdminDashboardService(&fakeDashboardAppRepo{})
+	h := NewAdminDashboardHandler(svc)
+
+	req := httptest.NewRequest(http.MethodGet, "/admin", nil)
+	rec := httptest.NewRecorder()
+	c := e.NewContext(req, rec)
+	c.Set("user", &configs.JwtCustomClaims{ID: "staff-1", Role: string(models.UserRoleStaff)})
+
+	err := h.ShowDashboard(c)
+	assert.NoError(t, err)
+	assert.Equal(t, http.StatusOK, rec.Code)
+}
+
+func TestAdminUserHandler_DownloadTemplate(t *testing.T) {
+	e := newTestEcho()
+	h := NewAdminUserHandler(&fakeAdminUserSvc{})
+
+	req := httptest.NewRequest(http.MethodGet, "/admin/users/template", nil)
+	rec := httptest.NewRecorder()
+	c := e.NewContext(req, rec)
+
+	err := h.DownloadTemplate(c)
+	assert.NoError(t, err)
+	assert.Equal(t, http.StatusOK, rec.Code)
+	assert.Contains(t, rec.Header().Get("Content-Disposition"), "template_can_bo.xlsx")
+}
+
+func TestAdminUserHandler_WithDeptAndStaffRepos(t *testing.T) {
+	h := NewAdminUserHandler(&fakeAdminUserSvc{})
+	result := h.WithDeptAndStaffRepos(nil, nil)
+	assert.Equal(t, h, result, "WithDeptAndStaffRepos should return self")
 }
 
 // --- ExportCSV ---
@@ -751,4 +818,86 @@ func TestAdminUserHandler_UpdateUser_GetError(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Equal(t, http.StatusSeeOther, rec.Code)
 	assert.Contains(t, rec.Header().Get("Location"), "flash=error")
+}
+
+// --- fakeDeptRepoForUser for ShowEditForm/UpdateUser tests ---
+
+type fakeDeptRepoForUser struct {
+	depts []models.Department
+}
+
+func (r *fakeDeptRepoForUser) FindByID(_ string) (*models.Department, error) { return nil, nil }
+func (r *fakeDeptRepoForUser) FindByCode(_ string) (*models.Department, error) { return nil, nil }
+func (r *fakeDeptRepoForUser) FindByLeaderUserID(_ string) (*models.Department, error) {
+	return nil, nil
+}
+func (r *fakeDeptRepoForUser) Create(d *models.Department) (*models.Department, error) {
+	return d, nil
+}
+func (r *fakeDeptRepoForUser) CreateInTx(_ *gorm.DB, _ *models.Department) error { return nil }
+func (r *fakeDeptRepoForUser) Update(_ *models.Department) error                  { return nil }
+func (r *fakeDeptRepoForUser) List(_ repositories.DepartmentFilter, _, _ int) ([]models.Department, int64, error) {
+	return r.depts, int64(len(r.depts)), nil
+}
+func (r *fakeDeptRepoForUser) SoftDelete(_ string, _ string) error { return nil }
+
+var _ repositories.DepartmentRepository = (*fakeDeptRepoForUser)(nil)
+
+// --- fakeStaffProfileRepo for WithDeptAndStaffRepos tests ---
+
+type fakeStaffProfileRepo struct {
+	profile    *models.StaffProfile
+	findErr    error
+	createErr  error
+	updateErr  error
+}
+
+func (r *fakeStaffProfileRepo) FindByUserID(_ string) (*models.StaffProfile, error) {
+	return r.profile, r.findErr
+}
+func (r *fakeStaffProfileRepo) ListByDepartment(_ string, _, _ int) ([]models.StaffProfile, int64, error) {
+	return nil, 0, nil
+}
+func (r *fakeStaffProfileRepo) UpdateDepartment(_ string, _ *string, _ string) error {
+	return r.updateErr
+}
+func (r *fakeStaffProfileRepo) Create(p *models.StaffProfile) (*models.StaffProfile, error) {
+	return p, r.createErr
+}
+func (r *fakeStaffProfileRepo) CreateInTx(_ *gorm.DB, _ *models.StaffProfile) error {
+	return nil
+}
+
+var _ repositories.StaffProfileRepository = (*fakeStaffProfileRepo)(nil)
+
+func TestAdminUserHandler_UpdateUser_WithStaffRepo_NilProfile(t *testing.T) {
+	_ = configs.LoadI18nMessages("../../locales")
+	e := newAdminEcho()
+	u := &models.User{ID: "u1", Name: "Test"}
+	svc := &fakeAdminUserSvc{user: u}
+	staffRepo := &fakeStaffProfileRepo{profile: nil}
+	h := NewAdminUserHandler(svc).WithDeptAndStaffRepos(nil, staffRepo)
+
+	form := url.Values{"name": {"Test"}, "role": {"staff"}, "department_id": {"dept-1"}}
+	c, rec := newFormCtx(e, http.MethodPost, "/admin/users/u1/edit", form)
+	c.SetPathValues(echo.PathValues{{Name: "id", Value: "u1"}})
+	err := h.UpdateUser(c)
+	assert.NoError(t, err)
+	assert.Equal(t, http.StatusSeeOther, rec.Code)
+}
+
+func TestAdminUserHandler_UpdateUser_WithStaffRepo_ExistingProfile(t *testing.T) {
+	_ = configs.LoadI18nMessages("../../locales")
+	e := newAdminEcho()
+	u := &models.User{ID: "u1", Name: "Test"}
+	svc := &fakeAdminUserSvc{user: u}
+	staffRepo := &fakeStaffProfileRepo{profile: &models.StaffProfile{UserID: "u1"}}
+	h := NewAdminUserHandler(svc).WithDeptAndStaffRepos(nil, staffRepo)
+
+	form := url.Values{"name": {"Test"}, "role": {"staff"}, "department_id": {"dept-2"}}
+	c, rec := newFormCtx(e, http.MethodPost, "/admin/users/u1/edit", form)
+	c.SetPathValues(echo.PathValues{{Name: "id", Value: "u1"}})
+	err := h.UpdateUser(c)
+	assert.NoError(t, err)
+	assert.Equal(t, http.StatusSeeOther, rec.Code)
 }

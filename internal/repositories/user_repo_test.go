@@ -430,6 +430,34 @@ func TestUserRepoList_WithRoles(t *testing.T) {
 	}
 }
 
+func TestUserRepoList_CountError(t *testing.T) {
+	repo, mock, cleanup := newMockUserRepo(t)
+	defer cleanup()
+
+	dbErr := errors.New("count error")
+	mock.ExpectQuery(`SELECT count\(\*\) FROM "users"`).WillReturnError(dbErr)
+
+	_, _, err := repo.List(UserFilter{}, 0, 10)
+	if err == nil {
+		t.Fatal("expected error, got nil")
+	}
+}
+
+func TestUserRepoList_FindError(t *testing.T) {
+	repo, mock, cleanup := newMockUserRepo(t)
+	defer cleanup()
+
+	mock.ExpectQuery(`SELECT count\(\*\) FROM "users"`).
+		WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(1))
+	dbErr := errors.New("find error")
+	mock.ExpectQuery(`SELECT \* FROM "users"`).WillReturnError(dbErr)
+
+	_, _, err := repo.List(UserFilter{}, 0, 10)
+	if err == nil {
+		t.Fatal("expected error, got nil")
+	}
+}
+
 func TestUserRepoUpdateStatus(t *testing.T) {
 	repo, mock, cleanup := newMockUserRepo(t)
 	defer cleanup()

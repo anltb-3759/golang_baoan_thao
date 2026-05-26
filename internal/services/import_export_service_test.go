@@ -273,6 +273,37 @@ func TestImportExportService_ImportCitizens_MissingEmail(t *testing.T) {
 	assert.NotEmpty(t, errs)
 }
 
+func TestImportExportService_ImportCitizens_WithDateOfBirth(t *testing.T) {
+	svc := newIESvc(&fakeIEDeptRepo{}, &fakeIEUserRepo{}, &fakeIEProfileRepo{}, &fakeIEServiceTypeRepo{})
+	rows := []CitizenImportRow{
+		{SoCCCD: "123456789012", HoTen: "Nguyễn Văn A", Email: "a@a.com", NgaySinh: "15/06/1990"},
+	}
+	errs := svc.ImportCitizens(rows, "admin-1")
+	assert.Empty(t, errs)
+}
+
+func TestImportExportService_ImportCitizens_WithDateOfBirthISO(t *testing.T) {
+	svc := newIESvc(&fakeIEDeptRepo{}, &fakeIEUserRepo{}, &fakeIEProfileRepo{}, &fakeIEServiceTypeRepo{})
+	rows := []CitizenImportRow{
+		{SoCCCD: "123456789012", HoTen: "Nguyễn Văn A", Email: "a@a.com", NgaySinh: "1990-06-15"},
+	}
+	errs := svc.ImportCitizens(rows, "admin-1")
+	assert.Empty(t, errs)
+}
+
+func TestImportExportService_ImportCitizens_DuplicateKeyError(t *testing.T) {
+	svc := NewImportExportService(
+		&fakeIETransactor{err: gorm.ErrDuplicatedKey},
+		&fakeIEDeptRepo{}, &fakeIEUserRepo{}, &fakeIEProfileRepo{}, &fakeIEServiceTypeRepo{}, &fakeIEStaffProfileRepo{},
+	)
+	rows := []CitizenImportRow{
+		{SoCCCD: "123456789012", HoTen: "Nguyễn Văn A", Email: "a@a.com"},
+	}
+	errs := svc.ImportCitizens(rows, "admin-1")
+	assert.NotEmpty(t, errs)
+	assert.Contains(t, errs[0], "Dữ liệu bị trùng")
+}
+
 // --- ImportServiceTypes ---
 
 func TestImportExportService_ImportServiceTypes_OK(t *testing.T) {
@@ -300,10 +331,80 @@ func TestImportExportService_ImportServiceTypes_LongName(t *testing.T) {
 	assert.Empty(t, errs)
 }
 
+func TestImportExportService_ImportStaff_DeptNotFound(t *testing.T) {
+	svc := newIESvc(&fakeIEDeptRepo{}, &fakeIEUserRepo{}, &fakeIEProfileRepo{}, &fakeIEServiceTypeRepo{})
+	rows := []StaffImportRow{
+		{HoTen: "Test", Email: "t@t.com", VaiTro: "staff", MaPhongBan: "PB999"},
+	}
+	errs := svc.ImportStaff(rows, "admin-1")
+	assert.NotEmpty(t, errs)
+	assert.Contains(t, errs[0], "không tìm thấy phòng ban")
+}
+
+func TestImportExportService_ImportStaff_DeptLookupError(t *testing.T) {
+	deptRepo := &fakeIEDeptRepoWithFindByCodeErr{err: errors.New("db error")}
+	svc := NewImportExportService(&fakeIETransactor{}, deptRepo, &fakeIEUserRepo{}, &fakeIEProfileRepo{}, &fakeIEServiceTypeRepo{}, &fakeIEStaffProfileRepo{})
+	rows := []StaffImportRow{
+		{HoTen: "Test", Email: "t@t.com", VaiTro: "staff", MaPhongBan: "PB001"},
+	}
+	errs := svc.ImportStaff(rows, "admin-1")
+	assert.NotEmpty(t, errs)
+	assert.Contains(t, errs[0], "lỗi tra cứu phòng ban")
+}
+
+func TestImportExportService_ImportStaff_StaffProfileDBError(t *testing.T) {
+	staffProfileRepo := &fakeIEStaffProfileRepo{createErr: errors.New("profile error")}
+	svc := NewImportExportService(&fakeIETransactor{}, &fakeIEDeptRepo{}, &fakeIEUserRepo{}, &fakeIEProfileRepo{}, &fakeIEServiceTypeRepo{}, staffProfileRepo)
+	rows := []StaffImportRow{{HoTen: "Test", Email: "t@t.com", VaiTro: "staff"}}
+	errs := svc.ImportStaff(rows, "admin-1")
+	assert.NotEmpty(t, errs)
+}
+
 func TestImportExportService_ImportServiceTypes_MissingName(t *testing.T) {
 	svc := newIESvc(&fakeIEDeptRepo{}, &fakeIEUserRepo{}, &fakeIEProfileRepo{}, &fakeIEServiceTypeRepo{})
 	rows := []ServiceTypeImportRow{{Ten: ""}}
 	errs := svc.ImportServiceTypes(rows, "admin-1")
 	assert.NotEmpty(t, errs)
 	assert.Contains(t, errs[0], "Tên")
+}
+
+func TestImportExportService_ImportServiceTypes_WithProcessingTimeAndFee(t *testing.T) {
+	svc := newIESvc(&fakeIEDeptRepo{}, &fakeIEUserRepo{}, &fakeIEProfileRepo{}, &fakeIEServiceTypeRepo{})
+	rows := []ServiceTypeImportRow{
+		{Ten: "Dịch vụ", ThoiGianXuLyNgay: "5", Phi: "100000"},
+	}
+	errs := svc.ImportServiceTypes(rows, "admin-1")
+	assert.Empty(t, errs)
+}
+
+func TestImportExportService_ImportServiceTypes_DeptNotFound(t *testing.T) {
+	deptRepo := &fakeIEDeptRepo{}
+	// FindByCode returns nil, nil by default (dept not found)
+	svc := newIESvc(deptRepo, &fakeIEUserRepo{}, &fakeIEProfileRepo{}, &fakeIEServiceTypeRepo{})
+	rows := []ServiceTypeImportRow{
+		{Ten: "Dịch vụ", MaPhongBan: "PB999"},
+	}
+	errs := svc.ImportServiceTypes(rows, "admin-1")
+	assert.NotEmpty(t, errs)
+	assert.Contains(t, errs[0], "không tìm thấy phòng ban")
+}
+
+func TestImportExportService_ImportServiceTypes_DeptLookupError(t *testing.T) {
+	deptRepo := &fakeIEDeptRepoWithFindByCodeErr{err: errors.New("db error")}
+	svc := NewImportExportService(&fakeIETransactor{}, deptRepo, &fakeIEUserRepo{}, &fakeIEProfileRepo{}, &fakeIEServiceTypeRepo{}, &fakeIEStaffProfileRepo{})
+	rows := []ServiceTypeImportRow{
+		{Ten: "Dịch vụ", MaPhongBan: "PB001"},
+	}
+	errs := svc.ImportServiceTypes(rows, "admin-1")
+	assert.NotEmpty(t, errs)
+	assert.Contains(t, errs[0], "lỗi tra cứu phòng ban")
+}
+
+type fakeIEDeptRepoWithFindByCodeErr struct {
+	fakeIEDeptRepo
+	err error
+}
+
+func (r *fakeIEDeptRepoWithFindByCodeErr) FindByCode(_ string) (*models.Department, error) {
+	return nil, r.err
 }

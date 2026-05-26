@@ -453,6 +453,40 @@ func TestListServiceTypesAdmin_FlashFromSuccess(t *testing.T) {
 	assert.NoError(t, err)
 }
 
+func TestListServiceTypesAdmin_FlashFromUpdated(t *testing.T) {
+	svc := new(mockServiceCatalogSvc)
+	userSvc := new(mockAdminUserSvc)
+	h := handlers.NewServiceCatalogHandler(svc, userSvc)
+	e := setupAdminEcho()
+
+	svc.On("List", mock.Anything, mock.Anything).Return(&repositories.ListResult{Items: []models.ServiceType{}, Total: 0}, nil)
+
+	req := httptest.NewRequest(http.MethodGet, "/admin/service-types?success=updated", nil)
+	rec := httptest.NewRecorder()
+	c := e.NewContext(req, rec)
+	c.Set("user", &configs.JwtCustomClaims{ID: "a1"})
+
+	err := h.ListServiceTypesAdmin(c)
+	assert.NoError(t, err)
+}
+
+func TestListServiceTypesAdmin_FlashFromDeleted(t *testing.T) {
+	svc := new(mockServiceCatalogSvc)
+	userSvc := new(mockAdminUserSvc)
+	h := handlers.NewServiceCatalogHandler(svc, userSvc)
+	e := setupAdminEcho()
+
+	svc.On("List", mock.Anything, mock.Anything).Return(&repositories.ListResult{Items: []models.ServiceType{}, Total: 0}, nil)
+
+	req := httptest.NewRequest(http.MethodGet, "/admin/service-types?success=deleted", nil)
+	rec := httptest.NewRecorder()
+	c := e.NewContext(req, rec)
+	c.Set("user", &configs.JwtCustomClaims{ID: "a1"})
+
+	err := h.ListServiceTypesAdmin(c)
+	assert.NoError(t, err)
+}
+
 // --- CreateServiceTypeForm ---
 
 func TestCreateServiceTypeForm_OK(t *testing.T) {
@@ -534,6 +568,34 @@ func TestCreateServiceType_InvalidFee(t *testing.T) {
 	e := setupAdminEcho()
 
 	form := url.Values{"name": {"Svc"}, "code": {"S1"}, "fee": {"not-a-fee"}}
+	c, rec := newFormCtxExt(e, http.MethodPost, "/admin/service-types", form)
+	err := h.CreateServiceType(c)
+	assert.NoError(t, err)
+	assert.Equal(t, http.StatusBadRequest, rec.Code)
+}
+
+func TestCreateServiceType_NegativeProcessingTime(t *testing.T) {
+	svc := new(mockServiceCatalogSvc)
+	userSvc := new(mockAdminUserSvc)
+	defaultMockSetup(svc, userSvc)
+	h := handlers.NewServiceCatalogHandler(svc, userSvc)
+	e := setupAdminEcho()
+
+	form := url.Values{"name": {"Svc"}, "code": {"S1"}, "processing_time": {"-1"}}
+	c, rec := newFormCtxExt(e, http.MethodPost, "/admin/service-types", form)
+	err := h.CreateServiceType(c)
+	assert.NoError(t, err)
+	assert.Equal(t, http.StatusBadRequest, rec.Code)
+}
+
+func TestCreateServiceType_NegativeFee(t *testing.T) {
+	svc := new(mockServiceCatalogSvc)
+	userSvc := new(mockAdminUserSvc)
+	defaultMockSetup(svc, userSvc)
+	h := handlers.NewServiceCatalogHandler(svc, userSvc)
+	e := setupAdminEcho()
+
+	form := url.Values{"name": {"Svc"}, "code": {"S1"}, "fee": {"-1.5"}}
 	c, rec := newFormCtxExt(e, http.MethodPost, "/admin/service-types", form)
 	err := h.CreateServiceType(c)
 	assert.NoError(t, err)
@@ -951,4 +1013,20 @@ func TestEditServiceTypeForm_WithAllOptionalFields(t *testing.T) {
 	err := h.EditServiceTypeForm(c)
 	assert.NoError(t, err)
 	assert.Equal(t, http.StatusOK, rec.Code)
+}
+
+func TestServiceCatalogHandler_DownloadTemplate(t *testing.T) {
+	e := newTestEcho()
+	svc := new(mockServiceCatalogSvc)
+	userSvc := new(mockAdminUserSvc)
+	h := handlers.NewServiceCatalogHandler(svc, userSvc)
+
+	req := httptest.NewRequest(http.MethodGet, "/admin/service-types/template", nil)
+	rec := httptest.NewRecorder()
+	c := e.NewContext(req, rec)
+
+	err := h.DownloadTemplate(c)
+	assert.NoError(t, err)
+	assert.Equal(t, http.StatusOK, rec.Code)
+	assert.Contains(t, rec.Header().Get("Content-Disposition"), "template_loai_dich_vu.xlsx")
 }

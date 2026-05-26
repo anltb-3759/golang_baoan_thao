@@ -475,6 +475,144 @@ func TestUploadSupplements_Success(t *testing.T) {
 	svc.AssertExpectations(t)
 }
 
+func TestSubmit_MissingRequiredField(t *testing.T) {
+	_ = configs.LoadI18nMessages("../../locales")
+	e := newTestEcho()
+	svc := new(mockApplicationSvc)
+	h := newApplicationHandler(svc)
+	svc.On("SubmitApplication", "u1", mock.Anything, mock.Anything).Return(nil, services.ErrMissingRequiredField)
+
+	data, _ := json.Marshal(map[string]any{"service_type_id": "550e8400-e29b-41d4-a716-446655440000", "submitted_data": map[string]string{}})
+	c, _ := makeMultipartRequest(e, http.MethodPost, "/api/citizens/me/applications", string(data))
+	c.Set("user", &configs.JwtCustomClaims{ID: "u1", Role: "citizen"})
+
+	err := h.Submit(c)
+	var he *echo.HTTPError
+	assert.True(t, errors.As(err, &he))
+	assert.Equal(t, http.StatusUnprocessableEntity, he.Code)
+}
+
+func TestSubmit_InvalidSubmittedData(t *testing.T) {
+	_ = configs.LoadI18nMessages("../../locales")
+	e := newTestEcho()
+	svc := new(mockApplicationSvc)
+	h := newApplicationHandler(svc)
+	svc.On("SubmitApplication", "u1", mock.Anything, mock.Anything).Return(nil, services.ErrInvalidSubmittedData)
+
+	data, _ := json.Marshal(map[string]any{"service_type_id": "550e8400-e29b-41d4-a716-446655440000", "submitted_data": map[string]string{}})
+	c, _ := makeMultipartRequest(e, http.MethodPost, "/api/citizens/me/applications", string(data))
+	c.Set("user", &configs.JwtCustomClaims{ID: "u1", Role: "citizen"})
+
+	err := h.Submit(c)
+	var he *echo.HTTPError
+	assert.True(t, errors.As(err, &he))
+	assert.Equal(t, http.StatusUnprocessableEntity, he.Code)
+}
+
+func TestSubmit_InvalidFormSchema(t *testing.T) {
+	_ = configs.LoadI18nMessages("../../locales")
+	e := newTestEcho()
+	svc := new(mockApplicationSvc)
+	h := newApplicationHandler(svc)
+	svc.On("SubmitApplication", "u1", mock.Anything, mock.Anything).Return(nil, services.ErrInvalidFormSchema)
+
+	data, _ := json.Marshal(map[string]any{"service_type_id": "550e8400-e29b-41d4-a716-446655440000", "submitted_data": map[string]string{}})
+	c, _ := makeMultipartRequest(e, http.MethodPost, "/api/citizens/me/applications", string(data))
+	c.Set("user", &configs.JwtCustomClaims{ID: "u1", Role: "citizen"})
+
+	err := h.Submit(c)
+	var he *echo.HTTPError
+	assert.True(t, errors.As(err, &he))
+	assert.Equal(t, http.StatusUnprocessableEntity, he.Code)
+}
+
+func TestSubmit_AttachmentRequired(t *testing.T) {
+	_ = configs.LoadI18nMessages("../../locales")
+	e := newTestEcho()
+	svc := new(mockApplicationSvc)
+	h := newApplicationHandler(svc)
+	svc.On("SubmitApplication", "u1", mock.Anything, mock.Anything).Return(nil, services.ErrAttachmentRequired)
+
+	data, _ := json.Marshal(map[string]any{"service_type_id": "550e8400-e29b-41d4-a716-446655440000", "submitted_data": map[string]string{}})
+	c, _ := makeMultipartRequest(e, http.MethodPost, "/api/citizens/me/applications", string(data))
+	c.Set("user", &configs.JwtCustomClaims{ID: "u1", Role: "citizen"})
+
+	err := h.Submit(c)
+	var he *echo.HTTPError
+	assert.True(t, errors.As(err, &he))
+	assert.Equal(t, http.StatusBadRequest, he.Code)
+}
+
+func TestSubmit_AttachmentTooLarge(t *testing.T) {
+	_ = configs.LoadI18nMessages("../../locales")
+	e := newTestEcho()
+	svc := new(mockApplicationSvc)
+	h := newApplicationHandler(svc)
+	svc.On("SubmitApplication", "u1", mock.Anything, mock.Anything).Return(nil, services.ErrAttachmentTooLarge)
+
+	data, _ := json.Marshal(map[string]any{"service_type_id": "550e8400-e29b-41d4-a716-446655440000", "submitted_data": map[string]string{}})
+	c, _ := makeMultipartRequest(e, http.MethodPost, "/api/citizens/me/applications", string(data))
+	c.Set("user", &configs.JwtCustomClaims{ID: "u1", Role: "citizen"})
+
+	err := h.Submit(c)
+	var he *echo.HTTPError
+	assert.True(t, errors.As(err, &he))
+	assert.Equal(t, http.StatusUnprocessableEntity, he.Code)
+}
+
+func TestSubmit_AttachmentInvalidType(t *testing.T) {
+	_ = configs.LoadI18nMessages("../../locales")
+	e := newTestEcho()
+	svc := new(mockApplicationSvc)
+	h := newApplicationHandler(svc)
+	svc.On("SubmitApplication", "u1", mock.Anything, mock.Anything).Return(nil, services.ErrAttachmentInvalidType)
+
+	data, _ := json.Marshal(map[string]any{"service_type_id": "550e8400-e29b-41d4-a716-446655440000", "submitted_data": map[string]string{}})
+	c, _ := makeMultipartRequest(e, http.MethodPost, "/api/citizens/me/applications", string(data))
+	c.Set("user", &configs.JwtCustomClaims{ID: "u1", Role: "citizen"})
+
+	err := h.Submit(c)
+	var he *echo.HTTPError
+	assert.True(t, errors.As(err, &he))
+	assert.Equal(t, http.StatusUnprocessableEntity, he.Code)
+}
+
+func TestSubmit_DefaultError(t *testing.T) {
+	_ = configs.LoadI18nMessages("../../locales")
+	e := newTestEcho()
+	svc := new(mockApplicationSvc)
+	h := newApplicationHandler(svc)
+	svc.On("SubmitApplication", "u1", mock.Anything, mock.Anything).Return(nil, errors.New("unexpected"))
+
+	data, _ := json.Marshal(map[string]any{"service_type_id": "550e8400-e29b-41d4-a716-446655440000", "submitted_data": map[string]string{}})
+	c, _ := makeMultipartRequest(e, http.MethodPost, "/api/citizens/me/applications", string(data))
+	c.Set("user", &configs.JwtCustomClaims{ID: "u1", Role: "citizen"})
+
+	err := h.Submit(c)
+	var he *echo.HTTPError
+	assert.True(t, errors.As(err, &he))
+	assert.Equal(t, http.StatusInternalServerError, he.Code)
+}
+
+func TestUploadSupplements_NoMultipartForm(t *testing.T) {
+	_ = configs.LoadI18nMessages("../../locales")
+	e := newTestEcho()
+	svc := new(mockApplicationSvc)
+	h := newApplicationHandler(svc)
+
+	req := httptest.NewRequest(http.MethodPost, "/api/citizens/me/applications/app-1/supplements", nil)
+	req.Header.Set("Accept-Language", "vi")
+	rec := httptest.NewRecorder()
+	c := e.NewContext(req, rec)
+	c.SetPathValues(echo.PathValues{{Name: "id", Value: "app-1"}})
+	c.Set("user", &configs.JwtCustomClaims{ID: "u1", Role: "citizen"})
+
+	err := h.UploadSupplements(c)
+	var he *echo.HTTPError
+	assert.True(t, errors.As(err, &he))
+	assert.Equal(t, http.StatusBadRequest, he.Code)
+}
+
 func TestUploadSupplements_NotAllowedStatus(t *testing.T) {
 	_ = configs.LoadI18nMessages("../../locales")
 	e := newTestEcho()
@@ -503,5 +641,88 @@ func TestUploadSupplements_NotAllowedStatus(t *testing.T) {
 	var he *echo.HTTPError
 	assert.True(t, errors.As(err, &he))
 	assert.Equal(t, http.StatusUnprocessableEntity, he.Code)
+	svc.AssertExpectations(t)
+}
+
+func TestNewApplicationHandler_NotNil(t *testing.T) {
+	svc := services.NewApplicationService(nil, nil, nil, nil, nil)
+	h := handlers.NewApplicationHandler(svc)
+	assert.NotNil(t, h)
+}
+
+func TestListMyStatusHistory_NotFound(t *testing.T) {
+	_ = configs.LoadI18nMessages("../../locales")
+	e := newTestEcho()
+	svc := new(mockApplicationSvc)
+	h := newApplicationHandler(svc)
+
+	svc.On("ListMyApplicationStatusHistory", "u1", "app-x", 1, 10, (*time.Time)(nil)).
+		Return(nil, int64(0), services.ErrApplicationNotFound)
+
+	req := httptest.NewRequest(http.MethodGet, "/api/citizens/me/applications/app-x/status-history", nil)
+	rec := httptest.NewRecorder()
+	c := e.NewContext(req, rec)
+	c.SetPathValues(echo.PathValues{{Name: "id", Value: "app-x"}})
+	c.Set("user", &configs.JwtCustomClaims{ID: "u1", Role: "citizen"})
+
+	err := h.ListMyStatusHistory(c)
+	var he *echo.HTTPError
+	assert.True(t, errors.As(err, &he))
+	assert.Equal(t, http.StatusNotFound, he.Code)
+	svc.AssertExpectations(t)
+}
+
+func TestListMyStatusHistory_InternalError(t *testing.T) {
+	_ = configs.LoadI18nMessages("../../locales")
+	e := newTestEcho()
+	svc := new(mockApplicationSvc)
+	h := newApplicationHandler(svc)
+
+	svc.On("ListMyApplicationStatusHistory", "u1", "app-1", 1, 10, (*time.Time)(nil)).
+		Return(nil, int64(0), errors.New("db error"))
+
+	req := httptest.NewRequest(http.MethodGet, "/api/citizens/me/applications/app-1/status-history", nil)
+	rec := httptest.NewRecorder()
+	c := e.NewContext(req, rec)
+	c.SetPathValues(echo.PathValues{{Name: "id", Value: "app-1"}})
+	c.Set("user", &configs.JwtCustomClaims{ID: "u1", Role: "citizen"})
+
+	err := h.ListMyStatusHistory(c)
+	var he *echo.HTTPError
+	assert.True(t, errors.As(err, &he))
+	assert.Equal(t, http.StatusInternalServerError, he.Code)
+	svc.AssertExpectations(t)
+}
+
+func TestListMyStatusHistory_WithPopulatedFields(t *testing.T) {
+	_ = configs.LoadI18nMessages("../../locales")
+	e := newTestEcho()
+	svc := new(mockApplicationSvc)
+	h := newApplicationHandler(svc)
+
+	oldStatus := models.ApplicationStatusReceived
+	changedByID := "admin-1"
+	logs := []models.ApplicationStatusLog{
+		{
+			ID:              "log-1",
+			NewStatus:       models.ApplicationStatusProcessing,
+			OldStatus:       &oldStatus,
+			ChangedByUserID: &changedByID,
+			ChangedByUser:   &models.User{Name: "Admin"},
+			CreatedAt:       time.Now(),
+		},
+	}
+	svc.On("ListMyApplicationStatusHistory", "u1", "app-1", 1, 10, (*time.Time)(nil)).
+		Return(logs, int64(1), nil)
+
+	req := httptest.NewRequest(http.MethodGet, "/api/citizens/me/applications/app-1/status-history", nil)
+	rec := httptest.NewRecorder()
+	c := e.NewContext(req, rec)
+	c.SetPathValues(echo.PathValues{{Name: "id", Value: "app-1"}})
+	c.Set("user", &configs.JwtCustomClaims{ID: "u1", Role: "citizen"})
+
+	err := h.ListMyStatusHistory(c)
+	assert.NoError(t, err)
+	assert.Equal(t, http.StatusOK, rec.Code)
 	svc.AssertExpectations(t)
 }

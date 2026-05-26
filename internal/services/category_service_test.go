@@ -238,3 +238,29 @@ func TestCategoryService_DeleteCategory_DeleteError(t *testing.T) {
 	err := svc.DeleteCategory("c1", "actor")
 	assert.ErrorIs(t, err, deleteErr)
 }
+
+func TestCategoryService_LogActivity_WithLogger(t *testing.T) {
+	cat := &models.Category{ID: "c1", Name: "Hành chính"}
+	repo := &fakeCategoryRepo{codeCat: nil, cat: cat}
+	logger := &fakeActivityLogger{}
+	svc := NewCategoryService(repo, logger)
+
+	req := &dtos.CategoryCreateRequest{Name: "Test", Code: "TEST"}
+	_, err := svc.CreateCategory(req, "actor1")
+	assert.NoError(t, err)
+	if assert.Len(t, logger.entries, 1) {
+		assert.Equal(t, "category.create", logger.entries[0].Action)
+	}
+}
+
+func TestCategoryService_LogActivity_LoggerError(t *testing.T) {
+	cat := &models.Category{ID: "c1", Name: "Hành chính"}
+	repo := &fakeCategoryRepo{codeCat: nil, cat: cat}
+	logger := &fakeActivityLogger{err: assert.AnError}
+	svc := NewCategoryService(repo, logger)
+
+	req := &dtos.CategoryCreateRequest{Name: "Test", Code: "TEST"}
+	// Should succeed even if logger fails
+	_, err := svc.CreateCategory(req, "actor1")
+	assert.NoError(t, err)
+}

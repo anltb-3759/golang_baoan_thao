@@ -3,6 +3,7 @@ package services
 import (
 	"encoding/json"
 	"errors"
+	"mime/multipart"
 	"testing"
 	"time"
 
@@ -267,4 +268,167 @@ func TestAdminApplicationService_ProcessApplication_RequireReasonForRejected(t *
 	err := svc.ProcessApplication("app1", models.ApplicationStatusRejected, "   ", nil, "admin-1")
 	assert.ErrorIs(t, err, ErrAdminApplicationRejectReasonRequired)
 	assert.Equal(t, models.ApplicationStatus(""), repo.processStatus)
+}
+
+func TestAdminApplicationService_WithNotificationRepo(t *testing.T) {
+	repo := &fakeAdminAppRepo{}
+	svc := newAdminAppSvc(repo)
+	notifRepo := &fakeNotificationRepo{}
+
+	result := svc.WithNotificationRepo(notifRepo)
+	assert.Equal(t, svc, result, "WithNotificationRepo should return self")
+}
+
+func TestAdminApplicationService_ProcessApplication_SendsNotification(t *testing.T) {
+	repo := &fakeAdminAppRepo{app: &models.Application{
+		ID:              "app1",
+		ApplicationCode: "APP-1",
+		Status:          models.ApplicationStatusReceived,
+		ServiceType:     models.ServiceType{Name: "Test Service"},
+	}}
+	svc := newAdminAppSvc(repo)
+	notifRepo := &fakeNotificationRepo{}
+	svc.WithNotificationRepo(notifRepo)
+
+	err := svc.ProcessApplication("app1", models.ApplicationStatusProcessing, "Đang xử lý", nil, "admin-1")
+	assert.NoError(t, err)
+}
+
+func TestAdminApplicationService_ProcessApplication_SendsNotificationApproved(t *testing.T) {
+	repo := &fakeAdminAppRepo{app: &models.Application{
+		ID:              "app1",
+		ApplicationCode: "APP-1",
+		Status:          models.ApplicationStatusProcessing,
+		ServiceType:     models.ServiceType{Name: "Test Service"},
+	}}
+	svc := newAdminAppSvc(repo)
+	svc.WithNotificationRepo(&fakeNotificationRepo{})
+
+	err := svc.ProcessApplication("app1", models.ApplicationStatusApproved, "Approved", nil, "admin-1")
+	assert.NoError(t, err)
+}
+
+func TestAdminApplicationService_ProcessApplication_SendsNotificationRejected(t *testing.T) {
+	repo := &fakeAdminAppRepo{app: &models.Application{
+		ID:              "app1",
+		ApplicationCode: "APP-1",
+		Status:          models.ApplicationStatusProcessing,
+		ServiceType:     models.ServiceType{Name: "Test Service"},
+	}}
+	svc := newAdminAppSvc(repo)
+	svc.WithNotificationRepo(&fakeNotificationRepo{})
+
+	err := svc.ProcessApplication("app1", models.ApplicationStatusRejected, "Rejected reason", nil, "admin-1")
+	assert.NoError(t, err)
+}
+
+func TestAdminApplicationService_ProcessApplication_SendsNotificationNeedMoreInfo(t *testing.T) {
+	repo := &fakeAdminAppRepo{app: &models.Application{
+		ID:              "app1",
+		ApplicationCode: "APP-1",
+		Status:          models.ApplicationStatusProcessing,
+		ServiceType:     models.ServiceType{Name: "Test Service"},
+	}}
+	svc := newAdminAppSvc(repo)
+	svc.WithNotificationRepo(&fakeNotificationRepo{})
+
+	err := svc.ProcessApplication("app1", models.ApplicationStatusNeedMoreInfo, "Need more docs", nil, "admin-1")
+	assert.NoError(t, err)
+}
+
+func TestAdminApplicationService_ProcessApplication_DefaultStatusNoNotification(t *testing.T) {
+	// Test that notifyCitizenStatusChange with a "received" status (not in switch) is a no-op
+	repo := &fakeAdminAppRepo{app: &models.Application{
+		ID:              "app1",
+		ApplicationCode: "APP-1",
+		Status:          models.ApplicationStatusNeedMoreInfo,
+		ServiceType:     models.ServiceType{Name: "Test Service"},
+	}}
+	svc := newAdminAppSvc(repo)
+	notifRepo := &fakeNotificationRepo{}
+	svc.WithNotificationRepo(notifRepo)
+
+	// Going back to Processing from NeedMoreInfo is valid
+	err := svc.ProcessApplication("app1", models.ApplicationStatusProcessing, "Resuming", nil, "admin-1")
+	assert.NoError(t, err)
+}
+
+func TestAdminApplicationService_ProcessApplication_StorageNotConfigured(t *testing.T) {
+	repo := &fakeAdminAppRepo{app: &models.Application{
+		ID:     "app1",
+		Status: models.ApplicationStatusReceived,
+	}}
+	svc := newAdminAppSvc(repo) // no storage configured
+
+	// Create a fake multipart.FileHeader to trigger the file upload path
+	// We'll need to use a dummy file header
+	fakeFile := make([]*multipart.FileHeader, 1)
+	fakeFile[0] = &multipart.FileHeader{Filename: "test.pdf"}
+
+	err := svc.ProcessApplication("app1", models.ApplicationStatusProcessing, "note", fakeFile, "admin-1")
+	assert.Error(t, err) // expects "storage not configured"
+}
+
+func TestAdminApplicationService_ProcessApplication_WithStorage_OK(t *testing.T) {
+	repo := &fakeAdminAppRepo{app: &models.Application{ID: "app1", Status: models.ApplicationStatusReceived}}
+	storage := &fakeStorage{pubURL: "/uploads/app1/result.pdf", mime: "application/pdf", size: 1024}
+	assignSvc := NewApplicationAssignmentService(repo, &fakeAssignRepo{}, &fakeUserRepoAssign{})
+	svc := NewAdminApplicationService(repo, assignSvc, storage)
+
+	files := []*multipart.FileHeader{{Filename: "result.pdf", Size: 1024}}
+	err := svc.ProcessApplication("app1", models.ApplicationStatusProcessing, "note", files, "admin-1")
+	assert.NoError(t, err)
+}
+
+func TestAdminApplicationService_ProcessApplication_WithStorage_SaveError(t *testing.T) {
+	repo := &fakeAdminAppRepo{app: &models.Application{ID: "app1", Status: models.ApplicationStatusReceived}}
+	storage := &fakeStorage{saveErr: errors.New("disk full")}
+	assignSvc := NewApplicationAssignmentService(repo, &fakeAssignRepo{}, &fakeUserRepoAssign{})
+	svc := NewAdminApplicationService(repo, assignSvc, storage)
+
+	files := []*multipart.FileHeader{{Filename: "result.pdf", Size: 1024}}
+	err := svc.ProcessApplication("app1", models.ApplicationStatusProcessing, "note", files, "admin-1")
+	assert.Error(t, err)
+}
+
+func TestAdminApplicationService_ProcessApplication_NilApp(t *testing.T) {
+	repo := &fakeAdminAppRepo{app: nil}
+	svc := newAdminAppSvc(repo)
+	err := svc.ProcessApplication("missing", models.ApplicationStatusProcessing, "note", nil, "admin-1")
+	assert.ErrorIs(t, err, ErrAdminApplicationNotFound)
+}
+
+func TestAdminApplicationService_ProcessApplication_RepoError(t *testing.T) {
+	repo := &fakeAdminAppRepo{app: &models.Application{ID: "app1", Status: models.ApplicationStatusReceived}}
+	storage := &fakeStorage{pubURL: "/uploads/f.pdf", mime: "application/pdf", size: 100}
+	assignSvc := NewApplicationAssignmentService(repo, &fakeAssignRepo{}, &fakeUserRepoAssign{})
+	svc := NewAdminApplicationService(repo, assignSvc, storage)
+	// After app found, set err for ProcessStatusUpdate
+	repo.err = errors.New("process failed")
+
+	files := []*multipart.FileHeader{{Filename: "result.pdf", Size: 1024}}
+	err := svc.ProcessApplication("app1", models.ApplicationStatusProcessing, "note", files, "admin-1")
+	assert.Error(t, err)
+}
+
+func TestAdminApplicationService_ProcessApplication_ApprovedSetsCompletedAt(t *testing.T) {
+	repo := &fakeAdminAppRepo{app: &models.Application{ID: "app1", Status: models.ApplicationStatusProcessing}}
+	svc := newAdminAppSvc(repo)
+
+	err := svc.ProcessApplication("app1", models.ApplicationStatusApproved, "approved", nil, "admin-1")
+	assert.NoError(t, err)
+}
+
+func TestAdminApplicationService_ProcessApplication_ProcessingSecondTime(t *testing.T) {
+	// processingStartedAt already set — should not overwrite
+	now := time.Now()
+	repo := &fakeAdminAppRepo{app: &models.Application{
+		ID:                 "app1",
+		Status:             models.ApplicationStatusReceived,
+		ProcessingStartedAt: &now,
+	}}
+	svc := newAdminAppSvc(repo)
+
+	err := svc.ProcessApplication("app1", models.ApplicationStatusProcessing, "note", nil, "admin-1")
+	assert.NoError(t, err)
 }

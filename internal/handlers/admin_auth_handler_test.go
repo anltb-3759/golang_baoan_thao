@@ -10,6 +10,7 @@ import (
 	"github.com/awesome-academy/golang_baoan_thao/internal/configs"
 	"github.com/awesome-academy/golang_baoan_thao/internal/dtos"
 	"github.com/awesome-academy/golang_baoan_thao/internal/models"
+	"github.com/awesome-academy/golang_baoan_thao/internal/services"
 	"github.com/labstack/echo/v5"
 )
 
@@ -157,6 +158,136 @@ func TestAdminAuthHandlerWebLogoutSucceedsWhenActivityLogFails(t *testing.T) {
 	}
 	if rec.Code != http.StatusSeeOther {
 		t.Fatalf("expected status %d, got %d", http.StatusSeeOther, rec.Code)
+	}
+}
+
+func TestAdminAuthHandlerShowLoginPage(t *testing.T) {
+	_ = configs.LoadI18nMessages("../../locales")
+	e := newAdminEcho()
+	handler := NewAdminAuthHandler(&fakeAuthService{})
+
+	c, rec := newAdminCtx(e, http.MethodGet, "/admin/login", "", "")
+	if err := handler.ShowLoginPage(c); err != nil {
+		t.Fatalf("expected nil error, got %v", err)
+	}
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", rec.Code)
+	}
+}
+
+func TestAdminAuthHandlerWebLoginUserNotFound(t *testing.T) {
+	_ = configs.LoadI18nMessages("../../locales")
+	e := newAdminEcho()
+	handler := NewAdminAuthHandler(&fakeAuthService{
+		loginFn: func(_ *dtos.LoginRequest) (*models.User, string, string, error) {
+			return nil, "", "", services.ErrUserNotFound
+		},
+	})
+
+	form := "email=missing%40example.com&password=wrong"
+	req := httptest.NewRequest(http.MethodPost, "/admin/login", strings.NewReader(form))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	rec := httptest.NewRecorder()
+	c := e.NewContext(req, rec)
+
+	if err := handler.WebLogin(c); err != nil {
+		t.Fatalf("expected nil error, got %v", err)
+	}
+	if rec.Code != http.StatusUnauthorized {
+		t.Fatalf("expected 401, got %d", rec.Code)
+	}
+}
+
+func TestAdminAuthHandlerWebLoginPasswordMismatch(t *testing.T) {
+	_ = configs.LoadI18nMessages("../../locales")
+	e := newAdminEcho()
+	handler := NewAdminAuthHandler(&fakeAuthService{
+		loginFn: func(_ *dtos.LoginRequest) (*models.User, string, string, error) {
+			return nil, "", "", services.ErrPasswordMismatch
+		},
+	})
+
+	form := "email=admin%40example.com&password=wrong"
+	req := httptest.NewRequest(http.MethodPost, "/admin/login", strings.NewReader(form))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	rec := httptest.NewRecorder()
+	c := e.NewContext(req, rec)
+
+	if err := handler.WebLogin(c); err != nil {
+		t.Fatalf("expected nil error, got %v", err)
+	}
+	if rec.Code != http.StatusUnauthorized {
+		t.Fatalf("expected 401, got %d", rec.Code)
+	}
+}
+
+func TestAdminAuthHandlerWebLoginUserBlocked(t *testing.T) {
+	_ = configs.LoadI18nMessages("../../locales")
+	e := newAdminEcho()
+	handler := NewAdminAuthHandler(&fakeAuthService{
+		loginFn: func(_ *dtos.LoginRequest) (*models.User, string, string, error) {
+			return nil, "", "", services.ErrUserBlocked
+		},
+	})
+
+	form := "email=blocked%40example.com&password=pass"
+	req := httptest.NewRequest(http.MethodPost, "/admin/login", strings.NewReader(form))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	rec := httptest.NewRecorder()
+	c := e.NewContext(req, rec)
+
+	if err := handler.WebLogin(c); err != nil {
+		t.Fatalf("expected nil error, got %v", err)
+	}
+	if rec.Code != http.StatusUnauthorized {
+		t.Fatalf("expected 401, got %d", rec.Code)
+	}
+}
+
+func TestAdminAuthHandlerWebLoginInternalError(t *testing.T) {
+	_ = configs.LoadI18nMessages("../../locales")
+	e := newAdminEcho()
+	handler := NewAdminAuthHandler(&fakeAuthService{
+		loginFn: func(_ *dtos.LoginRequest) (*models.User, string, string, error) {
+			return nil, "", "", errors.New("unexpected db error")
+		},
+	})
+
+	form := "email=admin%40example.com&password=pass"
+	req := httptest.NewRequest(http.MethodPost, "/admin/login", strings.NewReader(form))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	rec := httptest.NewRecorder()
+	c := e.NewContext(req, rec)
+
+	if err := handler.WebLogin(c); err != nil {
+		t.Fatalf("expected nil error, got %v", err)
+	}
+	if rec.Code != http.StatusUnauthorized {
+		t.Fatalf("expected 401, got %d", rec.Code)
+	}
+}
+
+func TestAdminAuthHandlerWebLogin_NoLogger_SuccessPath(t *testing.T) {
+	// Covers writeActivityLog nil-logger path (early return)
+	_ = configs.LoadI18nMessages("../../locales")
+	e := newAdminEcho()
+	handler := NewAdminAuthHandler(&fakeAuthService{
+		loginFn: func(_ *dtos.LoginRequest) (*models.User, string, string, error) {
+			return &models.User{ID: "admin-id", Role: models.UserRoleSuperAdmin}, "tok", "ref", nil
+		},
+	}) // no logger
+
+	form := "email=admin%40example.com&password=123456"
+	req := httptest.NewRequest(http.MethodPost, "/admin/login", strings.NewReader(form))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	rec := httptest.NewRecorder()
+	c := e.NewContext(req, rec)
+
+	if err := handler.WebLogin(c); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if rec.Code != http.StatusSeeOther {
+		t.Fatalf("expected redirect, got %d", rec.Code)
 	}
 }
 

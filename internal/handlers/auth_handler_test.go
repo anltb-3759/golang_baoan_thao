@@ -424,6 +424,24 @@ func TestAuthHandlerLogoutSucceedsWhenActivityLogFails(t *testing.T) {
 	}
 }
 
+func TestAuthHandlerLogin_NoLogger_WriteActivityLogNilPath(t *testing.T) {
+	// Tests that writeActivityLog with nil logger returns safely (no panic)
+	e := newTestEcho()
+	handler := NewAuthHandler(&fakeAuthService{
+		loginFn: func(reqData *dtos.LoginRequest) (*models.User, string, string, error) {
+			return &models.User{ID: "user-id", Email: reqData.Email, Role: models.UserRoleCitizen}, "tok", "ref", nil
+		},
+	}) // no WithActivityLogger → h.logger == nil
+	c, rec := newJSONContext(e, http.MethodPost, "/api/auth/login", `{"email":"user@example.com","password":"123456"}`)
+
+	if err := handler.Login(c); err != nil {
+		t.Fatalf("expected nil error, got %v", err)
+	}
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", rec.Code)
+	}
+}
+
 func assertHTTPError(t *testing.T, err error, code int, message string) {
 	t.Helper()
 

@@ -223,6 +223,23 @@ func TestSubmitApplication_Success_NoFiles(t *testing.T) {
 	}
 }
 
+func TestSubmitApplication_Success_WithFiles(t *testing.T) {
+	svc := newSvc(
+		&fakeAppRepo{},
+		&fakeAppServiceTypeRepo{st: activeServiceType()},
+		&fakeAppUserRepo{user: &models.User{ID: "u1", Email: "a@b.com", Name: "An"}},
+		&fakeStorage{pubURL: "/uploads/f.pdf", mime: "application/pdf", size: 1024},
+		&fakeMailer{},
+	)
+
+	files := []*multipart.FileHeader{{Filename: "id.pdf", Size: 1024}}
+	resp, err := svc.SubmitApplication("u1", validReq(), files)
+	assert.NoError(t, err)
+	assert.NotNil(t, resp)
+	assert.Len(t, resp.Attachments, 1)
+	assert.Equal(t, "id.pdf", resp.Attachments[0].FileName)
+}
+
 func TestSubmitApplication_LogFailureDoesNotBreakMainFlow(t *testing.T) {
 	svc := newSvc(
 		&fakeAppRepo{},
@@ -497,6 +514,31 @@ func TestAppService_GetMyApplication_Success(t *testing.T) {
 	assert.Equal(t, "Cấp CCCD", resp.ServiceTypeName)
 }
 
+func TestAppService_GetMyApplication_WithAttachments(t *testing.T) {
+	sz := int64(1024)
+	app := &models.Application{
+		ID:              "app2",
+		ApplicationCode: "APP-20240102-XYZ",
+		ServiceType:     models.ServiceType{Name: "Cấp CCCD"},
+		Status:          models.ApplicationStatusReceived,
+		ApplicationAttachments: []models.ApplicationAttachment{
+			{ID: "att-1", FileName: "id.pdf", FileURL: "/uploads/id.pdf", FileType: "application/pdf", FileSize: &sz},
+		},
+	}
+	svc := newSvc(
+		&fakeAppRepo{app: app},
+		&fakeAppServiceTypeRepo{},
+		&fakeAppUserRepo{},
+		&fakeStorage{},
+		&fakeMailer{},
+	)
+
+	resp, err := svc.GetMyApplication("u1", "app2")
+	assert.NoError(t, err)
+	assert.Len(t, resp.Attachments, 1)
+	assert.Equal(t, "id.pdf", resp.Attachments[0].FileName)
+}
+
 func TestAppService_GetMyApplication_NotFound(t *testing.T) {
 	svc := newSvc(
 		&fakeAppRepo{getErr: gorm.ErrRecordNotFound},
@@ -508,6 +550,19 @@ func TestAppService_GetMyApplication_NotFound(t *testing.T) {
 
 	_, err := svc.GetMyApplication("u1", "missing")
 	assert.ErrorIs(t, err, ErrApplicationNotFound)
+}
+
+func TestAppService_GetMyApplication_InternalError(t *testing.T) {
+	svc := newSvc(
+		&fakeAppRepo{getErr: errors.New("db error")},
+		&fakeAppServiceTypeRepo{},
+		&fakeAppUserRepo{},
+		&fakeStorage{},
+		&fakeMailer{},
+	)
+	_, err := svc.GetMyApplication("u1", "app-bad")
+	assert.Error(t, err)
+	assert.NotErrorIs(t, err, ErrApplicationNotFound)
 }
 
 func TestAppService_ListMyApplicationStatusHistory_Success(t *testing.T) {
@@ -555,6 +610,18 @@ func TestAppService_ListMyApplicationStatusHistory_DBError(t *testing.T) {
 	_, _, err := svc.ListMyApplicationStatusHistory("u1", "bad", 1, 10, nil)
 	assert.Error(t, err)
 	assert.NotErrorIs(t, err, ErrApplicationNotFound)
+}
+
+func TestAppService_ListMyApplicationStatusHistory_NilApp(t *testing.T) {
+	svc := newSvc(
+		&fakeAppRepo{app: nil, getErr: nil},
+		&fakeAppServiceTypeRepo{},
+		&fakeAppUserRepo{},
+		&fakeStorage{},
+		&fakeMailer{},
+	)
+	_, _, err := svc.ListMyApplicationStatusHistory("u1", "app-x", 1, 10, nil)
+	assert.ErrorIs(t, err, ErrApplicationNotFound)
 }
 
 func TestAppService_UploadMyApplicationSupplements_Success(t *testing.T) {
@@ -627,6 +694,62 @@ func TestAppService_UploadMyApplicationSupplements_DBError(t *testing.T) {
 	_, err := svc.UploadMyApplicationSupplements("u1", "missing", files)
 	assert.Error(t, err)
 	assert.NotErrorIs(t, err, ErrApplicationNotFound)
+}
+
+func TestAppService_UploadMyApplicationSupplements_NilApp(t *testing.T) {
+	files := []*multipart.FileHeader{{Filename: "f.pdf", Size: 100}}
+	svc := newSvc(
+		&fakeAppRepo{app: nil, getErr: nil},
+		&fakeAppServiceTypeRepo{},
+		&fakeAppUserRepo{},
+		&fakeStorage{},
+		&fakeMailer{},
+	)
+	_, err := svc.UploadMyApplicationSupplements("u1", "app-x", files)
+	assert.ErrorIs(t, err, ErrApplicationNotFound)
+}
+
+func TestAppService_UploadMyApplicationSupplements_SaveErrDisallowedMime(t *testing.T) {
+	files := []*multipart.FileHeader{{Filename: "f.exe", Size: 100}}
+	svc := newSvc(
+		&fakeAppRepo{app: &models.Application{ID: "app-1", Status: models.ApplicationStatusNeedMoreInfo}},
+		&fakeAppServiceTypeRepo{},
+		&fakeAppUserRepo{},
+		&fakeStorage{saveErr: utils.ErrDisallowedMime},
+		&fakeMailer{},
+	)
+	_, err := svc.UploadMyApplicationSupplements("u1", "app-1", files)
+	assert.ErrorIs(t, err, ErrAttachmentInvalidType)
+}
+
+func TestAppService_UploadMyApplicationSupplements_SaveErrGeneric(t *testing.T) {
+	files := []*multipart.FileHeader{{Filename: "f.pdf", Size: 100}}
+	svc := newSvc(
+		&fakeAppRepo{app: &models.Application{ID: "app-1", Status: models.ApplicationStatusNeedMoreInfo}},
+		&fakeAppServiceTypeRepo{},
+		&fakeAppUserRepo{},
+		&fakeStorage{saveErr: errors.New("disk full")},
+		&fakeMailer{},
+	)
+	_, err := svc.UploadMyApplicationSupplements("u1", "app-1", files)
+	assert.Error(t, err)
+	assert.NotErrorIs(t, err, ErrAttachmentInvalidType)
+}
+
+func TestAppService_UploadMyApplicationSupplements_CreateAttachmentsError(t *testing.T) {
+	files := []*multipart.FileHeader{{Filename: "f.pdf", Size: 100}}
+	svc := newSvc(
+		&fakeAppRepo{
+			app:          &models.Application{ID: "app-1", Status: models.ApplicationStatusNeedMoreInfo},
+			createAttErr: errors.New("db error"),
+		},
+		&fakeAppServiceTypeRepo{},
+		&fakeAppUserRepo{},
+		&fakeStorage{pubURL: "/uploads/f.pdf", mime: "application/pdf", size: 100},
+		&fakeMailer{},
+	)
+	_, err := svc.UploadMyApplicationSupplements("u1", "app-1", files)
+	assert.Error(t, err)
 }
 
 // --- validateSubmittedData ---

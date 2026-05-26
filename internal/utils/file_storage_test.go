@@ -187,6 +187,44 @@ func TestRemoveFile_NoApplicationsPath(t *testing.T) {
 	}
 }
 
+func TestSaveApplicationFile_Success_PDF(t *testing.T) {
+	dir := t.TempDir()
+	s := NewLocalDiskStorage(dir, "/files")
+
+	// Minimal valid PDF header — DetectReader identifies this as application/pdf
+	pdfContent := []byte("%PDF-1.4 fake pdf content for test\n")
+
+	body := &bytes.Buffer{}
+	writer := multipart.NewWriter(body)
+	part, _ := writer.CreateFormFile("file", "document.pdf")
+	part.Write(pdfContent)
+	writer.Close()
+
+	req, _ := http.NewRequest(http.MethodPost, "/", body)
+	req.Header.Set("Content-Type", writer.FormDataContentType())
+	if err := req.ParseMultipartForm(10 << 20); err != nil {
+		t.Fatal(err)
+	}
+
+	fh := req.MultipartForm.File["file"][0]
+	publicURL, mimeType, size, err := s.SaveApplicationFile("app-1", fh)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if publicURL == "" {
+		t.Fatal("expected non-empty publicURL")
+	}
+	if mimeType != "application/pdf" {
+		t.Fatalf("expected application/pdf, got %q", mimeType)
+	}
+	if size == 0 {
+		t.Fatal("expected non-zero size")
+	}
+	if !strings.Contains(publicURL, "app-1") {
+		t.Fatalf("expected URL to contain app-1, got %q", publicURL)
+	}
+}
+
 func TestSaveApplicationFile_DisallowedMime(t *testing.T) {
 	dir := t.TempDir()
 	s := NewLocalDiskStorage(dir, "/files")

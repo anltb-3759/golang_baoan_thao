@@ -48,24 +48,24 @@ func (r *DepartmentRepo) FindByID(id string) (*models.Department, error) {
 
 func (r *DepartmentRepo) FindByCode(code string) (*models.Department, error) {
 	var dept models.Department
-	err := r.db.Where("code = ? AND deleted_at IS NULL", code).First(&dept).Error
-	if err != nil {
-		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return nil, nil
-		}
-		return nil, err
+	tx := r.db.Where("code = ? AND deleted_at IS NULL", code).Limit(1).Find(&dept)
+	if tx.Error != nil {
+		return nil, tx.Error
+	}
+	if tx.RowsAffected == 0 {
+		return nil, nil
 	}
 	return &dept, nil
 }
 
 func (r *DepartmentRepo) FindByLeaderUserID(userID string) (*models.Department, error) {
 	var dept models.Department
-	err := r.db.Where("leader_user_id = ? AND deleted_at IS NULL", userID).First(&dept).Error
-	if err != nil {
-		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return nil, nil
-		}
-		return nil, err
+	tx := r.db.Where("leader_user_id = ? AND deleted_at IS NULL", userID).Limit(1).Find(&dept)
+	if tx.Error != nil {
+		return nil, tx.Error
+	}
+	if tx.RowsAffected == 0 {
+		return nil, nil
 	}
 	return &dept, nil
 }
@@ -78,7 +78,15 @@ func (r *DepartmentRepo) Create(dept *models.Department) (*models.Department, er
 }
 
 func (r *DepartmentRepo) Update(dept *models.Department) error {
-	return r.db.Save(dept).Error
+	return r.db.Model(&models.Department{}).
+		Where("id = ? AND deleted_at IS NULL", dept.ID).
+		Updates(map[string]interface{}{
+			"name":           dept.Name,
+			"code":           dept.Code,
+			"address":        dept.Address,
+			"leader_user_id": dept.LeaderUserID,
+			"updated_at":     dept.UpdatedAt,
+		}).Error
 }
 
 func (r *DepartmentRepo) List(filter DepartmentFilter, offset, limit int) ([]models.Department, int64, error) {

@@ -11,11 +11,13 @@ type SubmitApplicationRequest struct {
 }
 
 type ApplicationAttachmentResponse struct {
-	ID       string `json:"id"`
-	FileName string `json:"file_name"`
-	FileURL  string `json:"file_url"`
-	FileType string `json:"file_type"`
-	FileSize *int64 `json:"file_size"`
+	ID             string `json:"id"`
+	FileName       string `json:"file_name"`
+	FileURL        string `json:"file_url"`
+	FileType       string `json:"file_type"`
+	FileSize       *int64 `json:"file_size"`
+	AttachmentType string `json:"attachment_type"`
+	CreatedAt      time.Time `json:"created_at"`
 }
 
 type ApplicationResponse struct {

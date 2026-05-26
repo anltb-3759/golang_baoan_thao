@@ -26,7 +26,7 @@
         <h2 class="font-medium">{{ .Application.ApplicationCode }}</h2>
         <p class="text-sm text-gray-500">{{ t "ui.applications.detail.service" }}: {{ .Application.ServiceType.Name }}</p>
         <p class="text-sm text-gray-500">{{ t "ui.applications.detail.citizen" }}: {{ if .Application.CitizenUser.Name }}{{ .Application.CitizenUser.Name }}{{ else }}—{{ end }}</p>
-        <p class="text-sm text-gray-500">{{ t "ui.applications.detail.status" }}: {{ .Application.Status }}</p>
+        <p class="text-sm text-gray-500">{{ t "ui.applications.detail.status" }}: {{ template "admin/partials/application_status_badge.html" (print .Application.Status) }}</p>
         <p class="text-sm text-gray-500">
           {{ t "ui.applications.detail.assigned_staff" }}:
           {{ if .Application.AssignedStaffUser }}{{ .Application.AssignedStaffUser.Name }}{{ else }}{{ t "ui.applications.detail.unassigned" }}{{ end }}
@@ -123,10 +123,27 @@
   {{ end }}
 
   <section class="mt-6 rounded-lg border border-gray-200 bg-white p-6 shadow-sm">
-    <h2 class="mb-4 text-lg font-semibold text-gray-900">{{ t "ui.applications.attachments_title" }}</h2>
-    {{ if .Application.ApplicationAttachments }}
+    <h2 class="mb-4 text-lg font-semibold text-gray-900">{{ t "ui.applications.attachments.citizen_title" }}</h2>
+    {{ if .CitizenAttachments }}
+    <div class="space-y-3 mb-6">
+      {{ range .CitizenAttachments }}
+      <div class="flex items-center justify-between rounded-lg border border-gray-200 bg-gray-50 px-4 py-3 text-sm">
+        <div>
+          <div class="font-medium text-gray-900">{{ .FileName }}</div>
+          <div class="text-gray-500">{{ t "ui.applications.attachments.uploaded_at" }}: {{ if .CreatedAt.IsZero }}—{{ else }}{{ fmtTime .CreatedAt "02/01/2006 15:04" }}{{ end }}</div>
+        </div>
+        <a href="{{ .FileURL }}" class="text-indigo-600 hover:underline" target="_blank" rel="noreferrer">{{ t "ui.common.view" }}</a>
+      </div>
+      {{ end }}
+    </div>
+    {{ else }}
+    <div class="text-sm text-gray-500 mb-6">{{ t "ui.applications.attachments_empty" }}</div>
+    {{ end }}
+
+    <h2 class="mb-4 text-lg font-semibold text-gray-900">{{ t "ui.applications.attachments.response_title" }}</h2>
+    {{ if .ResponseAttachments }}
     <div class="space-y-3">
-      {{ range .Application.ApplicationAttachments }}
+      {{ range .ResponseAttachments }}
       <div class="flex items-center justify-between rounded-lg border border-gray-200 bg-gray-50 px-4 py-3 text-sm">
         <div>
           <div class="font-medium text-gray-900">{{ .FileName }}</div>

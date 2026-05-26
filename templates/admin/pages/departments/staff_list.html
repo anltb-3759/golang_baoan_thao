@@ -4,7 +4,9 @@
     <div>
       <h1 class="text-xl font-semibold text-gray-900">{{ .Title }}</h1>
     </div>
+    {{ if and .CurrentUser (eq (printf "%s" .CurrentUser.Role) "manager") }}
     <a href="/admin/departments/{{ .DepartmentID }}/staff/assign" class="text-sm bg-indigo-600 text-white px-3 py-1 rounded">{{ t "ui.departments.staff.assign" }}</a>
+    {{ end }}
   </header>
 
   <section class="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
@@ -25,9 +27,11 @@
           <div class="font-medium">{{ .User.Name }}</div>
           <div class="text-sm text-gray-500">{{ .Position }}</div>
         </div>
+        {{ if and $.CurrentUser (eq (printf "%s" $.CurrentUser.Role) "manager") }}
         <form method="post" action="/admin/departments/{{ $.DepartmentID }}/staff/{{ .UserID }}/remove">
           <button type="submit" class="text-sm text-red-600">{{ t "ui.departments.staff.remove" }}</button>
         </form>
+        {{ end }}
       </li>
       {{ end }}
     </ul>

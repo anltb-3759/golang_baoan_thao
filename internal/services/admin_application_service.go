@@ -43,6 +43,13 @@ func (s *AdminApplicationService) ListApplications(filter repositories.Applicati
 	return s.appRepo.AdminList(filter, page, limit)
 }
 
+func (s *AdminApplicationService) ListApplicationsForActor(filter repositories.ApplicationFilter, page, limit int, role models.UserRole, actorID string) ([]models.Application, int64, error) {
+	if role == models.UserRoleStaff {
+		filter.AssignedStaffUserID = actorID
+	}
+	return s.appRepo.AdminList(filter, page, limit)
+}
+
 func (s *AdminApplicationService) GetApplication(id string) (*models.Application, error) {
 	return s.appRepo.GetByID(id)
 }

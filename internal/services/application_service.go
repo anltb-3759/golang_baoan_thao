@@ -302,11 +302,13 @@ func (s *ApplicationService) UploadMyApplicationSupplements(userID, appID string
 	resp := make([]dtos.ApplicationAttachmentResponse, 0, len(atts))
 	for _, a := range atts {
 		resp = append(resp, dtos.ApplicationAttachmentResponse{
-			ID:       a.ID,
-			FileName: a.FileName,
-			FileURL:  a.FileURL,
-			FileType: a.FileType,
-			FileSize: a.FileSize,
+			ID:             a.ID,
+			FileName:       a.FileName,
+			FileURL:        a.FileURL,
+			FileType:       a.FileType,
+			FileSize:       a.FileSize,
+			AttachmentType: string(a.AttachmentType),
+			CreatedAt:      a.CreatedAt,
 		})
 	}
 
@@ -377,11 +379,13 @@ func toApplicationResponse(app *models.Application, st *models.ServiceType, atts
 	attResponses := make([]dtos.ApplicationAttachmentResponse, 0, len(atts))
 	for _, a := range atts {
 		attResponses = append(attResponses, dtos.ApplicationAttachmentResponse{
-			ID:       a.ID,
-			FileName: a.FileName,
-			FileURL:  a.FileURL,
-			FileType: a.FileType,
-			FileSize: a.FileSize,
+			ID:             a.ID,
+			FileName:       a.FileName,
+			FileURL:        a.FileURL,
+			FileType:       a.FileType,
+			FileSize:       a.FileSize,
+			AttachmentType: string(a.AttachmentType),
+			CreatedAt:      a.CreatedAt,
 		})
 	}
 	return &dtos.ApplicationResponse{
@@ -400,11 +404,13 @@ func toApplicationResponseFromModel(app *models.Application) *dtos.ApplicationRe
 	attResponses := make([]dtos.ApplicationAttachmentResponse, 0)
 	for _, a := range app.ApplicationAttachments {
 		attResponses = append(attResponses, dtos.ApplicationAttachmentResponse{
-			ID:       a.ID,
-			FileName: a.FileName,
-			FileURL:  a.FileURL,
-			FileType: a.FileType,
-			FileSize: a.FileSize,
+			ID:             a.ID,
+			FileName:       a.FileName,
+			FileURL:        a.FileURL,
+			FileType:       a.FileType,
+			FileSize:       a.FileSize,
+			AttachmentType: string(a.AttachmentType),
+			CreatedAt:      a.CreatedAt,
 		})
 	}
 	return &dtos.ApplicationResponse{

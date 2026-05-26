@@ -119,7 +119,7 @@ func main() {
 	serviceCatalogHandler = serviceCatalogHandler.WithImportExport(importExportSvc)
 
 	adminProfileSvc := services.NewAdminProfileService(userRepo)
-	adminProfileHandler := handlers.NewAdminProfileHandler(adminProfileSvc)
+	adminProfileHandler := handlers.NewAdminProfileHandler(adminProfileSvc).WithActivityLogger(activityLogSvc)
 
 	docs.SetupSwaggerRoutes(e)
 	routes.SetupRoutes(e, &routes.ApiHandler{

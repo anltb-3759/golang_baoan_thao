@@ -46,6 +46,8 @@ type fakeAdminAppSvc struct {
 	assignErr  error
 	processErr error
 	lastFilter repositories.ApplicationFilter
+	lastRole   models.UserRole
+	lastActor  string
 	lastStatus models.ApplicationStatus
 	lastNote   string
 	lastFiles  []*multipart.FileHeader
@@ -53,6 +55,12 @@ type fakeAdminAppSvc struct {
 
 func (s *fakeAdminAppSvc) ListApplications(filter repositories.ApplicationFilter, page, limit int) ([]models.Application, int64, error) {
 	s.lastFilter = filter
+	return s.apps, s.total, s.listErr
+}
+func (s *fakeAdminAppSvc) ListApplicationsForActor(filter repositories.ApplicationFilter, page, limit int, role models.UserRole, actorID string) ([]models.Application, int64, error) {
+	s.lastFilter = filter
+	s.lastRole = role
+	s.lastActor = actorID
 	return s.apps, s.total, s.listErr
 }
 func (s *fakeAdminAppSvc) GetApplication(id string) (*models.Application, error) {
@@ -105,6 +113,33 @@ func TestAdminApplicationHandler_List_WithFilters(t *testing.T) {
 	err := h.ListApplications(c)
 	assert.NoError(t, err)
 	assert.Equal(t, repositories.ApplicationFilter{Status: "processing", Service: "cccd", Submitter: "an"}, svc.lastFilter)
+}
+
+func TestAdminApplicationHandler_List_StaffPassesActorContext(t *testing.T) {
+	_ = configs.LoadI18nMessages("../../locales")
+	e := newAdminEcho()
+	svc := &fakeAdminAppSvc{apps: []models.Application{{ID: "a1"}}, total: 1}
+	h := newAdminAppHandler(svc, &fakeAdminUserSvc{}, &fakeAssignableStaffSvc{})
+
+	c, _ := newAdminCtx(e, http.MethodGet, "/admin/applications", "", "")
+	c.Set("user", claimsWithRole(models.UserRoleStaff))
+	err := h.ListApplications(c)
+	assert.NoError(t, err)
+	assert.Equal(t, models.UserRoleStaff, svc.lastRole)
+	assert.Equal(t, "u-1", svc.lastActor)
+}
+
+func TestAdminApplicationHandler_List_StaffNoAssignedAppsRendersEmptyList(t *testing.T) {
+	_ = configs.LoadI18nMessages("../../locales")
+	e := newAdminEcho()
+	svc := &fakeAdminAppSvc{apps: []models.Application{}, total: 0}
+	h := newAdminAppHandler(svc, &fakeAdminUserSvc{}, &fakeAssignableStaffSvc{})
+
+	c, rec := newAdminCtx(e, http.MethodGet, "/admin/applications", "", "")
+	c.Set("user", claimsWithRole(models.UserRoleStaff))
+	err := h.ListApplications(c)
+	assert.NoError(t, err)
+	assert.Equal(t, http.StatusOK, rec.Code)
 }
 
 func TestAdminApplicationHandler_ShowAssignForm_OK(t *testing.T) {

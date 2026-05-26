@@ -43,6 +43,8 @@ type fakeDeptSvc struct {
 	createErr error
 	updateErr error
 	deleteErr error
+	lastUpdateID  string
+	lastUpdateReq *dtos.DepartmentUpdateRequest
 }
 
 func (s *fakeDeptSvc) ListDepartments(_ repositories.DepartmentFilter, _, _ int) ([]models.Department, int64, error) {
@@ -57,7 +59,9 @@ func (s *fakeDeptSvc) GetDepartment(id string) (*models.Department, error) {
 func (s *fakeDeptSvc) CreateDepartment(_ *dtos.DepartmentCreateRequest, _ string) (*models.Department, error) {
 	return s.dept, s.createErr
 }
-func (s *fakeDeptSvc) UpdateDepartment(_ string, _ *dtos.DepartmentUpdateRequest, _ string) (*models.Department, error) {
+func (s *fakeDeptSvc) UpdateDepartment(id string, req *dtos.DepartmentUpdateRequest, _ string) (*models.Department, error) {
+	s.lastUpdateID = id
+	s.lastUpdateReq = req
 	return s.dept, s.updateErr
 }
 func (s *fakeDeptSvc) DeleteDepartment(_ string, _ string) error { return s.deleteErr }
@@ -289,6 +293,25 @@ func TestAdminDeptHandler_UpdateDepartment_OK(t *testing.T) {
 	err := h.UpdateDepartment(c)
 	assert.NoError(t, err)
 	assert.Equal(t, http.StatusSeeOther, rec.Code)
+}
+
+func TestAdminDeptHandler_UpdateDepartment_PassesLeaderUserIDToService(t *testing.T) {
+	_ = configs.LoadI18nMessages("../../locales")
+	e := newAdminEcho()
+	d := &models.Department{ID: "d1", Name: "IT"}
+	svc := &fakeDeptSvc{dept: d}
+	h := newDeptHandler(svc, &fakeAdminUserSvc{user: &models.User{ID: "u2", Role: models.UserRoleStaff}})
+
+	form := url.Values{"name": {"Updated"}, "code": {"IT001"}, "leader_user_id": {"u2"}}
+	c, rec := newFormCtx(e, http.MethodPost, "/admin/departments/d1/edit", form)
+	c.SetPathValues(echo.PathValues{{Name: "id", Value: "d1"}})
+	err := h.UpdateDepartment(c)
+	assert.NoError(t, err)
+	assert.Equal(t, http.StatusSeeOther, rec.Code)
+	if assert.NotNil(t, svc.lastUpdateReq) {
+		assert.Equal(t, "d1", svc.lastUpdateID)
+		assert.Equal(t, "u2", svc.lastUpdateReq.LeaderUserID)
+	}
 }
 
 func TestAdminDeptHandler_UpdateDepartment_NotFound(t *testing.T) {

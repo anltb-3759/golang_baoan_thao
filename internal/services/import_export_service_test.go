@@ -21,6 +21,7 @@ type fakeIEDeptRepo struct {
 
 func (r *fakeIEDeptRepo) FindByID(_ string) (*models.Department, error)       { return nil, nil }
 func (r *fakeIEDeptRepo) FindByCode(_ string) (*models.Department, error)     { return nil, nil }
+func (r *fakeIEDeptRepo) FindByLeaderUserID(_ string) (*models.Department, error) { return nil, nil }
 func (r *fakeIEDeptRepo) Create(d *models.Department) (*models.Department, error) { return d, nil }
 func (r *fakeIEDeptRepo) CreateInTx(_ *gorm.DB, _ *models.Department) error   { return r.createErr }
 func (r *fakeIEDeptRepo) Update(_ *models.Department) error                   { return nil }

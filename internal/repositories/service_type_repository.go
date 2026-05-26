@@ -44,8 +44,8 @@ func NewServiceTypeRepository(db *gorm.DB) ServiceTypeRepository {
 
 func (r *serviceTypeRepo) List(ctx context.Context, filter ListFilter) (*ListResult, error) {
 	q := r.db.WithContext(ctx).Model(&models.ServiceType{}).
-		Preload("ResponsibleDepartment").
-		Preload("Category")
+		Preload("ResponsibleDepartment", "deleted_at IS NULL").
+		Preload("Category", "deleted_at IS NULL")
 
 	if filter.IncludeInactive {
 		q = q.Where("deleted_at IS NULL")
@@ -85,8 +85,8 @@ func (r *serviceTypeRepo) GetByIDForAdmin(ctx context.Context, id string) (*mode
 
 func (r *serviceTypeRepo) getByID(ctx context.Context, id string, activeOnly bool) (*models.ServiceType, error) {
 	var st models.ServiceType
-	query := r.db.WithContext(ctx).Preload("Category").
-		Preload("ResponsibleDepartment").
+	query := r.db.WithContext(ctx).Preload("Category", "deleted_at IS NULL").
+		Preload("ResponsibleDepartment", "deleted_at IS NULL").
 		Where("id = ? AND deleted_at IS NULL", id)
 	if activeOnly {
 		query = query.Where("is_active = ?", true)

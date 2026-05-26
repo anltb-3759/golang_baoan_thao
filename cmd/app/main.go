@@ -93,7 +93,7 @@ func main() {
 	departmentRepo := repositories.NewDepartmentRepo(db)
 	staffProfileRepo := repositories.NewStaffProfileRepo(db)
 	departmentSvc := services.NewDepartmentService(departmentRepo, staffProfileRepo, activityLogSvc)
-	staffProfileSvc := services.NewStaffProfileService(staffProfileRepo, userRepo)
+	staffProfileSvc := services.NewStaffProfileService(staffProfileRepo, userRepo, departmentRepo)
 	adminDepartmentHandler := handlers.NewAdminDepartmentHandler(departmentSvc, adminUserSvc, staffProfileSvc)
 
 	// application assignment service + admin handler

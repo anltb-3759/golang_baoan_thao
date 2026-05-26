@@ -89,7 +89,10 @@ func applicationStatusOptionsForFilter() []applicationStatusOption {
 func applicationStatusOptionsForProcess(current models.ApplicationStatus) []applicationStatusOption {
 	switch current {
 	case models.ApplicationStatusReceived:
-		return []applicationStatusOption{{Value: string(models.ApplicationStatusProcessing), Label: "processing"}}
+		return []applicationStatusOption{
+			{Value: string(models.ApplicationStatusProcessing), Label: "processing"},
+			{Value: string(models.ApplicationStatusNeedMoreInfo), Label: "need_more_info"},
+		}
 	case models.ApplicationStatusProcessing:
 		return []applicationStatusOption{
 			{Value: string(models.ApplicationStatusNeedMoreInfo), Label: "need_more_info"},
@@ -97,7 +100,11 @@ func applicationStatusOptionsForProcess(current models.ApplicationStatus) []appl
 			{Value: string(models.ApplicationStatusRejected), Label: "rejected"},
 		}
 	case models.ApplicationStatusNeedMoreInfo:
-		return []applicationStatusOption{{Value: string(models.ApplicationStatusProcessing), Label: "processing"}}
+		return []applicationStatusOption{
+			{Value: string(models.ApplicationStatusProcessing), Label: "processing"},
+			{Value: string(models.ApplicationStatusApproved), Label: "approved"},
+			{Value: string(models.ApplicationStatusRejected), Label: "rejected"},
+		}
 	default:
 		return nil
 	}
@@ -136,15 +143,16 @@ func (h *AdminApplicationHandler) ShowApplication(c *echo.Context) error {
 		return echo.NewHTTPError(http.StatusNotFound, "application.not_found")
 	}
 	currentUser := adminCurrentUser(c)
-	canManage := currentUser != nil && currentUser.Role == string(models.UserRoleManager)
+	canAssign := currentUser != nil && currentUser.Role == string(models.UserRoleManager)
+	canProcess := currentUser != nil && currentUser.Role == string(models.UserRoleStaff) && len(applicationStatusOptionsForProcess(app.Status)) > 0
 	data := map[string]interface{}{
 		"Title":          configs.T(c, "ui.applications.detail_title", nil),
 		"CurrentPath":    "/admin/applications",
 		"CurrentUser":    currentUser,
 		"Application":    app,
 		"ProcessOptions": applicationStatusOptionsForProcess(app.Status),
-		"CanProcess":     canManage && len(applicationStatusOptionsForProcess(app.Status)) > 0,
-		"CanManage":      canManage,
+		"CanProcess":     canProcess,
+		"CanAssign":      canAssign,
 	}
 	return c.Render(http.StatusOK, "admin/pages/applications/detail.html", data)
 }
@@ -299,8 +307,8 @@ func mapAdminApplicationProcessError(err error) error {
 		return echo.NewHTTPError(http.StatusUnprocessableEntity, "application.invalid_transition")
 	case errors.Is(err, services.ErrAdminApplicationRejectReasonRequired):
 		return echo.NewHTTPError(http.StatusUnprocessableEntity, "application.reject_reason_required")
-	case errors.Is(err, services.ErrAdminApplicationNoteRequired):
-		return echo.NewHTTPError(http.StatusUnprocessableEntity, "application.note_required")
+	case errors.Is(err, services.ErrAdminApplicationNeedMoreInfoNoteRequired):
+		return echo.NewHTTPError(http.StatusUnprocessableEntity, "application.need_more_info_note_required")
 	case errors.Is(err, utils.ErrDisallowedMime):
 		return echo.NewHTTPError(http.StatusUnprocessableEntity, "application.attachment_invalid_type")
 	case errors.Is(err, utils.ErrEmptyFileName), errors.Is(err, utils.ErrUnsafeFileName), errors.Is(err, utils.ErrPathEscape):

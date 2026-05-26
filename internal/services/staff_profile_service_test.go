@@ -14,6 +14,7 @@ type fakeStaffProfileRepo struct {
 	total     int64
 	listErr   error
 	updateErr error
+	updated   bool
 }
 
 func (r *fakeStaffProfileRepo) FindByUserID(_ string) (*models.StaffProfile, error) {
@@ -23,6 +24,7 @@ func (r *fakeStaffProfileRepo) ListByDepartment(_ string, _, _ int) ([]models.St
 	return r.profiles, r.total, r.listErr
 }
 func (r *fakeStaffProfileRepo) UpdateDepartment(_ string, _ *string, _ string) error {
+	r.updated = true
 	return r.updateErr
 }
 func (r *fakeStaffProfileRepo) Create(p *models.StaffProfile) (*models.StaffProfile, error) {
@@ -33,10 +35,10 @@ func (r *fakeStaffProfileRepo) CreateInTx(_ *gorm.DB, _ *models.StaffProfile) er
 var _ repositories.StaffProfileRepository = (*fakeStaffProfileRepo)(nil)
 
 type fakeStaffUserRepo struct {
-	user *models.User
+	users map[string]*models.User
 }
 
-func (r *fakeStaffUserRepo) FindByID(_ string) (*models.User, error) { return r.user, nil }
+func (r *fakeStaffUserRepo) FindByID(id string) (*models.User, error) { return r.users[id], nil }
 func (r *fakeStaffUserRepo) FindByEmail(_ string) (*models.User, error) { return nil, nil }
 func (r *fakeStaffUserRepo) Create(u *models.User) (*models.User, error) { return u, nil }
 func (r *fakeStaffUserRepo) CreateInTx(_ *gorm.DB, _ *models.User) error { return nil }
@@ -46,6 +48,28 @@ func (r *fakeStaffUserRepo) List(_ repositories.UserFilter, _, _ int) ([]models.
 }
 func (r *fakeStaffUserRepo) UpdateStatus(_ string, _ models.UserStatus, _ string) error { return nil }
 func (r *fakeStaffUserRepo) SoftDelete(_ string, _ string) error                        { return nil }
+
+type fakeStaffDepartmentRepo struct {
+	dept *models.Department
+	err  error
+}
+
+func (r *fakeStaffDepartmentRepo) FindByID(_ string) (*models.Department, error) { return nil, nil }
+func (r *fakeStaffDepartmentRepo) FindByCode(_ string) (*models.Department, error) { return nil, nil }
+func (r *fakeStaffDepartmentRepo) FindByLeaderUserID(_ string) (*models.Department, error) {
+	return r.dept, r.err
+}
+func (r *fakeStaffDepartmentRepo) Create(d *models.Department) (*models.Department, error) {
+	return d, nil
+}
+func (r *fakeStaffDepartmentRepo) CreateInTx(_ *gorm.DB, _ *models.Department) error { return nil }
+func (r *fakeStaffDepartmentRepo) Update(_ *models.Department) error                  { return nil }
+func (r *fakeStaffDepartmentRepo) List(_ repositories.DepartmentFilter, _, _ int) ([]models.Department, int64, error) {
+	return nil, 0, nil
+}
+func (r *fakeStaffDepartmentRepo) SoftDelete(_ string, _ string) error { return nil }
+
+var _ repositories.DepartmentRepository = (*fakeStaffDepartmentRepo)(nil)
 
 func TestStaffProfileService_ListStaffByDepartment_OK(t *testing.T) {
 	profiles := []models.StaffProfile{{User: models.User{ID: "u1"}}}
@@ -57,26 +81,84 @@ func TestStaffProfileService_ListStaffByDepartment_OK(t *testing.T) {
 	assert.Len(t, result, 1)
 }
 
-func TestStaffProfileService_AssignStaffToDepartment_UserFound(t *testing.T) {
+func TestStaffProfileService_AssignStaffToDepartment_UserNotFound(t *testing.T) {
 	repo := &fakeStaffProfileRepo{}
-	userRepo := &fakeIEUserRepo{} // reuse existing fake that returns nil, nil for FindByID
+	userRepo := &fakeIEUserRepo{}
 	svc := NewStaffProfileService(repo, userRepo)
-	// FindByID returns nil user → should return nil without error
 	err := svc.AssignStaffToDepartment("u1", "dept-1", "admin-1")
 	assert.NoError(t, err)
 }
 
 func TestStaffProfileService_AssignStaffToDepartment_UpdateDepartment(t *testing.T) {
 	repo := &fakeStaffProfileRepo{}
-	// Use a fake user repo that returns a valid user
-	svc := NewStaffProfileService(repo, &fakeStaffUserRepo{user: &models.User{ID: "u1"}})
+	svc := NewStaffProfileService(repo, &fakeStaffUserRepo{users: map[string]*models.User{
+		"u1":      {ID: "u1", Role: models.UserRoleStaff},
+		"admin-1": {ID: "admin-1", Role: models.UserRoleSuperAdmin},
+	}})
 	err := svc.AssignStaffToDepartment("u1", "dept-1", "admin-1")
 	assert.NoError(t, err)
+	assert.True(t, repo.updated)
+}
+
+func TestStaffProfileService_AssignStaffToDepartment_ManagerCannotTransferLeader(t *testing.T) {
+	repo := &fakeStaffProfileRepo{}
+	userRepo := &fakeStaffUserRepo{users: map[string]*models.User{
+		"u1":       {ID: "u1", Role: models.UserRoleStaff},
+		"manager1": {ID: "manager1", Role: models.UserRoleManager},
+	}}
+	deptRepo := &fakeStaffDepartmentRepo{dept: &models.Department{ID: "dept-old"}}
+	svc := NewStaffProfileService(repo, userRepo, deptRepo)
+
+	err := svc.AssignStaffToDepartment("u1", "dept-new", "manager1")
+	assert.ErrorIs(t, err, ErrLeaderTransferForbiddenForManager)
+	assert.False(t, repo.updated)
+}
+
+func TestStaffProfileService_AssignStaffToDepartment_SuperAdminCanTransferLeader(t *testing.T) {
+	repo := &fakeStaffProfileRepo{}
+	userRepo := &fakeStaffUserRepo{users: map[string]*models.User{
+		"u1":      {ID: "u1", Role: models.UserRoleStaff},
+		"admin-1": {ID: "admin-1", Role: models.UserRoleSuperAdmin},
+	}}
+	deptRepo := &fakeStaffDepartmentRepo{dept: &models.Department{ID: "dept-old"}}
+	svc := NewStaffProfileService(repo, userRepo, deptRepo)
+
+	err := svc.AssignStaffToDepartment("u1", "dept-new", "admin-1")
+	assert.NoError(t, err)
+	assert.True(t, repo.updated)
 }
 
 func TestStaffProfileService_RemoveStaffFromDepartment_OK(t *testing.T) {
 	repo := &fakeStaffProfileRepo{}
-	svc := NewStaffProfileService(repo, nil)
+	svc := NewStaffProfileService(repo, &fakeStaffUserRepo{users: map[string]*models.User{
+		"admin-1": {ID: "admin-1", Role: models.UserRoleSuperAdmin},
+	}})
 	err := svc.RemoveStaffFromDepartment("u1", "admin-1")
 	assert.NoError(t, err)
+}
+
+func TestStaffProfileService_RemoveStaffFromDepartment_ManagerCannotRemoveLeader(t *testing.T) {
+	repo := &fakeStaffProfileRepo{}
+	userRepo := &fakeStaffUserRepo{users: map[string]*models.User{
+		"manager1": {ID: "manager1", Role: models.UserRoleManager},
+	}}
+	deptRepo := &fakeStaffDepartmentRepo{dept: &models.Department{ID: "dept-old"}}
+	svc := NewStaffProfileService(repo, userRepo, deptRepo)
+
+	err := svc.RemoveStaffFromDepartment("u1", "manager1")
+	assert.ErrorIs(t, err, ErrLeaderTransferForbiddenForManager)
+	assert.False(t, repo.updated)
+}
+
+func TestStaffProfileService_RemoveStaffFromDepartment_SuperAdminCanRemoveLeader(t *testing.T) {
+	repo := &fakeStaffProfileRepo{}
+	userRepo := &fakeStaffUserRepo{users: map[string]*models.User{
+		"admin-1": {ID: "admin-1", Role: models.UserRoleSuperAdmin},
+	}}
+	deptRepo := &fakeStaffDepartmentRepo{dept: &models.Department{ID: "dept-old"}}
+	svc := NewStaffProfileService(repo, userRepo, deptRepo)
+
+	err := svc.RemoveStaffFromDepartment("u1", "admin-1")
+	assert.NoError(t, err)
+	assert.True(t, repo.updated)
 }

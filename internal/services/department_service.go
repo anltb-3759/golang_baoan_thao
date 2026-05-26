@@ -12,6 +12,7 @@ import (
 
 var ErrDepartmentNotFound = errors.New("department.not_found")
 var ErrDepartmentCodeExists = errors.New("department.code_exists")
+var ErrDepartmentLeaderAlreadyAssigned = errors.New("department.leader_already_assigned")
 
 type DepartmentService struct {
 	repo           repositories.DepartmentRepository
@@ -61,16 +62,25 @@ func (s *DepartmentService) CreateDepartment(req *dtos.DepartmentCreateRequest, 
 		UpdatedAt: now,
 	}
 	if req.LeaderUserID != "" {
-		dept.LeaderUserID = &req.LeaderUserID
-		if s.staffRepo != nil {
-			// ensure leader is assigned as staff to this department
-			_ = s.staffRepo.UpdateDepartment(req.LeaderUserID, &dept.ID, createdBy)
+		leaderDept, err := s.repo.FindByLeaderUserID(req.LeaderUserID)
+		if err != nil {
+			return nil, err
 		}
+		if leaderDept != nil {
+			return nil, ErrDepartmentLeaderAlreadyAssigned
+		}
+		dept.LeaderUserID = &req.LeaderUserID
 	}
 
 	created, err := s.repo.Create(dept)
 	if err != nil {
 		return nil, err
+	}
+	if created.LeaderUserID != nil && *created.LeaderUserID != "" && s.staffRepo != nil {
+		// sync leader profile after department has a real ID
+		if err := s.staffRepo.UpdateDepartment(*created.LeaderUserID, &created.ID, createdBy); err != nil {
+			return nil, err
+		}
 	}
 	s.logActivity(&models.ActivityLog{
 		ActorUserID: &createdBy,
@@ -110,18 +120,38 @@ func (s *DepartmentService) UpdateDepartment(id string, req *dtos.DepartmentUpda
 	dept.Address = req.Address
 	dept.UpdatedAt = time.Now()
 
+	prevLeaderID := dept.LeaderUserID
 	if req.LeaderUserID != "" {
-		dept.LeaderUserID = &req.LeaderUserID
-		if s.staffRepo != nil {
-			// ensure leader is assigned as staff to this department
-			_ = s.staffRepo.UpdateDepartment(req.LeaderUserID, &dept.ID, updatedBy)
+		leaderDept, err := s.repo.FindByLeaderUserID(req.LeaderUserID)
+		if err != nil {
+			return nil, err
 		}
+		if leaderDept != nil && leaderDept.ID != dept.ID {
+			return nil, ErrDepartmentLeaderAlreadyAssigned
+		}
+		dept.LeaderUserID = &req.LeaderUserID
 	} else {
 		dept.LeaderUserID = nil
 	}
 
 	if err := s.repo.Update(dept); err != nil {
 		return nil, err
+	}
+	if s.staffRepo != nil {
+		newLeaderID := ""
+		if dept.LeaderUserID != nil {
+			newLeaderID = *dept.LeaderUserID
+		}
+		if prevLeaderID != nil && *prevLeaderID != "" && *prevLeaderID != newLeaderID {
+			if err := s.staffRepo.UpdateDepartment(*prevLeaderID, nil, updatedBy); err != nil {
+				return nil, err
+			}
+		}
+		if newLeaderID != "" {
+			if err := s.staffRepo.UpdateDepartment(newLeaderID, &dept.ID, updatedBy); err != nil {
+				return nil, err
+			}
+		}
 	}
 	s.logActivity(&models.ActivityLog{
 		ActorUserID: &updatedBy,

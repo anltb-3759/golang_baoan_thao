@@ -173,3 +173,48 @@ func TestActivityLogService_LogNilInput(t *testing.T) {
 	assert.ErrorIs(t, err, ErrActivityLogInvalidInput)
 	assert.Nil(t, repo.createdLog)
 }
+
+func TestActivityLogService_List_DefaultPagination(t *testing.T) {
+	repo := &fakeActivityLogRepo{}
+	svc := NewActivityLogService(repo)
+
+	// page=0, limit=0 should be normalized to 1, 20
+	logs, total, err := svc.List(repositories.ActivityLogFilter{}, 0, 0)
+	assert.NoError(t, err)
+	assert.Equal(t, int64(0), total)
+	assert.Nil(t, logs)
+}
+
+func TestActivityLogService_List_WithFilter(t *testing.T) {
+	repoWithList := &fakeActivityLogRepoWithList{
+		logs:  []models.ActivityLog{{Action: "auth.login"}},
+		total: 1,
+	}
+	svc := NewActivityLogService(repoWithList)
+
+	logs, total, err := svc.List(repositories.ActivityLogFilter{Action: "auth.login"}, 1, 10)
+	assert.NoError(t, err)
+	assert.Equal(t, int64(1), total)
+	assert.Len(t, logs, 1)
+	assert.Equal(t, "auth.login", logs[0].Action)
+}
+
+func TestActivityLogService_List_Error(t *testing.T) {
+	listErr := errors.New("list error")
+	repoWithList := &fakeActivityLogRepoWithList{err: listErr}
+	svc := NewActivityLogService(repoWithList)
+
+	_, _, err := svc.List(repositories.ActivityLogFilter{}, 1, 10)
+	assert.ErrorIs(t, err, listErr)
+}
+
+type fakeActivityLogRepoWithList struct {
+	fakeActivityLogRepo
+	logs  []models.ActivityLog
+	total int64
+	err   error
+}
+
+func (r *fakeActivityLogRepoWithList) List(_ repositories.ActivityLogFilter, _, _ int) ([]models.ActivityLog, int64, error) {
+	return r.logs, r.total, r.err
+}

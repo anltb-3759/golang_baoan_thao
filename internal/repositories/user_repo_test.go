@@ -324,3 +324,178 @@ func TestUserRepoUpdateReturnsDatabaseError(t *testing.T) {
 		t.Fatalf("expected db error, got %v", err)
 	}
 }
+
+func TestUserRepoList_NoFilter(t *testing.T) {
+	repo, mock, cleanup := newMockUserRepo(t)
+	defer cleanup()
+
+	mock.ExpectQuery(regexp.QuoteMeta(`SELECT count(*) FROM "users" WHERE deleted_at IS NULL`)).
+		WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(2))
+	rows := sqlmock.NewRows([]string{"id", "name", "email", "role", "status"}).
+		AddRow("u1", "User 1", "u1@example.com", models.UserRoleCitizen, models.UserStatusActive).
+		AddRow("u2", "User 2", "u2@example.com", models.UserRoleStaff, models.UserStatusActive)
+	mock.ExpectQuery(regexp.QuoteMeta(`SELECT * FROM "users" WHERE deleted_at IS NULL ORDER BY created_at DESC LIMIT $1`)).
+		WithArgs(10).
+		WillReturnRows(rows)
+
+	users, total, err := repo.List(UserFilter{}, 0, 10)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if total != 2 {
+		t.Fatalf("expected total 2, got %d", total)
+	}
+	if len(users) != 2 {
+		t.Fatalf("expected 2 users, got %d", len(users))
+	}
+	if err := mock.ExpectationsWereMet(); err != nil {
+		t.Fatalf("unmet expectations: %v", err)
+	}
+}
+
+func TestUserRepoList_WithSearch(t *testing.T) {
+	repo, mock, cleanup := newMockUserRepo(t)
+	defer cleanup()
+
+	mock.ExpectQuery(regexp.QuoteMeta(`SELECT count(*) FROM "users" WHERE deleted_at IS NULL AND (LOWER(name) LIKE $1 OR LOWER(email) LIKE $2)`)).
+		WithArgs("%alice%", "%alice%").
+		WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(1))
+	rows := sqlmock.NewRows([]string{"id", "name", "email"}).
+		AddRow("u1", "Alice", "alice@example.com")
+	mock.ExpectQuery(regexp.QuoteMeta(`SELECT * FROM "users" WHERE deleted_at IS NULL AND (LOWER(name) LIKE $1 OR LOWER(email) LIKE $2) ORDER BY created_at DESC LIMIT $3`)).
+		WithArgs("%alice%", "%alice%", 10).
+		WillReturnRows(rows)
+
+	users, total, err := repo.List(UserFilter{Search: "alice"}, 0, 10)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if total != 1 || len(users) != 1 {
+		t.Fatalf("expected 1 user, got total=%d, len=%d", total, len(users))
+	}
+	if err := mock.ExpectationsWereMet(); err != nil {
+		t.Fatalf("unmet expectations: %v", err)
+	}
+}
+
+func TestUserRepoList_WithRole(t *testing.T) {
+	repo, mock, cleanup := newMockUserRepo(t)
+	defer cleanup()
+
+	mock.ExpectQuery(regexp.QuoteMeta(`SELECT count(*) FROM "users" WHERE deleted_at IS NULL AND role = $1`)).
+		WithArgs(string(models.UserRoleStaff)).
+		WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(1))
+	rows := sqlmock.NewRows([]string{"id", "name", "email", "role"}).
+		AddRow("u1", "Staff 1", "staff@example.com", models.UserRoleStaff)
+	mock.ExpectQuery(regexp.QuoteMeta(`SELECT * FROM "users" WHERE deleted_at IS NULL AND role = $1 ORDER BY created_at DESC LIMIT $2`)).
+		WithArgs(string(models.UserRoleStaff), 10).
+		WillReturnRows(rows)
+
+	users, total, err := repo.List(UserFilter{Role: string(models.UserRoleStaff)}, 0, 10)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if total != 1 || len(users) != 1 {
+		t.Fatalf("expected 1 user, got total=%d", total)
+	}
+	if err := mock.ExpectationsWereMet(); err != nil {
+		t.Fatalf("unmet expectations: %v", err)
+	}
+}
+
+func TestUserRepoList_WithRoles(t *testing.T) {
+	repo, mock, cleanup := newMockUserRepo(t)
+	defer cleanup()
+
+	roles := []string{string(models.UserRoleStaff), string(models.UserRoleManager)}
+	mock.ExpectQuery(regexp.QuoteMeta(`SELECT count(*) FROM "users" WHERE deleted_at IS NULL AND role IN ($1,$2)`)).
+		WithArgs(roles[0], roles[1]).
+		WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(2))
+	rows := sqlmock.NewRows([]string{"id", "name", "email", "role"}).
+		AddRow("u1", "Staff", "staff@example.com", models.UserRoleStaff).
+		AddRow("u2", "Manager", "mgr@example.com", models.UserRoleManager)
+	mock.ExpectQuery(regexp.QuoteMeta(`SELECT * FROM "users" WHERE deleted_at IS NULL AND role IN ($1,$2) ORDER BY created_at DESC LIMIT $3`)).
+		WithArgs(roles[0], roles[1], 10).
+		WillReturnRows(rows)
+
+	users, total, err := repo.List(UserFilter{Roles: roles}, 0, 10)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if total != 2 || len(users) != 2 {
+		t.Fatalf("expected 2 users, got total=%d", total)
+	}
+	if err := mock.ExpectationsWereMet(); err != nil {
+		t.Fatalf("unmet expectations: %v", err)
+	}
+}
+
+func TestUserRepoUpdateStatus(t *testing.T) {
+	repo, mock, cleanup := newMockUserRepo(t)
+	defer cleanup()
+
+	mock.ExpectBegin()
+	mock.ExpectExec(regexp.QuoteMeta(`UPDATE "users" SET`)).
+		WithArgs(sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg(), "u1").
+		WillReturnResult(sqlmock.NewResult(1, 1))
+	mock.ExpectCommit()
+
+	err := repo.UpdateStatus("u1", models.UserStatusBlocked, "admin-1")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if err := mock.ExpectationsWereMet(); err != nil {
+		t.Fatalf("unmet expectations: %v", err)
+	}
+}
+
+func TestUserRepoUpdateStatus_Error(t *testing.T) {
+	repo, mock, cleanup := newMockUserRepo(t)
+	defer cleanup()
+
+	dbErr := errors.New("update error")
+	mock.ExpectBegin()
+	mock.ExpectExec(regexp.QuoteMeta(`UPDATE "users" SET`)).
+		WillReturnError(dbErr)
+	mock.ExpectRollback()
+
+	err := repo.UpdateStatus("u1", models.UserStatusBlocked, "admin-1")
+	if err == nil {
+		t.Fatal("expected error, got nil")
+	}
+}
+
+func TestUserRepoSoftDelete(t *testing.T) {
+	repo, mock, cleanup := newMockUserRepo(t)
+	defer cleanup()
+
+	mock.ExpectBegin()
+	mock.ExpectExec(regexp.QuoteMeta(`UPDATE "users" SET`)).
+		WithArgs(sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg(), "u1").
+		WillReturnResult(sqlmock.NewResult(1, 1))
+	mock.ExpectCommit()
+
+	err := repo.SoftDelete("u1", "admin-1")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if err := mock.ExpectationsWereMet(); err != nil {
+		t.Fatalf("unmet expectations: %v", err)
+	}
+}
+
+func TestUserRepoSoftDelete_Error(t *testing.T) {
+	repo, mock, cleanup := newMockUserRepo(t)
+	defer cleanup()
+
+	dbErr := errors.New("delete error")
+	mock.ExpectBegin()
+	mock.ExpectExec(regexp.QuoteMeta(`UPDATE "users" SET`)).
+		WillReturnError(dbErr)
+	mock.ExpectRollback()
+
+	err := repo.SoftDelete("u1", "admin-1")
+	if err == nil {
+		t.Fatal("expected error, got nil")
+	}
+}

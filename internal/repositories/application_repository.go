@@ -22,6 +22,8 @@ type DashboardStats struct {
 type DashboardRepository interface {
 	GetDashboardStats() (DashboardStats, error)
 	ListRecent(limit int) ([]models.Application, error)
+	GetDashboardStatsForStaff(staffID string) (DashboardStats, error)
+	ListRecentForStaff(staffID string, limit int) ([]models.Application, error)
 }
 
 type ApplicationRepository interface {
@@ -301,6 +303,47 @@ func (r *applicationRepo) ListRecent(limit int) ([]models.Application, error) {
 	if err := r.db.Preload("ServiceType", "deleted_at IS NULL").
 		Preload("CitizenUser", "deleted_at IS NULL").
 		Where("deleted_at IS NULL").
+		Order("submitted_at DESC").
+		Limit(limit).
+		Find(&items).Error; err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+func (r *applicationRepo) GetDashboardStatsForStaff(staffID string) (DashboardStats, error) {
+	type row struct {
+		Status string
+		Count  int64
+	}
+	var rows []row
+	if err := r.db.Model(&models.Application{}).
+		Select("status, COUNT(*) as count").
+		Where("deleted_at IS NULL AND assigned_staff_user_id = ?", staffID).
+		Group("status").
+		Scan(&rows).Error; err != nil {
+		return DashboardStats{}, err
+	}
+	var stats DashboardStats
+	for _, row := range rows {
+		stats.Total += row.Count
+		switch models.ApplicationStatus(row.Status) {
+		case models.ApplicationStatusReceived, models.ApplicationStatusProcessing, models.ApplicationStatusNeedMoreInfo:
+			stats.Pending += row.Count
+		case models.ApplicationStatusApproved:
+			stats.Approved = row.Count
+		case models.ApplicationStatusRejected:
+			stats.Rejected = row.Count
+		}
+	}
+	return stats, nil
+}
+
+func (r *applicationRepo) ListRecentForStaff(staffID string, limit int) ([]models.Application, error) {
+	items := make([]models.Application, 0, limit)
+	if err := r.db.Preload("ServiceType", "deleted_at IS NULL").
+		Preload("CitizenUser", "deleted_at IS NULL").
+		Where("deleted_at IS NULL AND assigned_staff_user_id = ?", staffID).
 		Order("submitted_at DESC").
 		Limit(limit).
 		Find(&items).Error; err != nil {

@@ -4,6 +4,7 @@ import (
 	"net/http"
 
 	"github.com/awesome-academy/golang_baoan_thao/internal/configs"
+	"github.com/awesome-academy/golang_baoan_thao/internal/models"
 	"github.com/awesome-academy/golang_baoan_thao/internal/services"
 	"github.com/labstack/echo/v5"
 )
@@ -17,7 +18,11 @@ func NewAdminDashboardHandler(svc *services.AdminDashboardService) *AdminDashboa
 }
 
 func (h *AdminDashboardHandler) ShowDashboard(c *echo.Context) error {
-	data, err := h.svc.GetDashboardData()
+	var staffID string
+	if cu := adminCurrentUser(c); cu != nil && cu.Role == string(models.UserRoleStaff) {
+		staffID = cu.ID
+	}
+	data, err := h.svc.GetDashboardData(staffID)
 	if err != nil {
 		return echo.NewHTTPError(http.StatusInternalServerError, "common.internal_error")
 	}

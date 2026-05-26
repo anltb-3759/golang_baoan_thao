@@ -53,6 +53,12 @@ func (r *fakeAdminAppRepo) GetDashboardStats() (repositories.DashboardStats, err
 	return repositories.DashboardStats{}, nil
 }
 func (r *fakeAdminAppRepo) ListRecent(_ int) ([]models.Application, error) { return nil, nil }
+func (r *fakeAdminAppRepo) GetDashboardStatsForStaff(_ string) (repositories.DashboardStats, error) {
+	return repositories.DashboardStats{}, nil
+}
+func (r *fakeAdminAppRepo) ListRecentForStaff(_ string, _ int) ([]models.Application, error) {
+	return nil, nil
+}
 
 func newAdminAppSvc(repo *fakeAdminAppRepo) *AdminApplicationService {
 	assignSvc := NewApplicationAssignmentService(repo, &fakeAssignRepo{}, &fakeUserRepoAssign{})

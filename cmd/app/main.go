@@ -91,7 +91,8 @@ func main() {
 		WithApplicationService(applicationSvc)
 
 	adminUserHandler := handlers.NewAdminUserHandler(adminUserSvc)
-	adminDashboardHandler := handlers.NewAdminDashboardHandler()
+	adminDashboardSvc := services.NewAdminDashboardService(applicationRepo)
+	adminDashboardHandler := handlers.NewAdminDashboardHandler(adminDashboardSvc)
 
 	departmentRepo := repositories.NewDepartmentRepo(db)
 	staffProfileRepo := repositories.NewStaffProfileRepo(db)

@@ -49,6 +49,10 @@ func (r *fakeAdminAppRepo) CreateAttachments(_ string, _ []models.ApplicationAtt
 func (r *fakeAdminAppRepo) GetByIDForCitizen(_, _ string) (*models.Application, error) {
 	return r.app, r.err
 }
+func (r *fakeAdminAppRepo) GetDashboardStats() (repositories.DashboardStats, error) {
+	return repositories.DashboardStats{}, nil
+}
+func (r *fakeAdminAppRepo) ListRecent(_ int) ([]models.Application, error) { return nil, nil }
 
 func newAdminAppSvc(repo *fakeAdminAppRepo) *AdminApplicationService {
 	assignSvc := NewApplicationAssignmentService(repo, &fakeAssignRepo{}, &fakeUserRepoAssign{})

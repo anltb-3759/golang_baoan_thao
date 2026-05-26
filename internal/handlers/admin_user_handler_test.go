@@ -585,12 +585,22 @@ func TestAdminCurrentUser_WithClaims(t *testing.T) {
 func TestAdminDashboardHandler_ShowDashboard(t *testing.T) {
 	_ = configs.LoadI18nMessages("../../locales")
 	e := newAdminEcho()
-	h := NewAdminDashboardHandler()
+	svc := services.NewAdminDashboardService(&fakeDashboardAppRepo{})
+	h := NewAdminDashboardHandler(svc)
 
 	c, rec := newAdminCtx(e, http.MethodGet, "/admin", "", "")
 	err := h.ShowDashboard(c)
 	assert.NoError(t, err)
 	assert.Equal(t, http.StatusOK, rec.Code)
+}
+
+type fakeDashboardAppRepo struct{}
+
+func (r *fakeDashboardAppRepo) GetDashboardStats() (repositories.DashboardStats, error) {
+	return repositories.DashboardStats{Total: 10, Pending: 3, Approved: 5, Rejected: 2}, nil
+}
+func (r *fakeDashboardAppRepo) ListRecent(_ int) ([]models.Application, error) {
+	return nil, nil
 }
 
 // --- ExportCSV ---

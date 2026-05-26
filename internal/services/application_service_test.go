@@ -105,6 +105,10 @@ func (r *fakeAppRepo) UpdateAssignedStaff(applicationID string, assignedStaffUse
 func (r *fakeAppRepo) ProcessStatusUpdate(_ string, _ *models.ApplicationStatus, _ models.ApplicationStatus, _ string, _ string, _, _ *time.Time, _ string, _ []models.ApplicationAttachment) error {
 	return nil
 }
+func (r *fakeAppRepo) GetDashboardStats() (repositories.DashboardStats, error) {
+	return repositories.DashboardStats{}, nil
+}
+func (r *fakeAppRepo) ListRecent(_ int) ([]models.Application, error) { return nil, nil }
 
 type fakeStorage struct {
 	pubURL  string

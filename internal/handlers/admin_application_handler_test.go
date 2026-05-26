@@ -362,20 +362,14 @@ func TestAdminApplicationHandler_ShowApplication_Error(t *testing.T) {
 	assert.Error(t, err)
 }
 
-func TestMapAdminApplicationProcessError_RejectReasonRequired(t *testing.T) {
-	err := mapAdminApplicationProcessError(services.ErrAdminApplicationRejectReasonRequired)
-	httpErr, ok := err.(*echo.HTTPError)
-	assert.True(t, ok)
-	assert.Equal(t, http.StatusUnprocessableEntity, httpErr.Code)
-	assert.Equal(t, "application.reject_reason_required", httpErr.Message)
+func TestMapAdminApplicationProcessErrorKey_RejectReasonRequired(t *testing.T) {
+	key := mapAdminApplicationProcessErrorKey(services.ErrAdminApplicationRejectReasonRequired)
+	assert.Equal(t, "application.reject_reason_required", key)
 }
 
-func TestMapAdminApplicationProcessError_NeedMoreInfoNoteRequired(t *testing.T) {
-	err := mapAdminApplicationProcessError(services.ErrAdminApplicationNeedMoreInfoNoteRequired)
-	httpErr, ok := err.(*echo.HTTPError)
-	assert.True(t, ok)
-	assert.Equal(t, http.StatusUnprocessableEntity, httpErr.Code)
-	assert.Equal(t, "application.need_more_info_note_required", httpErr.Message)
+func TestMapAdminApplicationProcessErrorKey_NeedMoreInfoNoteRequired(t *testing.T) {
+	key := mapAdminApplicationProcessErrorKey(services.ErrAdminApplicationNeedMoreInfoNoteRequired)
+	assert.Equal(t, "application.need_more_info_note_required", key)
 }
 
 // --- assignableStaffUsers edge cases ---

@@ -47,6 +47,10 @@ func (r *fakeAppRepoForAssign) GetByIDForCitizen(id, citizenUserID string) (*mod
 func (r *fakeAppRepoForAssign) ProcessStatusUpdate(_ string, _ *models.ApplicationStatus, _ models.ApplicationStatus, _ string, _ string, _, _ *time.Time, _ string, _ []models.ApplicationAttachment) error {
 	return nil
 }
+func (r *fakeAppRepoForAssign) GetDashboardStats() (repositories.DashboardStats, error) {
+	return repositories.DashboardStats{}, nil
+}
+func (r *fakeAppRepoForAssign) ListRecent(_ int) ([]models.Application, error) { return nil, nil }
 
 type fakeAssignRepo struct{ created bool }
 

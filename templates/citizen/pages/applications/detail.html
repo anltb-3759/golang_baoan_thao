@@ -1,0 +1,107 @@
+{{ define "content" }}
+<div class="space-y-6">
+  <div class="flex items-center gap-2 text-sm text-gray-500">
+    <a href="/citizen/applications" class="hover:text-indigo-600">{{ t "ui.citizen.applications.title" }}</a>
+    <i data-lucide="chevron-right" class="h-4 w-4"></i>
+    <span class="text-gray-900">{{ .Application.ApplicationCode }}</span>
+  </div>
+
+  {{ template "citizen/partials/toast.html" . }}
+
+  <div class="flex items-center justify-between">
+    <h1 class="text-2xl font-semibold text-gray-900">{{ .Application.ApplicationCode }}</h1>
+    {{ template "citizen/partials/application_status_badge.html" .Application.Status }}
+  </div>
+
+  <!-- Info card -->
+  <div class="rounded-xl border border-gray-200 bg-white p-5 space-y-3">
+    <h2 class="text-sm font-semibold text-gray-700">{{ t "ui.citizen.applications.detail.section.info" }}</h2>
+    <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+      <div>
+        <p class="text-xs text-gray-500">{{ t "ui.citizen.applications.col.service" }}</p>
+        <p class="mt-0.5 text-sm text-gray-900 font-medium">{{ .Application.ServiceTypeName }}</p>
+      </div>
+      <div>
+        <p class="text-xs text-gray-500">{{ t "ui.citizen.applications.col.submitted_at" }}</p>
+        <p class="mt-0.5 text-sm text-gray-900">{{ fmtTime .Application.SubmittedAt "02/01/2006 15:04" }}</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- Attachments -->
+  {{ if .Application.Attachments }}
+  <div class="rounded-xl border border-gray-200 bg-white p-5 space-y-3">
+    <h2 class="text-sm font-semibold text-gray-700">{{ t "ui.citizen.applications.detail.section.attachments" }}</h2>
+    <ul class="divide-y divide-gray-100">
+      {{ range .Application.Attachments }}
+      <li class="flex items-center justify-between py-2">
+        <div class="flex items-center gap-2 text-sm text-gray-700">
+          <i data-lucide="file" class="h-4 w-4 text-gray-400"></i>
+          {{ .FileName }}
+        </div>
+        <a href="{{ .FileURL }}" target="_blank"
+           class="inline-flex items-center gap-1 text-xs text-indigo-600 hover:text-indigo-800">
+          <i data-lucide="download" class="h-3.5 w-3.5"></i>
+          {{ t "ui.common.view" }}
+        </a>
+      </li>
+      {{ end }}
+    </ul>
+  </div>
+  {{ end }}
+
+  <!-- Timeline -->
+  {{ if .StatusHistory }}
+  <div class="rounded-xl border border-gray-200 bg-white p-5 space-y-3">
+    <h2 class="text-sm font-semibold text-gray-700">{{ t "ui.citizen.applications.detail.section.timeline" }}</h2>
+    <ol class="relative border-l border-gray-200 ml-3 space-y-5">
+      {{ range .StatusHistory }}
+      <li class="ml-5">
+        <span class="absolute -left-2 flex h-4 w-4 items-center justify-center rounded-full bg-indigo-100 ring-4 ring-white">
+          <span class="h-2 w-2 rounded-full bg-indigo-500"></span>
+        </span>
+        <div>
+          <p class="text-xs text-gray-400">{{ fmtTime .CreatedAt "02/01/2006 15:04" }}</p>
+          <p class="mt-0.5 text-sm font-medium text-gray-900">
+            {{ template "citizen/partials/application_status_badge.html" (print .NewStatus) }}
+          </p>
+          {{ if .Note }}
+          <p class="mt-0.5 text-sm text-gray-500">{{ .Note }}</p>
+          {{ end }}
+          {{ if .ChangedByUser }}
+          <p class="mt-0.5 text-xs text-gray-400">{{ .ChangedByUser.Name }}</p>
+          {{ end }}
+        </div>
+      </li>
+      {{ end }}
+    </ol>
+  </div>
+  {{ end }}
+
+  <!-- Upload supplement — only visible when need_more_info -->
+  {{ if eq .Application.Status "need_more_info" }}
+  <div class="rounded-xl border border-amber-200 bg-amber-50 p-5 space-y-3">
+    <h2 class="text-sm font-semibold text-amber-800">{{ t "ui.citizen.applications.detail.section.supplement" }}</h2>
+    <p class="text-sm text-amber-700">{{ t "ui.citizen.applications.detail.supplement_hint" }}</p>
+    <form method="post" action="/citizen/applications/{{ .Application.ID }}/supplements" enctype="multipart/form-data" class="space-y-3">
+      <input type="hidden" name="_csrf" value="{{ .CSRFToken }}">
+      <input type="file" name="attachments[]" multiple accept=".pdf,.jpg,.jpeg,.png"
+             required
+             class="block w-full text-sm text-gray-600 file:mr-3 file:rounded-md file:border file:border-gray-300 file:bg-white file:px-3 file:py-1.5 file:text-sm file:font-medium file:text-gray-700 hover:file:bg-gray-50">
+      <button type="submit"
+              class="inline-flex items-center gap-2 rounded-md bg-amber-600 px-4 py-2 text-sm font-medium text-white hover:bg-amber-700">
+        <i data-lucide="upload" class="h-4 w-4"></i>
+        {{ t "ui.citizen.applications.detail.btn.upload" }}
+      </button>
+    </form>
+  </div>
+  {{ end }}
+
+  <a href="/citizen/applications" class="inline-flex items-center gap-1 text-sm text-gray-500 hover:text-gray-700">
+    <i data-lucide="arrow-left" class="h-4 w-4"></i>
+    {{ t "ui.common.back" }}
+  </a>
+</div>
+{{ end }}
+
+{{ template "citizen_base" . }}

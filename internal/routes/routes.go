@@ -7,6 +7,7 @@ import (
 	"github.com/awesome-academy/golang_baoan_thao/internal/middlewares"
 	"github.com/awesome-academy/golang_baoan_thao/internal/models"
 	"github.com/labstack/echo/v5"
+	"github.com/labstack/echo/v5/middleware"
 )
 
 type ApiHandler struct {
@@ -39,11 +40,22 @@ func SetupRoutes(e *echo.Echo, handler *ApiHandler) {
 	e.GET("/logout", handler.CitizenWebHandler.WebLogout)
 
 	// Citizen web routes (protected by cookie auth, role=citizen)
-	citizenWeb := e.Group("/citizen", middlewares.CitizenWebMiddleware)
+	citizenWeb := e.Group("/citizen", middlewares.CitizenWebMiddleware, middleware.CSRF())
 	citizenWeb.GET("", handler.CitizenWebHandler.ShowDashboard)
 	citizenWeb.GET("/notifications", handler.CitizenWebHandler.ListNotifications)
 	citizenWeb.POST("/notifications/read-all", handler.CitizenWebHandler.MarkAllNotificationsRead)
 	citizenWeb.POST("/notifications/:id/read", handler.CitizenWebHandler.MarkNotificationRead)
+
+	// Citizen service catalog
+	citizenWeb.GET("/services", handler.CitizenWebHandler.ShowServiceCatalog)
+	citizenWeb.GET("/services/:id", handler.CitizenWebHandler.ShowServiceDetail)
+
+	// Citizen applications — /new must be before /:id to avoid route conflict
+	citizenWeb.GET("/applications", handler.CitizenWebHandler.ShowApplicationsList)
+	citizenWeb.GET("/applications/new", handler.CitizenWebHandler.ShowApplyForm)
+	citizenWeb.POST("/applications", handler.CitizenWebHandler.SubmitApplication)
+	citizenWeb.GET("/applications/:id", handler.CitizenWebHandler.ShowApplicationDetail)
+	citizenWeb.POST("/applications/:id/supplements", handler.CitizenWebHandler.UploadApplicationSupplements)
 
 	// Admin auth (public)
 	e.GET("/admin/login", handler.AdminAuthHandler.ShowLoginPage)

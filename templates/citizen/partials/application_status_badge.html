@@ -1,0 +1,15 @@
+{{ define "citizen/partials/application_status_badge.html" }}
+{{ if eq . "received" }}
+<span class="inline-flex items-center rounded-md bg-gray-100 px-2 py-1 text-xs font-medium text-gray-700">{{ t "ui.applications.status.received" }}</span>
+{{ else if eq . "processing" }}
+<span class="inline-flex items-center rounded-md bg-blue-100 px-2 py-1 text-xs font-medium text-blue-700">{{ t "ui.applications.status.processing" }}</span>
+{{ else if eq . "need_more_info" }}
+<span class="inline-flex items-center rounded-md bg-amber-100 px-2 py-1 text-xs font-medium text-amber-700">{{ t "ui.applications.status.need_more_info" }}</span>
+{{ else if eq . "approved" }}
+<span class="inline-flex items-center rounded-md bg-green-100 px-2 py-1 text-xs font-medium text-green-700">{{ t "ui.applications.status.approved" }}</span>
+{{ else if eq . "rejected" }}
+<span class="inline-flex items-center rounded-md bg-red-100 px-2 py-1 text-xs font-medium text-red-700">{{ t "ui.applications.status.rejected" }}</span>
+{{ else }}
+<span class="inline-flex items-center rounded-md bg-gray-100 px-2 py-1 text-xs font-medium text-gray-700">{{ . }}</span>
+{{ end }}
+{{ end }}

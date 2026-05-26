@@ -86,6 +86,9 @@ func main() {
 
 	applicationSvc := services.NewApplicationService(applicationRepo, serviceCatalogRepo, userRepo, storage, mailer, activityLogSvc)
 	applicationHandler := handlers.NewApplicationHandler(applicationSvc)
+	citizenWebHandler = citizenWebHandler.
+		WithCatalogService(serviceCatalogSvc).
+		WithApplicationService(applicationSvc)
 
 	adminUserHandler := handlers.NewAdminUserHandler(adminUserSvc)
 	adminDashboardHandler := handlers.NewAdminDashboardHandler()

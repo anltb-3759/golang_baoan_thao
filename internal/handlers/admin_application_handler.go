@@ -18,6 +18,7 @@ import (
 
 type AdminApplicationService interface {
 	ListApplications(filter repositories.ApplicationFilter, page, limit int) ([]models.Application, int64, error)
+	ListApplicationsForActor(filter repositories.ApplicationFilter, page, limit int, role models.UserRole, actorID string) ([]models.Application, int64, error)
 	GetApplication(id string) (*models.Application, error)
 	AssignToStaff(applicationID string, toStaffUserID *string, assignedBy string) error
 	ProcessApplication(applicationID string, newStatus models.ApplicationStatus, note string, files []*multipart.FileHeader, processedBy string) error
@@ -117,11 +118,17 @@ func applicationStatusOptionsForProcess(current models.ApplicationStatus) []appl
 func (h *AdminApplicationHandler) ListApplications(c *echo.Context) error {
 	filter := adminAppFilterFromQuery(c)
 	page, limit := parsePagination(c)
-	apps, total, err := h.svc.ListApplications(filter, page, limit)
+	currentUser := adminCurrentUser(c)
+	role := models.UserRole("")
+	actor := ""
+	if currentUser != nil {
+		role = models.UserRole(currentUser.Role)
+		actor = currentUser.ID
+	}
+	apps, total, err := h.svc.ListApplicationsForActor(filter, page, limit, role, actor)
 	if err != nil {
 		return echo.NewHTTPError(http.StatusInternalServerError, "common.internal_error")
 	}
-	currentUser := adminCurrentUser(c)
 	data := map[string]interface{}{
 		"Title":           configs.T(c, "ui.applications.title", nil),
 		"CurrentPath":     "/admin/applications",
@@ -149,17 +156,33 @@ func (h *AdminApplicationHandler) ShowApplication(c *echo.Context) error {
 	currentUser := adminCurrentUser(c)
 	canAssign := currentUser != nil && currentUser.Role == string(models.UserRoleManager)
 	canProcess := currentUser != nil && currentUser.Role == string(models.UserRoleStaff) && len(applicationStatusOptionsForProcess(app.Status)) > 0
+	citizenAttachments, responseAttachments := splitAdminAppAttachmentsByPhase(app.ApplicationAttachments)
 	data := map[string]interface{}{
-		"Title":          configs.T(c, "ui.applications.detail_title", nil),
-		"CurrentPath":    "/admin/applications",
-		"CurrentUser":    currentUser,
-		"Application":    app,
-		"ProcessOptions": applicationStatusOptionsForProcess(app.Status),
-		"CanProcess":     canProcess,
-		"CanAssign":      canAssign,
-		"Flash":          flashFromQuery(c),
+		"Title":               configs.T(c, "ui.applications.detail_title", nil),
+		"CurrentPath":         "/admin/applications",
+		"CurrentUser":         currentUser,
+		"Application":         app,
+		"CitizenAttachments":  citizenAttachments,
+		"ResponseAttachments": responseAttachments,
+		"ProcessOptions":      applicationStatusOptionsForProcess(app.Status),
+		"CanProcess":          canProcess,
+		"CanAssign":           canAssign,
+		"Flash":               flashFromQuery(c),
 	}
 	return c.Render(http.StatusOK, "admin/pages/applications/detail.html", data)
+}
+
+func splitAdminAppAttachmentsByPhase(atts []models.ApplicationAttachment) ([]models.ApplicationAttachment, []models.ApplicationAttachment) {
+	citizen := make([]models.ApplicationAttachment, 0)
+	response := make([]models.ApplicationAttachment, 0)
+	for _, att := range atts {
+		if att.AttachmentType == models.AttachmentTypeResult {
+			response = append(response, att)
+			continue
+		}
+		citizen = append(citizen, att)
+	}
+	return citizen, response
 }
 
 func (h *AdminApplicationHandler) ShowAssignForm(c *echo.Context) error {

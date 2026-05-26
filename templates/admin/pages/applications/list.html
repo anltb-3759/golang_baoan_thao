@@ -64,7 +64,9 @@
             <td class="px-4 py-4 whitespace-nowrap text-sm text-gray-900"><a href="/admin/applications/{{ .ID }}" class="text-indigo-600 hover:underline">{{ .ApplicationCode }}</a></td>
             <td class="px-4 py-4 whitespace-nowrap text-sm text-gray-500">{{ .ServiceType.Name }}</td>
             <td class="px-4 py-4 whitespace-nowrap text-sm text-gray-500">{{ .CitizenUser.Name }}</td>
-            <td class="px-4 py-4 whitespace-nowrap text-sm text-gray-500">{{ .Status }}</td>
+            <td class="px-4 py-4 whitespace-nowrap text-sm text-gray-500">
+              {{ template "admin/partials/application_status_badge.html" (print .Status) }}
+            </td>
             <td class="px-4 py-4 whitespace-nowrap text-sm text-gray-500">{{ if .AssignedStaffUser }}{{ .AssignedStaffUser.Name }}{{ else }}{{ t "ui.applications.detail.unassigned" }}{{ end }}</td>
             <td class="px-4 py-4 whitespace-nowrap text-sm text-gray-500">{{ fmtTime .SubmittedAt "2006-01-02 15:04" }}</td>
             <td class="px-4 py-4 whitespace-nowrap text-sm">
@@ -92,7 +94,7 @@
           <div class="text-sm text-gray-500">{{ fmtTime .SubmittedAt "2006-01-02 15:04" }}</div>
         </div>
         <div class="mt-2 text-sm text-gray-500">
-          <strong>{{ t "ui.applications.detail.status" }}:</strong> {{ .Status }}
+          <strong>{{ t "ui.applications.detail.status" }}:</strong> {{ template "admin/partials/application_status_badge.html" (print .Status) }}
         </div>
         <div class="mt-1 text-sm text-gray-500">
           <strong>{{ t "ui.applications.detail.assigned_staff" }}:</strong> {{ if .AssignedStaffUser }}{{ .AssignedStaffUser.Name }}{{ else }}{{ t "ui.applications.detail.unassigned" }}{{ end }}

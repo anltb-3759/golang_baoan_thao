@@ -40,9 +40,10 @@ type ApplicationRepository interface {
 }
 
 type ApplicationFilter struct {
-	Status    string
-	Service   string
-	Submitter string
+	Status              string
+	Service             string
+	Submitter           string
+	AssignedStaffUserID string
 }
 
 type applicationRepo struct {
@@ -126,6 +127,9 @@ func (r *applicationRepo) AdminList(filter ApplicationFilter, page, limit int) (
 	if filter.Submitter != "" {
 		like := "%" + strings.ToLower(filter.Submitter) + "%"
 		q = q.Where("LOWER(users.name) LIKE ? OR LOWER(users.email) LIKE ?", like, like)
+	}
+	if filter.AssignedStaffUserID != "" {
+		q = q.Where("applications.assigned_staff_user_id = ?", filter.AssignedStaffUserID)
 	}
 
 	var total int64

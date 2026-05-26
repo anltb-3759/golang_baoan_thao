@@ -605,17 +605,33 @@ func (h *CitizenWebHandler) ShowApplicationDetail(c *echo.Context) error {
 	if err != nil {
 		logs = nil
 	}
+	citizenAttachments, responseAttachments := splitCitizenAppAttachmentsByPhase(app.Attachments)
 
 	return c.Render(http.StatusOK, "citizen/pages/applications/detail.html", map[string]interface{}{
-		"Title":         app.ApplicationCode,
-		"CurrentPath":   "/citizen/applications",
-		"CurrentUser":   claims,
-		"UnreadCount":   h.unreadCount(claims.ID),
-		"Application":   app,
-		"StatusHistory": logs,
-		"Flash":         flashFromQuery(c),
-		"CSRFToken":     h.csrfToken(c),
+		"Title":               app.ApplicationCode,
+		"CurrentPath":         "/citizen/applications",
+		"CurrentUser":         claims,
+		"UnreadCount":         h.unreadCount(claims.ID),
+		"Application":         app,
+		"CitizenAttachments":  citizenAttachments,
+		"ResponseAttachments": responseAttachments,
+		"StatusHistory":       logs,
+		"Flash":               flashFromQuery(c),
+		"CSRFToken":           h.csrfToken(c),
 	})
+}
+
+func splitCitizenAppAttachmentsByPhase(atts []dtos.ApplicationAttachmentResponse) ([]dtos.ApplicationAttachmentResponse, []dtos.ApplicationAttachmentResponse) {
+	citizen := make([]dtos.ApplicationAttachmentResponse, 0)
+	response := make([]dtos.ApplicationAttachmentResponse, 0)
+	for _, att := range atts {
+		if att.AttachmentType == string(models.AttachmentTypeResult) {
+			response = append(response, att)
+			continue
+		}
+		citizen = append(citizen, att)
+	}
+	return citizen, response
 }
 
 // UploadApplicationSupplements handles POST /citizen/applications/:id/supplements

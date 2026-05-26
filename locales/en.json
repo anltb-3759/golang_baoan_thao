@@ -127,6 +127,9 @@
   "ui.applications.assign_title": "Assign Application",
   "ui.applications.process_title": "Process Application",
   "ui.applications.attachments_title": "Attachments",
+  "ui.applications.attachments.citizen_title": "Citizen documents",
+  "ui.applications.attachments.response_title": "Response documents",
+  "ui.applications.attachments.uploaded_at": "Uploaded at",
   "ui.applications.attachments_empty": "No attachments yet",
   "ui.applications.filter.status": "Status",
   "ui.applications.filter.all_status": "All statuses",
@@ -318,6 +321,7 @@
   "mail.application_received.body": "Dear {name},\n\nYour application has been received with the following details:\n\n- Service: {service}\n- Application code: {code}\n- Submitted at: {submitted_at}\n\nPlease keep your application code for status tracking.\n\nBest regards,\n{from_name}",
   "department.not_found": "Department not found",
   "department.code_exists": "This department code is already in use",
+  "department.leader_already_assigned": "This user is already a leader of another department",
   "department.staff_transfer_confirm_required": "This staff member currently belongs to another department. Please confirm to transfer them to the new department.",
   "ui.departments.title": "Departments",
   "ui.departments.add": "Add Department",
@@ -446,6 +450,8 @@
   "ui.citizen.applications.new.btn.submit": "Submit",
   "ui.citizen.applications.detail.section.info": "Application info",
   "ui.citizen.applications.detail.section.attachments": "Attachments",
+  "ui.citizen.applications.detail.section.citizen_documents": "Citizen documents",
+  "ui.citizen.applications.detail.section.response_documents": "Response documents",
   "ui.citizen.applications.detail.section.timeline": "Processing history",
   "ui.citizen.applications.detail.section.supplement": "Upload additional documents",
   "ui.citizen.applications.detail.supplement_hint": "The officer has requested additional documents. Please upload the missing files.",
@@ -466,3 +472,4 @@
   "ui.profile.password.save": "Change Password",
   "ui.msg.profile_updated": "Profile updated successfully"
 }
+

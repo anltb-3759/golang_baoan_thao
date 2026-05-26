@@ -35,6 +35,10 @@ func (s *fakeAdminApplicationsSvc) ListApplications(_ repositories.ApplicationFi
 	return []models.Application{{ID: "a1", ApplicationCode: "APP-1", Status: models.ApplicationStatusReceived}}, 1, nil
 }
 
+func (s *fakeAdminApplicationsSvc) ListApplicationsForActor(_ repositories.ApplicationFilter, _, _ int, _ models.UserRole, _ string) ([]models.Application, int64, error) {
+	return []models.Application{{ID: "a1", ApplicationCode: "APP-1", Status: models.ApplicationStatusReceived}}, 1, nil
+}
+
 func (s *fakeAdminApplicationsSvc) GetApplication(_ string) (*models.Application, error) {
 	return &models.Application{
 		ID:             "a1",
@@ -192,6 +196,30 @@ func TestAdminProfileRouteAccessPolicy(t *testing.T) {
 				assert.Equal(t, http.StatusOK, rec.Code)
 				return
 			}
+			assert.NotEqual(t, http.StatusOK, rec.Code)
+			assert.Contains(t, []int{http.StatusSeeOther, http.StatusForbidden}, rec.Code)
+		})
+	}
+}
+
+func TestDepartmentStaffRouteAccessPolicy_ManagerOnly(t *testing.T) {
+	e := newRoutesEchoForAppsAccess()
+
+	tests := []struct {
+		name   string
+		role   models.UserRole
+		method string
+		path   string
+	}{
+		{name: "super_admin cannot view department staff list", role: models.UserRoleSuperAdmin, method: http.MethodGet, path: "/admin/departments/d1/staff"},
+		{name: "super_admin cannot open assign form", role: models.UserRoleSuperAdmin, method: http.MethodGet, path: "/admin/departments/d1/staff/assign"},
+		{name: "super_admin cannot assign staff", role: models.UserRoleSuperAdmin, method: http.MethodPost, path: "/admin/departments/d1/staff/assign"},
+		{name: "super_admin cannot remove staff", role: models.UserRoleSuperAdmin, method: http.MethodPost, path: "/admin/departments/d1/staff/u1/remove"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			rec := requestWithRole(e, tt.method, tt.path, tt.role)
 			assert.NotEqual(t, http.StatusOK, rec.Code)
 			assert.Contains(t, []int{http.StatusSeeOther, http.StatusForbidden}, rec.Code)
 		})

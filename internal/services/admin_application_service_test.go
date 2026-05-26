@@ -94,6 +94,36 @@ func TestAdminApplicationService_ListApplications_WithFilter(t *testing.T) {
 	assert.Equal(t, filter, repo.lastFilter)
 }
 
+func TestAdminApplicationService_ListApplications_StaffForcesAssignedScope(t *testing.T) {
+	repo := &fakeAdminAppRepo{apps: []models.Application{{ID: "a1"}}, total: 1}
+	svc := newAdminAppSvc(repo)
+
+	filter := repositories.ApplicationFilter{Status: string(models.ApplicationStatusProcessing)}
+	_, _, err := svc.ListApplicationsForActor(filter, 1, 10, models.UserRoleStaff, "staff-1")
+	assert.NoError(t, err)
+	assert.Equal(t, "staff-1", repo.lastFilter.AssignedStaffUserID)
+	assert.Equal(t, string(models.ApplicationStatusProcessing), repo.lastFilter.Status)
+}
+
+func TestAdminApplicationService_ListApplications_ManagerDoesNotForceAssignedScope(t *testing.T) {
+	repo := &fakeAdminAppRepo{apps: []models.Application{{ID: "a1"}}, total: 1}
+	svc := newAdminAppSvc(repo)
+
+	filter := repositories.ApplicationFilter{Status: string(models.ApplicationStatusProcessing)}
+	_, _, err := svc.ListApplicationsForActor(filter, 1, 10, models.UserRoleManager, "manager-1")
+	assert.NoError(t, err)
+	assert.Equal(t, "", repo.lastFilter.AssignedStaffUserID)
+}
+
+func TestAdminApplicationService_ListApplications_SuperAdminDoesNotForceAssignedScope(t *testing.T) {
+	repo := &fakeAdminAppRepo{apps: []models.Application{{ID: "a1"}}, total: 1}
+	svc := newAdminAppSvc(repo)
+
+	_, _, err := svc.ListApplicationsForActor(repositories.ApplicationFilter{}, 1, 10, models.UserRoleSuperAdmin, "sa-1")
+	assert.NoError(t, err)
+	assert.Equal(t, "", repo.lastFilter.AssignedStaffUserID)
+}
+
 func TestAdminApplicationService_GetApplication_OK(t *testing.T) {
 	app := &models.Application{ID: "a1"}
 	svc := newAdminAppSvc(&fakeAdminAppRepo{app: app})

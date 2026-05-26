@@ -92,7 +92,7 @@
                 {{ if $.CurrentUser }}
                 <td class="px-4 py-3">
                   <div class="flex items-center gap-3">
-                    {{ if or (eq (printf "%s" $.CurrentUser.Role) "manager") (eq (printf "%s" $.CurrentUser.Role) "super_admin") }}
+                    {{ if eq (printf "%s" $.CurrentUser.Role) "manager" }}
                     <a href="/admin/departments/{{ .ID }}/staff" class="text-indigo-600 hover:text-indigo-800 text-sm" title="{{ t "ui.departments.staff.view" }}">{{ t "ui.users.action.view" }}</a>
                     {{ end }}
                     {{ if eq (printf "%s" $.CurrentUser.Role) "super_admin" }}

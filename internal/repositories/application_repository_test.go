@@ -200,3 +200,37 @@ func TestApplicationRepoCreateAttachmentsSuccess(t *testing.T) {
 		t.Fatalf("expected nil error, got %v", err)
 	}
 }
+
+func TestApplicationRepoAdminList_WithAssignedStaffFilter(t *testing.T) {
+	repo, mock, cleanup := newMockApplicationRepo(t)
+	defer cleanup()
+
+	countRows := sqlmock.NewRows([]string{"count"}).AddRow(1)
+	mock.ExpectQuery(`SELECT count\(\*\).*assigned_staff_user_id`).
+		WithArgs("staff-1").
+		WillReturnRows(countRows)
+
+	appRows := sqlmock.NewRows([]string{"id", "application_code", "citizen_user_id", "service_type_id", "assigned_staff_user_id"}).
+		AddRow("app1", "APP-1", "citizen-1", "service-1", "staff-1")
+	mock.ExpectQuery(`SELECT .*assigned_staff_user_id`).
+		WithArgs("staff-1", 10, 0).
+		WillReturnRows(appRows)
+
+	serviceRows := sqlmock.NewRows([]string{"id", "name"}).AddRow("service-1", "Service A")
+	mock.ExpectQuery(`SELECT`).WillReturnRows(serviceRows)
+	citizenRows := sqlmock.NewRows([]string{"id", "name"}).AddRow("citizen-1", "Citizen A")
+	mock.ExpectQuery(`SELECT`).WillReturnRows(citizenRows)
+	staffRows := sqlmock.NewRows([]string{"id", "name"}).AddRow("staff-1", "Staff A")
+	mock.ExpectQuery(`SELECT`).WillReturnRows(staffRows)
+
+	items, total, err := repo.AdminList(ApplicationFilter{AssignedStaffUserID: "staff-1"}, 1, 10)
+	if err != nil {
+		t.Fatalf("expected nil error, got %v", err)
+	}
+	if total != 1 {
+		t.Fatalf("expected total=1, got %d", total)
+	}
+	if len(items) != 1 {
+		t.Fatalf("expected 1 item, got %d", len(items))
+	}
+}

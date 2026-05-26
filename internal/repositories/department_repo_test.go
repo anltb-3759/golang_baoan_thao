@@ -88,7 +88,7 @@ func TestDeptRepo_FindByCode_Found(t *testing.T) {
 	defer cleanup()
 
 	rows := sqlmock.NewRows([]string{"id", "name", "code"}).AddRow("d1", "IT", "IT001")
-	mock.ExpectQuery(regexp.QuoteMeta(`SELECT * FROM "departments" WHERE code = $1 AND deleted_at IS NULL ORDER BY "departments"."id" LIMIT $2`)).
+	mock.ExpectQuery(regexp.QuoteMeta(`SELECT * FROM "departments" WHERE code = $1 AND deleted_at IS NULL LIMIT $2`)).
 		WithArgs("IT001", 1).
 		WillReturnRows(rows)
 
@@ -105,7 +105,7 @@ func TestDeptRepo_FindByCode_NotFound(t *testing.T) {
 	repo, mock, cleanup := newMockDeptRepo(t)
 	defer cleanup()
 
-	mock.ExpectQuery(regexp.QuoteMeta(`SELECT * FROM "departments" WHERE code = $1 AND deleted_at IS NULL ORDER BY "departments"."id" LIMIT $2`)).
+	mock.ExpectQuery(regexp.QuoteMeta(`SELECT * FROM "departments" WHERE code = $1 AND deleted_at IS NULL LIMIT $2`)).
 		WithArgs("NOPE", 1).
 		WillReturnRows(sqlmock.NewRows([]string{"id"}))
 
@@ -123,7 +123,7 @@ func TestDeptRepo_FindByCode_DBError(t *testing.T) {
 	defer cleanup()
 
 	dbErr := errors.New("db error")
-	mock.ExpectQuery(regexp.QuoteMeta(`SELECT * FROM "departments" WHERE code = $1 AND deleted_at IS NULL ORDER BY "departments"."id" LIMIT $2`)).
+	mock.ExpectQuery(regexp.QuoteMeta(`SELECT * FROM "departments" WHERE code = $1 AND deleted_at IS NULL LIMIT $2`)).
 		WithArgs("IT", 1).
 		WillReturnError(dbErr)
 

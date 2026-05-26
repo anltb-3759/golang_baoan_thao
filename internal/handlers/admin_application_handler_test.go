@@ -15,6 +15,7 @@ import (
 	"github.com/awesome-academy/golang_baoan_thao/internal/repositories"
 	"github.com/awesome-academy/golang_baoan_thao/internal/services"
 	templates "github.com/awesome-academy/golang_baoan_thao/internal/templates"
+	"github.com/awesome-academy/golang_baoan_thao/internal/utils"
 	"github.com/labstack/echo/v5"
 	"github.com/stretchr/testify/assert"
 )
@@ -455,6 +456,154 @@ func TestAdminApplicationHandler_List_Error(t *testing.T) {
 
 	c, _ := newAdminCtx(e, http.MethodGet, "/admin/applications", "", "")
 	err := h.ListApplications(c)
+	assert.Error(t, err)
+}
+
+func TestAdminApplicationHandler_ProcessApplication_NoMultipart(t *testing.T) {
+	_ = configs.LoadI18nMessages("../../locales")
+	e := newAdminEcho()
+	svc := &fakeAdminAppSvc{app: &models.Application{ID: "a1", Status: models.ApplicationStatusReceived}}
+	h := newAdminAppHandler(svc, &fakeAdminUserSvc{}, &fakeAssignableStaffSvc{})
+
+	req := httptest.NewRequest(http.MethodPost, "/admin/applications/a1/process", nil)
+	rec := httptest.NewRecorder()
+	c := e.NewContext(req, rec)
+	c.SetPathValues(echo.PathValues{{Name: "id", Value: "a1"}})
+	c.Set("user", superAdminClaims())
+
+	err := h.ProcessApplication(c)
+	assert.Error(t, err)
+}
+
+func TestAdminApplicationHandler_ProcessApplication_EmptyStatus(t *testing.T) {
+	_ = configs.LoadI18nMessages("../../locales")
+	e := newAdminEcho()
+	svc := &fakeAdminAppSvc{app: &models.Application{ID: "a1", Status: models.ApplicationStatusReceived}}
+	h := newAdminAppHandler(svc, &fakeAdminUserSvc{}, &fakeAssignableStaffSvc{})
+
+	body := &bytes.Buffer{}
+	w := multipart.NewWriter(body)
+	_ = w.WriteField("status", "")
+	_ = w.Close()
+
+	req := httptest.NewRequest(http.MethodPost, "/admin/applications/a1/process", body)
+	req.Header.Set("Content-Type", w.FormDataContentType())
+	rec := httptest.NewRecorder()
+	c := e.NewContext(req, rec)
+	c.SetPathValues(echo.PathValues{{Name: "id", Value: "a1"}})
+	c.Set("user", superAdminClaims())
+
+	err := h.ProcessApplication(c)
+	assert.Error(t, err)
+}
+
+func TestAdminApplicationHandler_ProcessApplication_InvalidStatus(t *testing.T) {
+	_ = configs.LoadI18nMessages("../../locales")
+	e := newAdminEcho()
+	svc := &fakeAdminAppSvc{app: &models.Application{ID: "a1", Status: models.ApplicationStatusReceived}}
+	h := newAdminAppHandler(svc, &fakeAdminUserSvc{}, &fakeAssignableStaffSvc{})
+
+	body := &bytes.Buffer{}
+	w := multipart.NewWriter(body)
+	_ = w.WriteField("status", "invalid_status")
+	_ = w.Close()
+
+	req := httptest.NewRequest(http.MethodPost, "/admin/applications/a1/process", body)
+	req.Header.Set("Content-Type", w.FormDataContentType())
+	rec := httptest.NewRecorder()
+	c := e.NewContext(req, rec)
+	c.SetPathValues(echo.PathValues{{Name: "id", Value: "a1"}})
+	c.Set("user", superAdminClaims())
+
+	err := h.ProcessApplication(c)
+	assert.Error(t, err)
+}
+
+func TestAdminApplicationHandler_ProcessApplication_NotFound(t *testing.T) {
+	_ = configs.LoadI18nMessages("../../locales")
+	e := newAdminEcho()
+	svc := &fakeAdminAppSvc{processErr: services.ErrAdminApplicationNotFound}
+	h := newAdminAppHandler(svc, &fakeAdminUserSvc{}, &fakeAssignableStaffSvc{})
+
+	body := &bytes.Buffer{}
+	w := multipart.NewWriter(body)
+	_ = w.WriteField("status", string(models.ApplicationStatusProcessing))
+	_ = w.Close()
+
+	req := httptest.NewRequest(http.MethodPost, "/admin/applications/a1/process", body)
+	req.Header.Set("Content-Type", w.FormDataContentType())
+	rec := httptest.NewRecorder()
+	c := e.NewContext(req, rec)
+	c.SetPathValues(echo.PathValues{{Name: "id", Value: "a1"}})
+	c.Set("user", superAdminClaims())
+
+	err := h.ProcessApplication(c)
+	assert.Error(t, err)
+}
+
+func TestAdminApplicationHandler_ProcessApplication_KnownServiceError(t *testing.T) {
+	_ = configs.LoadI18nMessages("../../locales")
+	e := newAdminEcho()
+	svc := &fakeAdminAppSvc{processErr: services.ErrAdminApplicationInvalidTransition}
+	h := newAdminAppHandler(svc, &fakeAdminUserSvc{}, &fakeAssignableStaffSvc{})
+
+	body := &bytes.Buffer{}
+	w := multipart.NewWriter(body)
+	_ = w.WriteField("status", string(models.ApplicationStatusProcessing))
+	_ = w.Close()
+
+	req := httptest.NewRequest(http.MethodPost, "/admin/applications/a1/process", body)
+	req.Header.Set("Content-Type", w.FormDataContentType())
+	rec := httptest.NewRecorder()
+	c := e.NewContext(req, rec)
+	c.SetPathValues(echo.PathValues{{Name: "id", Value: "a1"}})
+	c.Set("user", superAdminClaims())
+
+	err := h.ProcessApplication(c)
+	assert.NoError(t, err)
+	assert.Equal(t, http.StatusSeeOther, rec.Code)
+}
+
+func TestAdminApplicationHandler_ProcessApplication_UnknownServiceError(t *testing.T) {
+	_ = configs.LoadI18nMessages("../../locales")
+	e := newAdminEcho()
+	svc := &fakeAdminAppSvc{processErr: errors.New("unexpected error")}
+	h := newAdminAppHandler(svc, &fakeAdminUserSvc{}, &fakeAssignableStaffSvc{})
+
+	body := &bytes.Buffer{}
+	w := multipart.NewWriter(body)
+	_ = w.WriteField("status", string(models.ApplicationStatusProcessing))
+	_ = w.Close()
+
+	req := httptest.NewRequest(http.MethodPost, "/admin/applications/a1/process", body)
+	req.Header.Set("Content-Type", w.FormDataContentType())
+	rec := httptest.NewRecorder()
+	c := e.NewContext(req, rec)
+	c.SetPathValues(echo.PathValues{{Name: "id", Value: "a1"}})
+	c.Set("user", superAdminClaims())
+
+	err := h.ProcessApplication(c)
+	assert.Error(t, err)
+}
+
+func TestMapAdminApplicationProcessErrorKey_AllCases(t *testing.T) {
+	assert.Equal(t, "application.invalid_transition", mapAdminApplicationProcessErrorKey(services.ErrAdminApplicationInvalidTransition))
+	assert.Equal(t, "application.reject_reason_required", mapAdminApplicationProcessErrorKey(services.ErrAdminApplicationRejectReasonRequired))
+	assert.Equal(t, "application.need_more_info_note_required", mapAdminApplicationProcessErrorKey(services.ErrAdminApplicationNeedMoreInfoNoteRequired))
+	assert.Equal(t, "application.attachment_invalid_type", mapAdminApplicationProcessErrorKey(utils.ErrDisallowedMime))
+	assert.Equal(t, "", mapAdminApplicationProcessErrorKey(errors.New("other error")))
+}
+
+func TestAdminApplicationHandler_ShowAssignForm_Error(t *testing.T) {
+	_ = configs.LoadI18nMessages("../../locales")
+	e := newAdminEcho()
+	svc := &fakeAdminAppSvc{getErr: errors.New("not found")}
+	h := newAdminAppHandler(svc, &fakeAdminUserSvc{}, &fakeAssignableStaffSvc{})
+
+	c, _ := newAdminCtx(e, http.MethodGet, "/admin/applications/bad/assign", "", "")
+	c.SetPathValues(echo.PathValues{{Name: "id", Value: "bad"}})
+
+	err := h.ShowAssignForm(c)
 	assert.Error(t, err)
 }
 

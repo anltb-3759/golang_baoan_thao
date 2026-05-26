@@ -273,3 +273,33 @@ func TestAdminUserService_DeleteUser_DeleteError(t *testing.T) {
 	err := svc.DeleteUser("u1", "actor")
 	assert.ErrorIs(t, err, deleteErr)
 }
+
+func TestAdminUserService_LogActivity_WithLogger(t *testing.T) {
+	u := &models.User{ID: "u1", Email: "new@test.com", Name: "New", Role: models.UserRoleStaff}
+	repo := &fakeAdminUserRepo{findByEmail: nil, user: u}
+	logger := &fakeActivityLogger{}
+	svc := NewAdminUserService(repo, logger)
+
+	req := &dtos.AdminCreateUserRequest{Email: "new@test.com", Name: "New", Role: "staff"}
+	_, err := svc.CreateUser(req, "actor1")
+	assert.NoError(t, err)
+	assert.Len(t, logger.entries, 1)
+	assert.Equal(t, "user.create", logger.entries[0].Action)
+}
+
+func TestAdminUserService_LogActivity_LoggerError(t *testing.T) {
+	u := &models.User{ID: "u1", Email: "new@test.com", Name: "New", Role: models.UserRoleStaff}
+	repo := &fakeAdminUserRepo{findByEmail: nil, user: u}
+	logger := &fakeActivityLogger{err: assert.AnError}
+	svc := NewAdminUserService(repo, logger)
+
+	req := &dtos.AdminCreateUserRequest{Email: "new@test.com", Name: "New", Role: "staff"}
+	// Should not return error even if logger fails
+	_, err := svc.CreateUser(req, "actor1")
+	assert.NoError(t, err)
+}
+
+func TestAdminUserService_DefaultAdminPassword(t *testing.T) {
+	pwd := defaultAdminPassword()
+	assert.NotEmpty(t, pwd)
+}

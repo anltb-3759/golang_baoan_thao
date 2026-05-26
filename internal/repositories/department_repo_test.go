@@ -268,6 +268,109 @@ func TestDeptRepo_SoftDelete_OK(t *testing.T) {
 	}
 }
 
+func TestDeptRepo_FindByLeaderUserID_Found(t *testing.T) {
+	repo, mock, cleanup := newMockDeptRepo(t)
+	defer cleanup()
+
+	rows := sqlmock.NewRows([]string{"id", "name", "code", "leader_user_id"}).
+		AddRow("d1", "IT", "IT001", "u1")
+	mock.ExpectQuery(regexp.QuoteMeta(`SELECT * FROM "departments" WHERE leader_user_id = $1 AND deleted_at IS NULL ORDER BY "departments"."id" LIMIT $2`)).
+		WithArgs("u1", 1).
+		WillReturnRows(rows)
+
+	dept, err := repo.FindByLeaderUserID("u1")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if dept == nil || dept.ID != "d1" {
+		t.Fatalf("expected dept d1, got %#v", dept)
+	}
+}
+
+func TestDeptRepo_FindByLeaderUserID_NotFound(t *testing.T) {
+	repo, mock, cleanup := newMockDeptRepo(t)
+	defer cleanup()
+
+	mock.ExpectQuery(regexp.QuoteMeta(`SELECT * FROM "departments" WHERE leader_user_id = $1 AND deleted_at IS NULL ORDER BY "departments"."id" LIMIT $2`)).
+		WithArgs("nobody", 1).
+		WillReturnRows(sqlmock.NewRows([]string{"id"}))
+
+	dept, err := repo.FindByLeaderUserID("nobody")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if dept != nil {
+		t.Fatalf("expected nil, got %#v", dept)
+	}
+}
+
+func TestDeptRepo_FindByLeaderUserID_DBError(t *testing.T) {
+	repo, mock, cleanup := newMockDeptRepo(t)
+	defer cleanup()
+
+	dbErr := errors.New("db error")
+	mock.ExpectQuery(regexp.QuoteMeta(`SELECT * FROM "departments" WHERE leader_user_id = $1 AND deleted_at IS NULL ORDER BY "departments"."id" LIMIT $2`)).
+		WithArgs("u1", 1).
+		WillReturnError(dbErr)
+
+	_, err := repo.FindByLeaderUserID("u1")
+	if !errors.Is(err, dbErr) {
+		t.Fatalf("expected db error, got %v", err)
+	}
+}
+
+func TestDeptRepo_CreateInTx_OK(t *testing.T) {
+	_, mock, cleanup := newMockDeptRepo(t)
+	defer cleanup()
+
+	sqlDB2, innerMock, err := sqlmock.New()
+	if err != nil {
+		t.Fatalf("create inner sqlmock: %v", err)
+	}
+	defer sqlDB2.Close()
+	innerDB, err := gorm.Open(postgres.New(postgres.Config{Conn: sqlDB2, PreferSimpleProtocol: true}), &gorm.Config{})
+	if err != nil {
+		t.Fatalf("open inner gorm: %v", err)
+	}
+	_ = mock
+
+	innerMock.ExpectBegin()
+	innerMock.ExpectQuery(`INSERT INTO "departments"`).
+		WillReturnRows(sqlmock.NewRows([]string{"id"}).AddRow("new-d"))
+	innerMock.ExpectCommit()
+
+	repo := NewDepartmentRepo(innerDB)
+	tx := innerDB.Begin()
+	if err := repo.CreateInTx(tx, &models.Department{Name: "X", Code: "X1"}); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	_ = tx.Commit()
+	if err := innerMock.ExpectationsWereMet(); err != nil {
+		t.Fatalf("unmet expectations: %v", err)
+	}
+}
+
+func TestDeptRepo_List_WithSearch(t *testing.T) {
+	repo, mock, cleanup := newMockDeptRepo(t)
+	defer cleanup()
+
+	countRows := sqlmock.NewRows([]string{"count"}).AddRow(1)
+	mock.ExpectQuery(`SELECT count\(\*\) FROM "departments"`).WillReturnRows(countRows)
+
+	dataRows := sqlmock.NewRows([]string{"id", "name", "code", "leader_user_id"}).
+		AddRow("d1", "IT", "IT001", nil)
+	mock.ExpectQuery(`SELECT \* FROM "departments"`).WillReturnRows(dataRows)
+	mock.ExpectQuery(`SELECT \* FROM "users"`).WillReturnRows(sqlmock.NewRows([]string{"id"}))
+
+	depts, total, err := repo.List(DepartmentFilter{Search: "IT"}, 0, 10)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if total != 1 || len(depts) != 1 {
+		t.Fatalf("expected 1 dept, got total=%d len=%d", total, len(depts))
+	}
+}
+
 func TestDeptRepo_SoftDelete_DBError(t *testing.T) {
 	repo, mock, cleanup := newMockDeptRepo(t)
 	defer cleanup()

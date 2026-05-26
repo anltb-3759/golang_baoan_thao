@@ -141,3 +141,17 @@ func TestAdminCitizenHandler_ListCitizens_RepoError(t *testing.T) {
 	err := h.ListCitizens(c)
 	assert.Error(t, err)
 }
+
+func TestAdminCitizenHandler_DownloadTemplate(t *testing.T) {
+	e := newTestEcho()
+	h := newCitizenHandler(&fakeCitizenProfileRepo{}, &fakeCitizenImportSvc{})
+
+	req := httptest.NewRequest(http.MethodGet, "/admin/citizens/template", nil)
+	rec := httptest.NewRecorder()
+	c := e.NewContext(req, rec)
+
+	err := h.DownloadTemplate(c)
+	assert.NoError(t, err)
+	assert.Equal(t, http.StatusOK, rec.Code)
+	assert.Contains(t, rec.Header().Get("Content-Disposition"), "template_cong_dan.xlsx")
+}

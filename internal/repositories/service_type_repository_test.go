@@ -202,5 +202,108 @@ func TestServiceTypeRepoCreateUpdateDeleteCountApplications(t *testing.T) {
 	}
 }
 
+func TestServiceTypeRepoListDepartments(t *testing.T) {
+	repo, mock, cleanup := newMockServiceTypeRepo(t)
+	defer cleanup()
+
+	rows := sqlmock.NewRows([]string{"id", "name"}).
+		AddRow("d1", "IT").AddRow("d2", "HR")
+	mock.ExpectQuery(`SELECT \* FROM "departments"`).WillReturnRows(rows)
+
+	depts, err := repo.ListDepartments(context.Background())
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(depts) != 2 {
+		t.Fatalf("expected 2 departments, got %d", len(depts))
+	}
+}
+
+func TestServiceTypeRepoListDepartmentsError(t *testing.T) {
+	repo, mock, cleanup := newMockServiceTypeRepo(t)
+	defer cleanup()
+
+	dbErr := errors.New("db error")
+	mock.ExpectQuery(`SELECT \* FROM "departments"`).WillReturnError(dbErr)
+
+	_, err := repo.ListDepartments(context.Background())
+	if !errors.Is(err, dbErr) {
+		t.Fatalf("expected db error, got %v", err)
+	}
+}
+
+func TestServiceTypeRepoListCategories(t *testing.T) {
+	repo, mock, cleanup := newMockServiceTypeRepo(t)
+	defer cleanup()
+
+	rows := sqlmock.NewRows([]string{"id", "name"}).AddRow("c1", "Hành chính")
+	mock.ExpectQuery(`SELECT \* FROM "categories"`).WillReturnRows(rows)
+
+	cats, err := repo.ListCategories(context.Background())
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(cats) != 1 {
+		t.Fatalf("expected 1 category, got %d", len(cats))
+	}
+}
+
+func TestServiceTypeRepoListCategoriesError(t *testing.T) {
+	repo, mock, cleanup := newMockServiceTypeRepo(t)
+	defer cleanup()
+
+	dbErr := errors.New("db error")
+	mock.ExpectQuery(`SELECT \* FROM "categories"`).WillReturnError(dbErr)
+
+	_, err := repo.ListCategories(context.Background())
+	if !errors.Is(err, dbErr) {
+		t.Fatalf("expected db error, got %v", err)
+	}
+}
+
+func TestServiceTypeRepoCountApplicationsError(t *testing.T) {
+	repo, mock, cleanup := newMockServiceTypeRepo(t)
+	defer cleanup()
+
+	dbErr := errors.New("count error")
+	mock.ExpectQuery(`SELECT count\(\*\) FROM "applications"`).WillReturnError(dbErr)
+
+	_, err := repo.CountApplications(context.Background(), "st1")
+	if !errors.Is(err, dbErr) {
+		t.Fatalf("expected count error, got %v", err)
+	}
+}
+
+func TestServiceTypeRepoCreateInTx(t *testing.T) {
+	_, _, cleanup := newMockServiceTypeRepo(t)
+	defer cleanup()
+
+	sqlDB2, innerMock, err := sqlmock.New()
+	if err != nil {
+		t.Fatalf("create inner sqlmock: %v", err)
+	}
+	defer sqlDB2.Close()
+	innerDB, err := gorm.Open(postgres.New(postgres.Config{Conn: sqlDB2, PreferSimpleProtocol: true}), &gorm.Config{})
+	if err != nil {
+		t.Fatalf("open inner gorm: %v", err)
+	}
+
+	st := &models.ServiceType{ID: "st1", Name: "Test", Code: "TST", FormSchema: []byte("{}"), CreatedAt: time.Now(), UpdatedAt: time.Now()}
+	innerMock.ExpectBegin()
+	innerMock.ExpectQuery(`INSERT INTO "service_types"`).
+		WillReturnRows(sqlmock.NewRows([]string{"id"}).AddRow("st1"))
+	innerMock.ExpectCommit()
+
+	repo := NewServiceTypeRepository(innerDB)
+	tx := innerDB.Begin()
+	if err := repo.CreateInTx(tx, st); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	_ = tx.Commit()
+	if err := innerMock.ExpectationsWereMet(); err != nil {
+		t.Fatalf("unmet expectations: %v", err)
+	}
+}
+
 // keep unused import happy
 var _ = models.ServiceType{}

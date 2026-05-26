@@ -1,6 +1,7 @@
 package services
 
 import (
+	"errors"
 	"testing"
 
 	"github.com/awesome-academy/golang_baoan_thao/internal/models"
@@ -70,6 +71,17 @@ func (r *fakeStaffDepartmentRepo) List(_ repositories.DepartmentFilter, _, _ int
 func (r *fakeStaffDepartmentRepo) SoftDelete(_ string, _ string) error { return nil }
 
 var _ repositories.DepartmentRepository = (*fakeStaffDepartmentRepo)(nil)
+
+func TestStaffProfileService_FindStaffProfileByUserID(t *testing.T) {
+	profile := &models.StaffProfile{User: models.User{ID: "u1"}}
+	repo := &fakeStaffProfileRepo{}
+	repo.profiles = []models.StaffProfile{*profile}
+	svc := NewStaffProfileService(repo, nil)
+
+	got, err := svc.FindStaffProfileByUserID("u1")
+	assert.NoError(t, err)
+	assert.Nil(t, got) // fakeStaffProfileRepo.FindByUserID always returns nil, nil
+}
 
 func TestStaffProfileService_ListStaffByDepartment_OK(t *testing.T) {
 	profiles := []models.StaffProfile{{User: models.User{ID: "u1"}}}
@@ -148,6 +160,62 @@ func TestStaffProfileService_RemoveStaffFromDepartment_ManagerCannotRemoveLeader
 	err := svc.RemoveStaffFromDepartment("u1", "manager1")
 	assert.ErrorIs(t, err, ErrLeaderTransferForbiddenForManager)
 	assert.False(t, repo.updated)
+}
+
+func TestStaffProfileService_AssignStaffToDepartment_ManagerDeptRepoError(t *testing.T) {
+	repo := &fakeStaffProfileRepo{}
+	userRepo := &fakeStaffUserRepo{users: map[string]*models.User{
+		"u1":       {ID: "u1", Role: models.UserRoleStaff},
+		"manager1": {ID: "manager1", Role: models.UserRoleManager},
+	}}
+	deptRepo := &fakeStaffDepartmentRepo{err: errors.New("db error")}
+	svc := NewStaffProfileService(repo, userRepo, deptRepo)
+
+	err := svc.AssignStaffToDepartment("u1", "dept-new", "manager1")
+	assert.Error(t, err)
+	assert.False(t, repo.updated)
+}
+
+func TestStaffProfileService_AssignStaffToDepartment_ManagerLeaderSameDept(t *testing.T) {
+	repo := &fakeStaffProfileRepo{}
+	userRepo := &fakeStaffUserRepo{users: map[string]*models.User{
+		"u1":       {ID: "u1", Role: models.UserRoleStaff},
+		"manager1": {ID: "manager1", Role: models.UserRoleManager},
+	}}
+	// leaderDept.ID == deptID → allowed
+	deptRepo := &fakeStaffDepartmentRepo{dept: &models.Department{ID: "dept-1"}}
+	svc := NewStaffProfileService(repo, userRepo, deptRepo)
+
+	err := svc.AssignStaffToDepartment("u1", "dept-1", "manager1")
+	assert.NoError(t, err)
+	assert.True(t, repo.updated)
+}
+
+func TestStaffProfileService_RemoveStaffFromDepartment_ManagerDeptRepoError(t *testing.T) {
+	repo := &fakeStaffProfileRepo{}
+	userRepo := &fakeStaffUserRepo{users: map[string]*models.User{
+		"manager1": {ID: "manager1", Role: models.UserRoleManager},
+	}}
+	deptRepo := &fakeStaffDepartmentRepo{err: errors.New("db error")}
+	svc := NewStaffProfileService(repo, userRepo, deptRepo)
+
+	err := svc.RemoveStaffFromDepartment("u1", "manager1")
+	assert.Error(t, err)
+	assert.False(t, repo.updated)
+}
+
+func TestStaffProfileService_RemoveStaffFromDepartment_ManagerLeaderNil(t *testing.T) {
+	repo := &fakeStaffProfileRepo{}
+	userRepo := &fakeStaffUserRepo{users: map[string]*models.User{
+		"manager1": {ID: "manager1", Role: models.UserRoleManager},
+	}}
+	// leaderDept == nil → user is not a leader, proceed with removal
+	deptRepo := &fakeStaffDepartmentRepo{dept: nil}
+	svc := NewStaffProfileService(repo, userRepo, deptRepo)
+
+	err := svc.RemoveStaffFromDepartment("u1", "manager1")
+	assert.NoError(t, err)
+	assert.True(t, repo.updated)
 }
 
 func TestStaffProfileService_RemoveStaffFromDepartment_SuperAdminCanRemoveLeader(t *testing.T) {

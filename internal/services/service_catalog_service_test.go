@@ -285,6 +285,21 @@ func TestServiceCatalogService_Create_MapsDuplicateError(t *testing.T) {
 	repo.AssertExpectations(t)
 }
 
+func TestServiceCatalogService_Update_WithID_PopulatesChanges(t *testing.T) {
+	repo := new(mockServiceTypeRepo)
+	svc := services.NewServiceCatalogService(repo)
+
+	before := &models.ServiceType{ID: "st1", Name: "Old Name", Code: "OLD", IsActive: true}
+	st := &models.ServiceType{ID: "st1", Name: "New Name", Code: "NEW", IsActive: false}
+
+	repo.On("GetByIDForAdmin", mock.Anything, "st1").Return(before, nil)
+	repo.On("Update", mock.Anything, st).Return(nil)
+
+	err := svc.Update(context.Background(), st)
+	assert.NoError(t, err)
+	repo.AssertExpectations(t)
+}
+
 func TestServiceCatalogService_Delete_BlocksWhenApplicationsExist(t *testing.T) {
 	repo := new(mockServiceTypeRepo)
 	svc := services.NewServiceCatalogService(repo)

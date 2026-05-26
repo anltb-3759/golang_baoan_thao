@@ -42,6 +42,16 @@ func TestAdminProfileService_GetSelf_Success(t *testing.T) {
 	assert.Equal(t, user, res)
 }
 
+func TestAdminProfileService_GetSelf_DBError(t *testing.T) {
+	dbErr := assert.AnError
+	repo := &fakeAdminProfileUserRepo{err: dbErr}
+	svc := services.NewAdminProfileService(repo)
+
+	res, err := svc.GetSelf("admin1")
+	assert.ErrorIs(t, err, dbErr)
+	assert.Nil(t, res)
+}
+
 func TestAdminProfileService_GetSelf_UserNotFound(t *testing.T) {
 	repo := &fakeAdminProfileUserRepo{user: nil}
 	svc := services.NewAdminProfileService(repo)
@@ -76,6 +86,72 @@ func TestAdminProfileService_UpdateSelfContact_UserNotFound(t *testing.T) {
 	res, err := svc.UpdateSelfContact("admin1", req)
 	assert.ErrorIs(t, err, services.ErrUserNotFound)
 	assert.Nil(t, res)
+}
+
+func TestAdminProfileService_UpdateSelfContact_DBError(t *testing.T) {
+	dbErr := assert.AnError
+	repo := &fakeAdminProfileUserRepo{err: dbErr}
+	svc := services.NewAdminProfileService(repo)
+
+	req := &dtos.UpdateAdminProfileRequest{Phone: "222", Address: "New"}
+	res, err := svc.UpdateSelfContact("admin1", req)
+	assert.ErrorIs(t, err, dbErr)
+	assert.Nil(t, res)
+}
+
+func TestAdminProfileService_UpdateSelfContact_UpdateError(t *testing.T) {
+	user := &models.User{ID: "admin1", Phone: "111"}
+	updateErr := assert.AnError
+	repo := &fakeAdminProfileUserRepo{user: user, updateErr: updateErr}
+	svc := services.NewAdminProfileService(repo)
+
+	req := &dtos.UpdateAdminProfileRequest{Phone: "222", Address: "New"}
+	res, err := svc.UpdateSelfContact("admin1", req)
+	assert.ErrorIs(t, err, updateErr)
+	assert.Nil(t, res)
+}
+
+func TestAdminProfileService_ChangeSelfPassword_UserNotFound(t *testing.T) {
+	repo := &fakeAdminProfileUserRepo{user: nil}
+	svc := services.NewAdminProfileService(repo)
+
+	req := &dtos.ChangeAdminPasswordRequest{
+		CurrentPassword:    "old",
+		NewPassword:        "new",
+		ConfirmNewPassword: "new",
+	}
+	err := svc.ChangeSelfPassword("admin1", req)
+	assert.ErrorIs(t, err, services.ErrUserNotFound)
+}
+
+func TestAdminProfileService_ChangeSelfPassword_DBError(t *testing.T) {
+	dbErr := assert.AnError
+	repo := &fakeAdminProfileUserRepo{err: dbErr}
+	svc := services.NewAdminProfileService(repo)
+
+	req := &dtos.ChangeAdminPasswordRequest{
+		CurrentPassword:    "old",
+		NewPassword:        "new",
+		ConfirmNewPassword: "new",
+	}
+	err := svc.ChangeSelfPassword("admin1", req)
+	assert.ErrorIs(t, err, dbErr)
+}
+
+func TestAdminProfileService_ChangeSelfPassword_UpdateError(t *testing.T) {
+	hash, _ := bcrypt.GenerateFromPassword([]byte("realold"), bcrypt.DefaultCost)
+	updateErr := assert.AnError
+	user := &models.User{ID: "admin1", PasswordHash: string(hash)}
+	repo := &fakeAdminProfileUserRepo{user: user, updateErr: updateErr}
+	svc := services.NewAdminProfileService(repo)
+
+	req := &dtos.ChangeAdminPasswordRequest{
+		CurrentPassword:    "realold",
+		NewPassword:        "newpass",
+		ConfirmNewPassword: "newpass",
+	}
+	err := svc.ChangeSelfPassword("admin1", req)
+	assert.ErrorIs(t, err, updateErr)
 }
 
 func TestAdminProfileService_ChangeSelfPassword_ConfirmMismatch(t *testing.T) {

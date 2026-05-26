@@ -51,6 +51,12 @@ func (r *fakeAppRepoForAssign) GetDashboardStats() (repositories.DashboardStats,
 	return repositories.DashboardStats{}, nil
 }
 func (r *fakeAppRepoForAssign) ListRecent(_ int) ([]models.Application, error) { return nil, nil }
+func (r *fakeAppRepoForAssign) GetDashboardStatsForStaff(_ string) (repositories.DashboardStats, error) {
+	return repositories.DashboardStats{}, nil
+}
+func (r *fakeAppRepoForAssign) ListRecentForStaff(_ string, _ int) ([]models.Application, error) {
+	return nil, nil
+}
 
 type fakeAssignRepo struct{ created bool }
 

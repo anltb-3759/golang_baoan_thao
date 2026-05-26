@@ -109,6 +109,12 @@ func (r *fakeAppRepo) GetDashboardStats() (repositories.DashboardStats, error) {
 	return repositories.DashboardStats{}, nil
 }
 func (r *fakeAppRepo) ListRecent(_ int) ([]models.Application, error) { return nil, nil }
+func (r *fakeAppRepo) GetDashboardStatsForStaff(_ string) (repositories.DashboardStats, error) {
+	return repositories.DashboardStats{}, nil
+}
+func (r *fakeAppRepo) ListRecentForStaff(_ string, _ int) ([]models.Application, error) {
+	return nil, nil
+}
 
 type fakeStorage struct {
 	pubURL  string

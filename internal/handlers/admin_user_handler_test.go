@@ -602,6 +602,12 @@ func (r *fakeDashboardAppRepo) GetDashboardStats() (repositories.DashboardStats,
 func (r *fakeDashboardAppRepo) ListRecent(_ int) ([]models.Application, error) {
 	return nil, nil
 }
+func (r *fakeDashboardAppRepo) GetDashboardStatsForStaff(_ string) (repositories.DashboardStats, error) {
+	return repositories.DashboardStats{}, nil
+}
+func (r *fakeDashboardAppRepo) ListRecentForStaff(_ string, _ int) ([]models.Application, error) {
+	return nil, nil
+}
 
 // --- ExportCSV ---
 

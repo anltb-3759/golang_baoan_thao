@@ -101,6 +101,12 @@ func (r *fakeProfileApplicationRepo) GetDashboardStats() (repositories.Dashboard
 func (r *fakeProfileApplicationRepo) ListRecent(_ int) ([]models.Application, error) {
 	return nil, nil
 }
+func (r *fakeProfileApplicationRepo) GetDashboardStatsForStaff(_ string) (repositories.DashboardStats, error) {
+	return repositories.DashboardStats{}, nil
+}
+func (r *fakeProfileApplicationRepo) ListRecentForStaff(_ string, _ int) ([]models.Application, error) {
+	return nil, nil
+}
 
 // compile-time interface checks
 var _ repositories.UserRepository = (*fakeProfileUserRepo)(nil)

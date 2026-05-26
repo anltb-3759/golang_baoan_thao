@@ -18,12 +18,25 @@ type DashboardData struct {
 	RecentApplications []models.Application
 }
 
-func (s *AdminDashboardService) GetDashboardData() (DashboardData, error) {
-	stats, err := s.appRepo.GetDashboardStats()
-	if err != nil {
-		return DashboardData{}, err
+func (s *AdminDashboardService) GetDashboardData(staffID string) (DashboardData, error) {
+	var (
+		stats  repositories.DashboardStats
+		recent []models.Application
+		err    error
+	)
+	if staffID != "" {
+		stats, err = s.appRepo.GetDashboardStatsForStaff(staffID)
+		if err != nil {
+			return DashboardData{}, err
+		}
+		recent, err = s.appRepo.ListRecentForStaff(staffID, 5)
+	} else {
+		stats, err = s.appRepo.GetDashboardStats()
+		if err != nil {
+			return DashboardData{}, err
+		}
+		recent, err = s.appRepo.ListRecent(5)
 	}
-	recent, err := s.appRepo.ListRecent(5)
 	if err != nil {
 		return DashboardData{}, err
 	}

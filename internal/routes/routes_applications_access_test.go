@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/awesome-academy/golang_baoan_thao/internal/configs"
+	"github.com/awesome-academy/golang_baoan_thao/internal/dtos"
 	"github.com/awesome-academy/golang_baoan_thao/internal/handlers"
 	"github.com/awesome-academy/golang_baoan_thao/internal/models"
 	"github.com/awesome-academy/golang_baoan_thao/internal/repositories"
@@ -53,6 +54,20 @@ func (s *fakeAdminApplicationsSvc) ProcessApplication(_ string, _ models.Applica
 	return nil
 }
 
+type fakeAdminProfileSvc struct{}
+
+func (s *fakeAdminProfileSvc) GetSelf(_ string) (*models.User, error) {
+	return &models.User{ID: "u1", Name: "Admin", Role: models.UserRoleManager}, nil
+}
+
+func (s *fakeAdminProfileSvc) UpdateSelfContact(_ string, _ *dtos.UpdateAdminProfileRequest) (*models.User, error) {
+	return &models.User{ID: "u1", Name: "Admin", Role: models.UserRoleManager}, nil
+}
+
+func (s *fakeAdminProfileSvc) ChangeSelfPassword(_ string, _ *dtos.ChangeAdminPasswordRequest) error {
+	return nil
+}
+
 func makeRefreshTokenForRole(role models.UserRole) string {
 	user := &models.User{ID: "u1", Email: "u1@test.com", Role: role}
 	token, _ := configs.GenerateRefreshToken(user)
@@ -66,6 +81,7 @@ func newRoutesEchoForAppsAccess() *echo.Echo {
 	appHandler := handlers.NewAdminApplicationHandler(&fakeAdminApplicationsSvc{}, nil, nil)
 	apiHandler := &ApiHandler{
 		AdminApplicationHandler: appHandler,
+		AdminProfileHandler:     handlers.NewAdminProfileHandler(&fakeAdminProfileSvc{}),
 		AdminAuthHandler:        &handlers.AdminAuthHandler{},
 		AdminDashboardHandler:   &handlers.AdminDashboardHandler{},
 		AdminUserHandler:        &handlers.AdminUserHandler{},
@@ -145,6 +161,33 @@ func TestApplicationsAssignAccessPolicy_OnlyManagerAllowed(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			rec := requestWithRole(e, http.MethodGet, "/admin/applications/a1/assign", tt.role)
+			if tt.wantAllowed {
+				assert.Equal(t, http.StatusOK, rec.Code)
+				return
+			}
+			assert.NotEqual(t, http.StatusOK, rec.Code)
+			assert.Contains(t, []int{http.StatusSeeOther, http.StatusForbidden}, rec.Code)
+		})
+	}
+}
+
+func TestAdminProfileRouteAccessPolicy(t *testing.T) {
+	e := newRoutesEchoForAppsAccess()
+
+	tests := []struct {
+		name        string
+		role        models.UserRole
+		wantAllowed bool
+	}{
+		{name: "staff allowed", role: models.UserRoleStaff, wantAllowed: true},
+		{name: "manager allowed", role: models.UserRoleManager, wantAllowed: true},
+		{name: "super_admin allowed", role: models.UserRoleSuperAdmin, wantAllowed: true},
+		{name: "citizen denied", role: models.UserRoleCitizen, wantAllowed: false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			rec := requestWithRole(e, http.MethodGet, "/admin/profile", tt.role)
 			if tt.wantAllowed {
 				assert.Equal(t, http.StatusOK, rec.Code)
 				return

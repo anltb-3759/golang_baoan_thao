@@ -443,5 +443,18 @@
   "ui.citizen.applications.detail.supplement_hint": "Cán bộ yêu cầu bổ sung tài liệu. Vui lòng tải lên các giấy tờ còn thiếu.",
   "ui.citizen.applications.detail.btn.upload": "Tải lên",
   "ui.citizen.applications.flash.submitted": "Nộp hồ sơ thành công!",
-  "ui.citizen.applications.flash.supplement_uploaded": "Tải lên tài liệu bổ sung thành công!"
+  "ui.citizen.applications.flash.supplement_uploaded": "Tải lên tài liệu bổ sung thành công!",
+  "ui.nav.profile": "Hồ sơ cá nhân",
+  "ui.profile.title": "Hồ sơ cá nhân",
+  "ui.profile.info_title": "Thông tin tài khoản",
+  "ui.profile.contact_title": "Cập nhật liên hệ",
+  "ui.profile.password_title": "Đổi mật khẩu",
+  "ui.profile.contact.phone": "Số điện thoại",
+  "ui.profile.contact.address": "Địa chỉ",
+  "ui.profile.contact.save": "Cập nhật liên hệ",
+  "ui.profile.password.current": "Mật khẩu hiện tại",
+  "ui.profile.password.new": "Mật khẩu mới",
+  "ui.profile.password.confirm": "Xác nhận mật khẩu mới",
+  "ui.profile.password.save": "Đổi mật khẩu",
+  "ui.msg.profile_updated": "Cập nhật thông tin cá nhân thành công"
 }

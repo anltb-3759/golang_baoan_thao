@@ -19,6 +19,7 @@ type ApiHandler struct {
 	AdminApplicationHandler *handlers.AdminApplicationHandler
 	AdminLogHandler         *handlers.AdminLogHandler
 	AdminCitizenHandler     *handlers.AdminCitizenHandler
+	AdminProfileHandler     *handlers.AdminProfileHandler
 	AuthHandler             *handlers.AuthHandler
 	CitizenProfileHandler   *handlers.CitizenProfileHandler
 	ServiceCatalogHandler   *handlers.ServiceCatalogHandler
@@ -66,6 +67,12 @@ func SetupRoutes(e *echo.Echo, handler *ApiHandler) {
 	// Admin web routes (protected by cookie auth)
 	admin := e.Group("/admin", middlewares.AdminWebMiddleware)
 	admin.GET("", handler.AdminDashboardHandler.ShowDashboard)
+
+	// Admin self-profile (staff + manager + super_admin)
+	adminProfile := admin.Group("", middlewares.AdminWebRequireRoles(models.UserRoleStaff, models.UserRoleManager, models.UserRoleSuperAdmin))
+	adminProfile.GET("/profile", handler.AdminProfileHandler.ShowProfilePage)
+	adminProfile.POST("/profile", handler.AdminProfileHandler.UpdateProfile)
+	adminProfile.POST("/profile/password", handler.AdminProfileHandler.ChangePassword)
 
 	// Citizens admin (Super Admin only)
 	citizens := admin.Group("/citizens", middlewares.AdminWebRequireRoles(models.UserRoleSuperAdmin))

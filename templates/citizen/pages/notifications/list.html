@@ -7,6 +7,7 @@
     </div>
     {{ if .UnreadCount }}
     <form action="/citizen/notifications/read-all" method="post">
+      <input type="hidden" name="_csrf" value="{{ .CSRFToken }}">
       <button type="submit"
               class="inline-flex items-center gap-2 rounded-md bg-indigo-600 px-3 py-2 text-sm font-medium text-white hover:bg-indigo-700">
         <i data-lucide="check-check" class="h-4 w-4"></i>
@@ -83,6 +84,7 @@
           {{ end }}
           {{ if not .IsRead }}
           <form action="/citizen/notifications/{{ .ID }}/read" method="post">
+            <input type="hidden" name="_csrf" value="{{ $.CSRFToken }}">
             <button type="submit"
                     class="inline-flex items-center gap-1 rounded-md bg-indigo-600 px-2.5 py-1 text-xs font-medium text-white hover:bg-indigo-700">
               <i data-lucide="check" class="h-3.5 w-3.5"></i>
@@ -94,7 +96,7 @@
       </li>
       {{ end }}
     </ul>
-    {{ template "admin/partials/pagination.html" . }}
+    {{ template "citizen/partials/pagination.html" . }}
     {{ else }}
     <div class="px-6 py-16 text-center">
       <div class="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-gray-100 text-gray-400">

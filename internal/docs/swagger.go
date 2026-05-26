@@ -197,6 +197,37 @@ const openAPISpec = `{
         }
       }
     },
+    "/api/citizens/me/password": {
+      "put": {
+        "tags": ["Citizen Profile"],
+        "summary": "Change my password",
+        "security": [{ "BearerAuth": [] }],
+        "parameters": [
+          { "name": "Accept-Language", "in": "header", "schema": { "type": "string", "enum": ["vi", "en"], "default": "vi" } }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/ChangeMyPasswordRequest" }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Password changed successfully",
+            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/MessageResponse" } } }
+          },
+          "400": { "$ref": "#/components/responses/BadRequest" },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "404": { "$ref": "#/components/responses/NotFound" },
+          "422": {
+            "description": "Confirmation mismatch, new password equals current password, or validation failed",
+            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } } }
+          }
+        }
+      }
+    },
     "/api/citizens/me/applications": {
       "get": {
         "tags": ["Applications"],
@@ -687,6 +718,15 @@ const openAPISpec = `{
           "permanent_address":          { "type": "string" },
           "date_of_birth":              { "type": "string", "format": "date-time", "nullable": true },
           "email_notification_enabled": { "type": "boolean" }
+        }
+      },
+      "ChangeMyPasswordRequest": {
+        "type": "object",
+        "required": ["current_password", "new_password", "confirm_new_password"],
+        "properties": {
+          "current_password":     { "type": "string", "minLength": 6, "maxLength": 72, "example": "oldpass123" },
+          "new_password":         { "type": "string", "minLength": 6, "maxLength": 72, "example": "newpass123" },
+          "confirm_new_password": { "type": "string", "minLength": 6, "maxLength": 72, "example": "newpass123" }
         }
       },
       "User": {

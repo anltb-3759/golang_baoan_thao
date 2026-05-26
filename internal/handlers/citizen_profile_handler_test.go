@@ -49,6 +49,11 @@ func (m *mockCitizenProfileSvc) ListMyApplications(userID string, page, limit in
 	return args.Get(0).([]models.Application), args.Get(1).(int64), args.Error(2)
 }
 
+func (m *mockCitizenProfileSvc) ChangeMyPassword(userID string, req *dtos.ChangeMyPasswordRequest) error {
+	args := m.Called(userID, req)
+	return args.Error(0)
+}
+
 // --- helper to make request with body ---
 
 func makeRequestWithBody(e *echo.Echo, method, target string, body []byte) (*echo.Context, *httptest.ResponseRecorder) {
@@ -323,4 +328,148 @@ func TestListMyApplications_InternalError(t *testing.T) {
 	var he *echo.HTTPError
 	assert.True(t, errors.As(err, &he))
 	assert.Equal(t, http.StatusInternalServerError, he.Code)
+}
+
+func TestChangeMyPassword_Success(t *testing.T) {
+	_ = configs.LoadI18nMessages("../../locales")
+	e := newTestEcho()
+
+	svc := new(mockCitizenProfileSvc)
+	h := handlers.NewCitizenProfileHandler(svc)
+
+	req := &dtos.ChangeMyPasswordRequest{
+		CurrentPassword:    "oldpass123",
+		NewPassword:        "newpass123",
+		ConfirmNewPassword: "newpass123",
+	}
+	svc.On("ChangeMyPassword", "u1", mock.MatchedBy(func(r *dtos.ChangeMyPasswordRequest) bool {
+		return r.CurrentPassword == req.CurrentPassword && r.NewPassword == req.NewPassword && r.ConfirmNewPassword == req.ConfirmNewPassword
+	})).Return(nil)
+
+	body, _ := json.Marshal(req)
+	c, rec := makeRequestWithBody(e, http.MethodPut, "/api/citizens/me/password", body)
+	c.Set("user", &configs.JwtCustomClaims{ID: "u1", Role: "citizen"})
+
+	err := h.ChangeMyPassword(c)
+	assert.NoError(t, err)
+	assert.Equal(t, http.StatusOK, rec.Code)
+	svc.AssertExpectations(t)
+}
+
+func TestChangeMyPassword_ValidateError(t *testing.T) {
+	_ = configs.LoadI18nMessages("../../locales")
+	e := newTestEcho()
+	h := handlers.NewCitizenProfileHandler(new(mockCitizenProfileSvc))
+
+	body, _ := json.Marshal(&dtos.ChangeMyPasswordRequest{CurrentPassword: "123", NewPassword: "123", ConfirmNewPassword: "123"})
+	c, _ := makeRequestWithBody(e, http.MethodPut, "/api/citizens/me/password", body)
+	c.Set("user", &configs.JwtCustomClaims{ID: "u1", Role: "citizen"})
+
+	err := h.ChangeMyPassword(c)
+	assert.Error(t, err)
+}
+
+func TestChangeMyPassword_BindError(t *testing.T) {
+	_ = configs.LoadI18nMessages("../../locales")
+	e := newTestEcho()
+	h := handlers.NewCitizenProfileHandler(new(mockCitizenProfileSvc))
+
+	c, _ := makeRequestWithBody(e, http.MethodPut, "/api/citizens/me/password", []byte(`{invalid json`))
+	c.Set("user", &configs.JwtCustomClaims{ID: "u1", Role: "citizen"})
+
+	err := h.ChangeMyPassword(c)
+	var he *echo.HTTPError
+	assert.True(t, errors.As(err, &he))
+	assert.Equal(t, http.StatusBadRequest, he.Code)
+	assert.Equal(t, "auth.invalid_request", he.Message)
+}
+
+func TestChangeMyPassword_CurrentPasswordMismatch(t *testing.T) {
+	_ = configs.LoadI18nMessages("../../locales")
+	e := newTestEcho()
+	svc := new(mockCitizenProfileSvc)
+	h := handlers.NewCitizenProfileHandler(svc)
+	svc.On("ChangeMyPassword", "u1", mock.Anything).Return(services.ErrPasswordMismatch)
+
+	body, _ := json.Marshal(&dtos.ChangeMyPasswordRequest{CurrentPassword: "oldpass123", NewPassword: "newpass123", ConfirmNewPassword: "newpass123"})
+	c, _ := makeRequestWithBody(e, http.MethodPut, "/api/citizens/me/password", body)
+	c.Set("user", &configs.JwtCustomClaims{ID: "u1", Role: "citizen"})
+
+	err := h.ChangeMyPassword(c)
+	var he *echo.HTTPError
+	assert.True(t, errors.As(err, &he))
+	assert.Equal(t, http.StatusUnauthorized, he.Code)
+	assert.Equal(t, "auth.password_mismatch", he.Message)
+}
+
+func TestChangeMyPassword_ConfirmationMismatch(t *testing.T) {
+	_ = configs.LoadI18nMessages("../../locales")
+	e := newTestEcho()
+	svc := new(mockCitizenProfileSvc)
+	h := handlers.NewCitizenProfileHandler(svc)
+	svc.On("ChangeMyPassword", "u1", mock.Anything).Return(services.ErrPasswordConfirmationMismatch)
+
+	body, _ := json.Marshal(&dtos.ChangeMyPasswordRequest{CurrentPassword: "oldpass123", NewPassword: "newpass123", ConfirmNewPassword: "differentpass"})
+	c, _ := makeRequestWithBody(e, http.MethodPut, "/api/citizens/me/password", body)
+	c.Set("user", &configs.JwtCustomClaims{ID: "u1", Role: "citizen"})
+
+	err := h.ChangeMyPassword(c)
+	var he *echo.HTTPError
+	assert.True(t, errors.As(err, &he))
+	assert.Equal(t, http.StatusUnprocessableEntity, he.Code)
+	assert.Equal(t, "auth.password_confirmation_mismatch", he.Message)
+}
+
+func TestChangeMyPassword_NewEqualsCurrent(t *testing.T) {
+	_ = configs.LoadI18nMessages("../../locales")
+	e := newTestEcho()
+	svc := new(mockCitizenProfileSvc)
+	h := handlers.NewCitizenProfileHandler(svc)
+	svc.On("ChangeMyPassword", "u1", mock.Anything).Return(services.ErrNewPasswordMustDiffer)
+
+	body, _ := json.Marshal(&dtos.ChangeMyPasswordRequest{CurrentPassword: "oldpass123", NewPassword: "oldpass123", ConfirmNewPassword: "oldpass123"})
+	c, _ := makeRequestWithBody(e, http.MethodPut, "/api/citizens/me/password", body)
+	c.Set("user", &configs.JwtCustomClaims{ID: "u1", Role: "citizen"})
+
+	err := h.ChangeMyPassword(c)
+	var he *echo.HTTPError
+	assert.True(t, errors.As(err, &he))
+	assert.Equal(t, http.StatusUnprocessableEntity, he.Code)
+	assert.Equal(t, "auth.new_password_must_differ", he.Message)
+}
+
+func TestChangeMyPassword_NotFound(t *testing.T) {
+	_ = configs.LoadI18nMessages("../../locales")
+	e := newTestEcho()
+	svc := new(mockCitizenProfileSvc)
+	h := handlers.NewCitizenProfileHandler(svc)
+	svc.On("ChangeMyPassword", "u1", mock.Anything).Return(services.ErrProfileNotFound)
+
+	body, _ := json.Marshal(&dtos.ChangeMyPasswordRequest{CurrentPassword: "oldpass123", NewPassword: "newpass123", ConfirmNewPassword: "newpass123"})
+	c, _ := makeRequestWithBody(e, http.MethodPut, "/api/citizens/me/password", body)
+	c.Set("user", &configs.JwtCustomClaims{ID: "u1", Role: "citizen"})
+
+	err := h.ChangeMyPassword(c)
+	var he *echo.HTTPError
+	assert.True(t, errors.As(err, &he))
+	assert.Equal(t, http.StatusNotFound, he.Code)
+	assert.Equal(t, "profile.not_found", he.Message)
+}
+
+func TestChangeMyPassword_InternalError(t *testing.T) {
+	_ = configs.LoadI18nMessages("../../locales")
+	e := newTestEcho()
+	svc := new(mockCitizenProfileSvc)
+	h := handlers.NewCitizenProfileHandler(svc)
+	svc.On("ChangeMyPassword", "u1", mock.Anything).Return(errors.New("db error"))
+
+	body, _ := json.Marshal(&dtos.ChangeMyPasswordRequest{CurrentPassword: "oldpass123", NewPassword: "newpass123", ConfirmNewPassword: "newpass123"})
+	c, _ := makeRequestWithBody(e, http.MethodPut, "/api/citizens/me/password", body)
+	c.Set("user", &configs.JwtCustomClaims{ID: "u1", Role: "citizen"})
+
+	err := h.ChangeMyPassword(c)
+	var he *echo.HTTPError
+	assert.True(t, errors.As(err, &he))
+	assert.Equal(t, http.StatusInternalServerError, he.Code)
+	assert.Equal(t, "common.internal_error", he.Message)
 }

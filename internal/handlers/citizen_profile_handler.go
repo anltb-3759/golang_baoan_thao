@@ -15,6 +15,7 @@ import (
 type citizenProfileSvc interface {
 	GetProfile(userID string) (*dtos.CitizenProfileResponse, error)
 	UpdateProfile(userID string, req *dtos.UpdateCitizenProfileRequest) (*dtos.CitizenProfileResponse, error)
+	ChangeMyPassword(userID string, req *dtos.ChangeMyPasswordRequest) error
 	ListMyApplications(userID string, page, limit int) ([]models.Application, int64, error)
 }
 
@@ -62,6 +63,35 @@ func (h *CitizenProfileHandler) UpdateMe(c *echo.Context) error {
 	}
 
 	return c.JSON(http.StatusOK, utils.Map{"profile": profile})
+}
+
+// ChangeMyPassword handles PUT /api/citizens/me/password
+func (h *CitizenProfileHandler) ChangeMyPassword(c *echo.Context) error {
+	userID := configs.UserIDFromContext(c)
+	req := new(dtos.ChangeMyPasswordRequest)
+	if err := c.Bind(req); err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, "auth.invalid_request")
+	}
+	if err := c.Validate(req); err != nil {
+		return err
+	}
+
+	if err := h.svc.ChangeMyPassword(userID, req); err != nil {
+		switch {
+		case errors.Is(err, services.ErrPasswordMismatch):
+			return echo.NewHTTPError(http.StatusUnauthorized, "auth.password_mismatch")
+		case errors.Is(err, services.ErrPasswordConfirmationMismatch):
+			return echo.NewHTTPError(http.StatusUnprocessableEntity, "auth.password_confirmation_mismatch")
+		case errors.Is(err, services.ErrNewPasswordMustDiffer):
+			return echo.NewHTTPError(http.StatusUnprocessableEntity, "auth.new_password_must_differ")
+		case errors.Is(err, services.ErrProfileNotFound):
+			return echo.NewHTTPError(http.StatusNotFound, "profile.not_found")
+		default:
+			return echo.NewHTTPError(http.StatusInternalServerError, "common.internal_error")
+		}
+	}
+
+	return c.JSON(http.StatusOK, utils.Map{"message": configs.T(c, "profile.password_changed", nil)})
 }
 
 // ListMyApplications handles GET /api/citizens/me/applications

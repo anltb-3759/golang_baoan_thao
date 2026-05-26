@@ -8,9 +8,12 @@ import (
 	"github.com/awesome-academy/golang_baoan_thao/internal/models"
 	"github.com/awesome-academy/golang_baoan_thao/internal/repositories"
 	"github.com/awesome-academy/golang_baoan_thao/internal/utils"
+	"golang.org/x/crypto/bcrypt"
 )
 
 var ErrProfileNotFound = errors.New("profile.not_found")
+var ErrPasswordConfirmationMismatch = errors.New("auth.password_confirmation_mismatch")
+var ErrNewPasswordMustDiffer = errors.New("auth.new_password_must_differ")
 
 type CitizenProfileService struct {
 	userRepo    repositories.UserRepository
@@ -94,6 +97,34 @@ func (s *CitizenProfileService) UpdateProfile(userID string, req *dtos.UpdateCit
 	}
 
 	return dtos.NewCitizenProfileResponse(user, profile), nil
+}
+
+func (s *CitizenProfileService) ChangeMyPassword(userID string, req *dtos.ChangeMyPasswordRequest) error {
+	user, err := s.userRepo.FindByID(userID)
+	if err != nil {
+		return err
+	}
+	if user == nil {
+		return ErrProfileNotFound
+	}
+
+	if req.NewPassword != req.ConfirmNewPassword {
+		return ErrPasswordConfirmationMismatch
+	}
+	if req.CurrentPassword == req.NewPassword {
+		return ErrNewPasswordMustDiffer
+	}
+	if err := bcrypt.CompareHashAndPassword([]byte(user.PasswordHash), []byte(req.CurrentPassword)); err != nil {
+		return ErrPasswordMismatch
+	}
+
+	hash, err := bcrypt.GenerateFromPassword([]byte(req.NewPassword), bcrypt.DefaultCost)
+	if err != nil {
+		return err
+	}
+	user.PasswordHash = string(hash)
+	user.UpdatedAt = time.Now()
+	return s.userRepo.Update(user)
 }
 
 func (s *CitizenProfileService) ListMyApplications(userID string, page, limit int) ([]models.Application, int64, error) {

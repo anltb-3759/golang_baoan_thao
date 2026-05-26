@@ -9,6 +9,7 @@ import (
 	"github.com/awesome-academy/golang_baoan_thao/internal/models"
 	"github.com/awesome-academy/golang_baoan_thao/internal/repositories"
 	"github.com/stretchr/testify/assert"
+	"golang.org/x/crypto/bcrypt"
 	"gorm.io/gorm"
 )
 
@@ -321,3 +322,87 @@ func TestListMyApplications_Error(t *testing.T) {
 	_, _, err := svc.ListMyApplications("u1", 1, 10)
 	assert.ErrorIs(t, err, repoErr)
 }
+
+func TestChangeMyPassword_ConfirmationMismatch(t *testing.T) {
+	svc := NewCitizenProfileService(
+		&fakeProfileUserRepo{user: &models.User{ID: "u1"}},
+		&fakeProfileCitizenProfileRepo{},
+		&fakeProfileApplicationRepo{},
+	)
+	req := &dtos.ChangeMyPasswordRequest{
+		CurrentPassword:    "oldpass123",
+		NewPassword:        "newpass123",
+		ConfirmNewPassword: "differentpass",
+	}
+	err := svc.ChangeMyPassword("u1", req)
+	assert.ErrorIs(t, err, ErrPasswordConfirmationMismatch)
+}
+
+func TestChangeMyPassword_NewEqualsCurrent(t *testing.T) {
+	svc := NewCitizenProfileService(
+		&fakeProfileUserRepo{user: &models.User{ID: "u1"}},
+		&fakeProfileCitizenProfileRepo{},
+		&fakeProfileApplicationRepo{},
+	)
+	req := &dtos.ChangeMyPasswordRequest{
+		CurrentPassword:    "oldpass123",
+		NewPassword:        "oldpass123",
+		ConfirmNewPassword: "oldpass123",
+	}
+	err := svc.ChangeMyPassword("u1", req)
+	assert.ErrorIs(t, err, ErrNewPasswordMustDiffer)
+}
+
+func TestChangeMyPassword_CurrentMismatch(t *testing.T) {
+	hash, _ := bcrypt.GenerateFromPassword([]byte("realoldpass"), bcrypt.DefaultCost)
+	user := &models.User{ID: "u1", PasswordHash: string(hash)}
+	svc := NewCitizenProfileService(
+		&fakeProfileUserRepo{user: user},
+		&fakeProfileCitizenProfileRepo{},
+		&fakeProfileApplicationRepo{},
+	)
+	req := &dtos.ChangeMyPasswordRequest{
+		CurrentPassword:    "wrongoldpass",
+		NewPassword:        "newpass123",
+		ConfirmNewPassword: "newpass123",
+	}
+	err := svc.ChangeMyPassword("u1", req)
+	assert.ErrorIs(t, err, ErrPasswordMismatch)
+}
+
+func TestChangeMyPassword_UserNotFound(t *testing.T) {
+	svc := NewCitizenProfileService(
+		&fakeProfileUserRepo{user: nil},
+		&fakeProfileCitizenProfileRepo{},
+		&fakeProfileApplicationRepo{},
+	)
+	req := &dtos.ChangeMyPasswordRequest{
+		CurrentPassword:    "oldpass123",
+		NewPassword:        "newpass123",
+		ConfirmNewPassword: "newpass123",
+	}
+	err := svc.ChangeMyPassword("u1", req)
+	assert.ErrorIs(t, err, ErrProfileNotFound)
+}
+
+func TestChangeMyPassword_Success(t *testing.T) {
+	hash, _ := bcrypt.GenerateFromPassword([]byte("oldpass123"), bcrypt.DefaultCost)
+	user := &models.User{ID: "u1", PasswordHash: string(hash)}
+	userRepo := &fakeProfileUserRepo{user: user}
+	svc := NewCitizenProfileService(
+		userRepo,
+		&fakeProfileCitizenProfileRepo{},
+		&fakeProfileApplicationRepo{},
+	)
+	req := &dtos.ChangeMyPasswordRequest{
+		CurrentPassword:    "oldpass123",
+		NewPassword:        "newpass123",
+		ConfirmNewPassword: "newpass123",
+	}
+	err := svc.ChangeMyPassword("u1", req)
+	assert.NoError(t, err)
+	assert.NotNil(t, userRepo.updated)
+	err = bcrypt.CompareHashAndPassword([]byte(userRepo.updated.PasswordHash), []byte("newpass123"))
+	assert.NoError(t, err)
+}
+

@@ -165,6 +165,7 @@ func SetupRoutes(e *echo.Echo, handler *ApiHandler) {
 	citizen.Use(middlewares.RequireRoles(models.UserRoleCitizen))
 	citizen.GET("/me", handler.CitizenProfileHandler.GetMe)
 	citizen.PUT("/me", handler.CitizenProfileHandler.UpdateMe)
+	citizen.PUT("/me/password", handler.CitizenProfileHandler.ChangeMyPassword)
 	citizen.GET("/services", handler.ServiceCatalogHandler.ListServices)
 	citizen.GET("/services/:id", handler.ServiceCatalogHandler.GetService)
 

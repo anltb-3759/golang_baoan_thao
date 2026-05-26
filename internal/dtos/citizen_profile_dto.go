@@ -6,6 +6,13 @@ import (
 	"github.com/awesome-academy/golang_baoan_thao/internal/models"
 )
 
+type ChangeMyPasswordRequest struct {
+	CurrentPassword    string `json:"current_password" validate:"required,min=6,max=72"`
+	NewPassword        string `json:"new_password" validate:"required,min=6,max=72"`
+	ConfirmNewPassword string `json:"confirm_new_password" validate:"required,min=6,max=72"`
+}
+
+
 type UpdateCitizenProfileRequest struct {
 	Name                     *string    `json:"name" validate:"omitempty,min=1"`
 	Phone                    *string    `json:"phone"`

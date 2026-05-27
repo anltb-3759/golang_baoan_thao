@@ -45,6 +45,7 @@ func SetupRoutes(e *echo.Echo, handler *ApiHandler) {
 	citizenWeb.GET("", handler.CitizenWebHandler.ShowDashboard)
 	citizenWeb.GET("/notifications", handler.CitizenWebHandler.ListNotifications)
 	citizenWeb.POST("/notifications/read-all", handler.CitizenWebHandler.MarkAllNotificationsRead)
+	citizenWeb.POST("/notifications/toggle-email", handler.CitizenWebHandler.ToggleEmailNotification)
 	citizenWeb.POST("/notifications/:id/read", handler.CitizenWebHandler.MarkNotificationRead)
 
 	// Citizen service catalog

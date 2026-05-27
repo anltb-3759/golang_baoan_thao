@@ -173,7 +173,7 @@ func newSvc(
 	mailer *fakeMailer,
 	logger ...activityLogger,
 ) *ApplicationService {
-	return NewApplicationService(appRepo, stRepo, uRepo, storage, mailer, logger...)
+	return NewApplicationService(appRepo, stRepo, uRepo, nil, storage, mailer, logger...)
 }
 
 func activeServiceType() *models.ServiceType {

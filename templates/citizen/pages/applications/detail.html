@@ -103,10 +103,32 @@
   </div>
   {{ end }}
 
+  <!-- Rejection reason — visible when rejected -->
+  {{ if eq .Application.Status "rejected" }}
+  {{ if .Application.RejectedReason }}
+  <div class="rounded-xl border border-red-200 bg-red-50 p-5 space-y-2">
+    <div class="flex items-center gap-2">
+      <i data-lucide="x-circle" class="h-4 w-4 text-red-600"></i>
+      <h2 class="text-sm font-semibold text-red-800">{{ t "ui.citizen.applications.detail.section.rejected_reason" }}</h2>
+    </div>
+    <p class="text-sm text-red-700">{{ .Application.RejectedReason }}</p>
+  </div>
+  {{ end }}
+  {{ end }}
+
   <!-- Upload supplement — only visible when need_more_info -->
   {{ if eq .Application.Status "need_more_info" }}
   <div class="rounded-xl border border-amber-200 bg-amber-50 p-5 space-y-3">
     <h2 class="text-sm font-semibold text-amber-800">{{ t "ui.citizen.applications.detail.section.supplement" }}</h2>
+    {{ if .SupplementAlreadyUploaded }}
+    <div class="flex items-center gap-2">
+      <i data-lucide="check-circle-2" class="h-4 w-4 text-green-600"></i>
+      <div>
+        <p class="text-sm font-medium text-green-700">{{ t "ui.citizen.applications.detail.supplement_done" }}</p>
+        <p class="text-xs text-green-600 mt-0.5">{{ t "ui.citizen.applications.detail.supplement_done_hint" }}</p>
+      </div>
+    </div>
+    {{ else }}
     <p class="text-sm text-amber-700">{{ t "ui.citizen.applications.detail.supplement_hint" }}</p>
     <form method="post" action="/citizen/applications/{{ .Application.ID }}/supplements" enctype="multipart/form-data" class="space-y-3">
       <input type="hidden" name="_csrf" value="{{ .CSRFToken }}">
@@ -119,6 +141,7 @@
         {{ t "ui.citizen.applications.detail.btn.upload" }}
       </button>
     </form>
+    {{ end }}
   </div>
   {{ end }}
 

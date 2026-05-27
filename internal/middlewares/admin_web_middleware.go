@@ -20,6 +20,10 @@ func AdminWebMiddleware(next echo.HandlerFunc) echo.HandlerFunc {
 			return c.Redirect(http.StatusSeeOther, "/admin/login")
 		}
 
+		if claims.Role == string(models.UserRoleCitizen) {
+			return c.Redirect(http.StatusSeeOther, "/admin/login")
+		}
+
 		c.Set("user", claims)
 		return next(c)
 	}

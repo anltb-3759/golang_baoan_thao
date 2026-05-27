@@ -26,6 +26,11 @@ type citizenNotificationSvc interface {
 	CountUnread(userID string) (int64, error)
 }
 
+type citizenProfileWebSvc interface {
+	GetProfile(userID string) (*dtos.CitizenProfileResponse, error)
+	UpdateProfile(userID string, req *dtos.UpdateCitizenProfileRequest) (*dtos.CitizenProfileResponse, error)
+}
+
 type citizenAppSvc interface {
 	SubmitApplication(citizenUserID string, req *dtos.SubmitApplicationRequest, files []*multipart.FileHeader) (*dtos.ApplicationResponse, error)
 	ListMyApplications(userID string, page, limit int) ([]models.Application, int64, error)
@@ -40,6 +45,7 @@ type CitizenWebHandler struct {
 	notificationSvc citizenNotificationSvc
 	appSvc          citizenAppSvc
 	catalogSvc      serviceCatalogSvc
+	profileSvc      citizenProfileWebSvc
 }
 
 func NewCitizenWebHandler(authService AuthService) *CitizenWebHandler {
@@ -63,6 +69,11 @@ func (h *CitizenWebHandler) WithCatalogService(svc serviceCatalogSvc) *CitizenWe
 
 func (h *CitizenWebHandler) WithApplicationService(svc citizenAppSvc) *CitizenWebHandler {
 	h.appSvc = svc
+	return h
+}
+
+func (h *CitizenWebHandler) WithProfileService(svc citizenProfileWebSvc) *CitizenWebHandler {
+	h.profileSvc = svc
 	return h
 }
 
@@ -102,7 +113,22 @@ func flashURL(path, kind, msg string) string {
 	return path + "?" + url.Values{"flash": {kind}, "msg": {msg}}.Encode()
 }
 
+func citizenAlreadyLoggedIn(c *echo.Context) bool {
+	cookie, err := c.Cookie("refresh_token")
+	if err != nil || cookie.Value == "" {
+		return false
+	}
+	claims, err := configs.ParseToken(cookie.Value, configs.RefreshTokenType)
+	if err != nil {
+		return false
+	}
+	return claims.Role == string(models.UserRoleCitizen)
+}
+
 func (h *CitizenWebHandler) ShowLoginPage(c *echo.Context) error {
+	if citizenAlreadyLoggedIn(c) {
+		return c.Redirect(http.StatusSeeOther, "/citizen")
+	}
 	data := map[string]interface{}{
 		"FullPage": true,
 		"Title":    configs.T(c, "ui.form.citizen_login", nil),
@@ -172,6 +198,9 @@ func (h *CitizenWebHandler) WebLogin(c *echo.Context) error {
 }
 
 func (h *CitizenWebHandler) ShowRegisterPage(c *echo.Context) error {
+	if citizenAlreadyLoggedIn(c) {
+		return c.Redirect(http.StatusSeeOther, "/citizen")
+	}
 	return c.Render(http.StatusOK, "citizen/pages/auth/register.html", map[string]interface{}{
 		"FullPage": true,
 		"Title":    configs.T(c, "ui.form.citizen_register", nil),
@@ -311,19 +340,54 @@ func (h *CitizenWebHandler) ListNotifications(c *echo.Context) error {
 		return echo.NewHTTPError(http.StatusInternalServerError, "common.internal_error")
 	}
 
+	emailNotifEnabled := true // fail-open: assume enabled if profile unavailable
+	if h.profileSvc != nil {
+		if profile, err := h.profileSvc.GetProfile(claims.ID); err == nil && profile != nil {
+			emailNotifEnabled = profile.EmailNotificationEnabled
+		}
+	}
+
 	data := map[string]interface{}{
-		"Title":         configs.T(c, "ui.nav.citizen.notifications", nil),
-		"CurrentPath":   "/citizen/notifications",
-		"CurrentUser":   claims,
-		"UnreadCount":   h.unreadCount(claims.ID),
-		"Notifications": items,
-		"Pagination":    utils.NewPagination(page, limit, total),
-		"FilterIsRead":  filterRead,
-		"FilterType":    filterType,
-		"Flash":         flashFromQuery(c),
-		"CSRFToken":     h.csrfToken(c),
+		"Title":                  configs.T(c, "ui.nav.citizen.notifications", nil),
+		"CurrentPath":            "/citizen/notifications",
+		"CurrentUser":            claims,
+		"UnreadCount":            h.unreadCount(claims.ID),
+		"Notifications":          items,
+		"Pagination":             utils.NewPagination(page, limit, total),
+		"FilterIsRead":           filterRead,
+		"FilterType":             filterType,
+		"Flash":                  flashFromQuery(c),
+		"CSRFToken":              h.csrfToken(c),
+		"EmailNotifEnabled":      emailNotifEnabled,
 	}
 	return c.Render(http.StatusOK, "citizen/pages/notifications/list.html", data)
+}
+
+func (h *CitizenWebHandler) ToggleEmailNotification(c *echo.Context) error {
+	claims := citizenCurrentUser(c)
+	if claims == nil || h.profileSvc == nil {
+		return c.Redirect(http.StatusSeeOther, "/citizen/notifications")
+	}
+
+	profile, err := h.profileSvc.GetProfile(claims.ID)
+	if err != nil || profile == nil {
+		return c.Redirect(http.StatusSeeOther, flashURL("/citizen/notifications", "error", configs.T(c, "common.internal_error", nil)))
+	}
+
+	newVal := !profile.EmailNotificationEnabled
+	if _, err := h.profileSvc.UpdateProfile(claims.ID, &dtos.UpdateCitizenProfileRequest{
+		EmailNotificationEnabled: &newVal,
+	}); err != nil {
+		return c.Redirect(http.StatusSeeOther, flashURL("/citizen/notifications", "error", configs.T(c, "common.internal_error", nil)))
+	}
+
+	var msgKey string
+	if newVal {
+		msgKey = "notification.email_toggled_on"
+	} else {
+		msgKey = "notification.email_toggled_off"
+	}
+	return c.Redirect(http.StatusSeeOther, flashURL("/citizen/notifications", "success", configs.T(c, msgKey, nil)))
 }
 
 func (h *CitizenWebHandler) MarkNotificationRead(c *echo.Context) error {
@@ -607,17 +671,26 @@ func (h *CitizenWebHandler) ShowApplicationDetail(c *echo.Context) error {
 	}
 	citizenAttachments, responseAttachments := splitCitizenAppAttachmentsByPhase(app.Attachments)
 
+	supplementAlreadyUploaded := false
+	for _, att := range citizenAttachments {
+		if att.AttachmentType == string(models.AttachmentTypeSupplement) {
+			supplementAlreadyUploaded = true
+			break
+		}
+	}
+
 	return c.Render(http.StatusOK, "citizen/pages/applications/detail.html", map[string]interface{}{
-		"Title":               app.ApplicationCode,
-		"CurrentPath":         "/citizen/applications",
-		"CurrentUser":         claims,
-		"UnreadCount":         h.unreadCount(claims.ID),
-		"Application":         app,
-		"CitizenAttachments":  citizenAttachments,
-		"ResponseAttachments": responseAttachments,
-		"StatusHistory":       logs,
-		"Flash":               flashFromQuery(c),
-		"CSRFToken":           h.csrfToken(c),
+		"Title":                     app.ApplicationCode,
+		"CurrentPath":               "/citizen/applications",
+		"CurrentUser":               claims,
+		"UnreadCount":               h.unreadCount(claims.ID),
+		"Application":               app,
+		"CitizenAttachments":        citizenAttachments,
+		"ResponseAttachments":       responseAttachments,
+		"StatusHistory":             logs,
+		"Flash":                     flashFromQuery(c),
+		"CSRFToken":                 h.csrfToken(c),
+		"SupplementAlreadyUploaded": supplementAlreadyUploaded,
 	})
 }
 

@@ -37,6 +37,13 @@ func (h *AdminAuthHandler) writeActivityLog(log *models.ActivityLog) {
 
 // ShowLoginPage renders the HTML login page for admin users.
 func (h *AdminAuthHandler) ShowLoginPage(c *echo.Context) error {
+	if cookie, err := c.Cookie("refresh_token"); err == nil && cookie.Value != "" {
+		if claims, err := configs.ParseToken(cookie.Value, configs.RefreshTokenType); err == nil {
+			if claims.Role != string(models.UserRoleCitizen) {
+				return c.Redirect(http.StatusSeeOther, "/admin")
+			}
+		}
+	}
 
 	data := map[string]interface{}{
 		"FullPage": true,

@@ -645,7 +645,7 @@ func TestUploadSupplements_NotAllowedStatus(t *testing.T) {
 }
 
 func TestNewApplicationHandler_NotNil(t *testing.T) {
-	svc := services.NewApplicationService(nil, nil, nil, nil, nil)
+	svc := services.NewApplicationService(nil, nil, nil, nil, nil, nil)
 	h := handlers.NewApplicationHandler(svc)
 	assert.NotNil(t, h)
 }

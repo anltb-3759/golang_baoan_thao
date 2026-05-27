@@ -40,12 +40,13 @@ var (
 )
 
 type ApplicationService struct {
-	appRepo         repositories.ApplicationRepository
-	serviceTypeRepo repositories.ServiceTypeRepository
-	userRepo        repositories.UserRepository
-	storage         utils.FileStorage
-	mailer          Mailer
-	activityLogger  activityLogger
+	appRepo            repositories.ApplicationRepository
+	serviceTypeRepo    repositories.ServiceTypeRepository
+	userRepo           repositories.UserRepository
+	citizenProfileRepo repositories.CitizenProfileRepository
+	storage            utils.FileStorage
+	mailer             Mailer
+	activityLogger     activityLogger
 }
 
 type activityLogger interface {
@@ -56,6 +57,7 @@ func NewApplicationService(
 	appRepo repositories.ApplicationRepository,
 	serviceTypeRepo repositories.ServiceTypeRepository,
 	userRepo repositories.UserRepository,
+	citizenProfileRepo repositories.CitizenProfileRepository,
 	storage utils.FileStorage,
 	mailer Mailer,
 	loggers ...activityLogger,
@@ -65,12 +67,13 @@ func NewApplicationService(
 		logger = loggers[0]
 	}
 	return &ApplicationService{
-		appRepo:         appRepo,
-		serviceTypeRepo: serviceTypeRepo,
-		userRepo:        userRepo,
-		storage:         storage,
-		mailer:          mailer,
-		activityLogger:  logger,
+		appRepo:            appRepo,
+		serviceTypeRepo:    serviceTypeRepo,
+		userRepo:           userRepo,
+		citizenProfileRepo: citizenProfileRepo,
+		storage:            storage,
+		mailer:             mailer,
+		activityLogger:     logger,
 	}
 }
 
@@ -173,6 +176,12 @@ func (s *ApplicationService) SubmitApplication(
 		user, err := s.userRepo.FindByID(citizenUserID)
 		if err != nil || user == nil {
 			return
+		}
+		if s.citizenProfileRepo != nil {
+			profile, err := s.citizenProfileRepo.GetByUserID(citizenUserID)
+			if err == nil && profile != nil && !profile.EmailNotificationEnabled {
+				return
+			}
 		}
 		citizenName := user.Name
 		if citizenName == "" {
@@ -419,6 +428,7 @@ func toApplicationResponseFromModel(app *models.Application) *dtos.ApplicationRe
 		ServiceTypeID:   app.ServiceTypeID,
 		ServiceTypeName: app.ServiceType.Name,
 		Status:          string(app.Status),
+		RejectedReason:  app.RejectedReason,
 		SubmittedData:   app.SubmittedData,
 		SubmittedAt:     app.SubmittedAt,
 		Attachments:     attResponses,

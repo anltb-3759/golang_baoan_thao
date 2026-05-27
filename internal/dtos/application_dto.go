@@ -26,6 +26,7 @@ type ApplicationResponse struct {
 	ServiceTypeID   string                          `json:"service_type_id"`
 	ServiceTypeName string                          `json:"service_type_name"`
 	Status          string                          `json:"status"`
+	RejectedReason  string                          `json:"rejected_reason,omitempty"`
 	SubmittedData   json.RawMessage                 `json:"submitted_data"`
 	SubmittedAt     time.Time                       `json:"submitted_at"`
 	Attachments     []ApplicationAttachmentResponse `json:"attachments,omitempty"`

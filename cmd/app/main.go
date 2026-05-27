@@ -84,11 +84,12 @@ func main() {
 	smtpCfg := services.LoadSMTPConfigFromEnv()
 	mailer := services.NewSMTPMailer(smtpCfg)
 
-	applicationSvc := services.NewApplicationService(applicationRepo, serviceCatalogRepo, userRepo, storage, mailer, activityLogSvc)
+	applicationSvc := services.NewApplicationService(applicationRepo, serviceCatalogRepo, userRepo, citizenProfileRepo, storage, mailer, activityLogSvc)
 	applicationHandler := handlers.NewApplicationHandler(applicationSvc)
 	citizenWebHandler = citizenWebHandler.
 		WithCatalogService(serviceCatalogSvc).
-		WithApplicationService(applicationSvc)
+		WithApplicationService(applicationSvc).
+		WithProfileService(citizenProfileSvc)
 
 	adminUserHandler := handlers.NewAdminUserHandler(adminUserSvc)
 	adminDashboardSvc := services.NewAdminDashboardService(applicationRepo)
